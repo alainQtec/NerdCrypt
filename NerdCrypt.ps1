@@ -1758,15 +1758,7 @@ class K3Y {
         return $encryptd;
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
-        $this._KID = switch ($this.StorageMode) {
-            'Vault' { '' } # TODO: Complete THIS
-            'SecureString' { $this._KID }
-            'KeyFile' { '' } # TODO: Complete THIS
-            Default {
-                throw [System.ArgumentOutOfRangeException]::new("Invalid storageMode. Please use one of the alowed Modes: $([System.Enum]::GetNames([keyStoreMode]) | ForEach-Object {$_ + ','})", [System.Management.Automation.ParameterBindingException]::new('storageMode', 'ParameterBindingException'))
-            }
-        }
-        return $this.Decrypt($bytesToDecrypt, $this.User.Password);
+        return $this.Decrypt($bytesToDecrypt, $(Get-Variable Host).value.UI.PromptForCredential('NerdCrypt Password Prompt', "Please Enter Your Password", $env:UserName, $env:COMPUTERNAME).Password);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt, [securestring]$Password) {
         return $this.Decrypt($bytesToDecrypt, $Password, $this.rgbSalt);
@@ -1963,8 +1955,7 @@ class K3Y {
 class NerdCrypt {
     [K3Y]hidden $key = [K3Y]::new();
     [NcObject]$Object = [NcObject]::new();
-    [PsObject]hidden static $_Host = $(Get-Variable -Name host).value;
-    [System.Collections.Hashtable]hidden static $PSVersion = $(Get-Variable -Name PSVersionTable).value;
+    [System.Collections.Hashtable]hidden static $PSVersion = $(Get-Variable -Name PSVersionTable).Value;
 
     NerdCrypt() {
         $this.Object = [NcObject]::new();
@@ -1991,7 +1982,7 @@ class NerdCrypt {
         $this.SetBytes([xconvert]::BytesFromObject([XConvert]::SecurestringToString($securestring)));
     }
     [void]SetCredentials() {
-        $this.SetCredentials([NerdCrypt]::_host.ui.PromptForCredential("NerdCrypt needs your credentials.", "Please enter your UserName and Password.", "$env:UserName", ""));
+        $this.SetCredentials((Get-Variable Host).Value.UI.PromptForCredential("NerdCrypt needs your credentials.", "Please enter your UserName and Password.", "$env:UserName", ""));
     }
     [void]SetCredentials([System.Management.Automation.PSCredential]$Credentials) {
         $this.key.User.UserName = $Credentials.UserName
