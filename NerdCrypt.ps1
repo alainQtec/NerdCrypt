@@ -1753,9 +1753,10 @@ class K3Y {
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compressiontype, [Datetime]$Expirity) {
         $encryptd = $null; $ThrowOnFailure = $false;
-        $P455w0rd = $null; Set-Variable -Name P455w0rd -Scope Local -Visibility Private -Option Private -Value $(if ($this.HasPasswd($ThrowOnFailure)) { $this.ResolvePassword($this.User.Password) }else { [securestring]$this.SetPassword($password, $Expirity, $Compressiontype, $this._PID) });
-        Write-Verbose "Using P455w0rd: $([XConvert]::SecurestringToString($P455w0rd))";
-        Write-Verbose "[+] Encrypting ...$($encryptd = [AesLg]::Encrypt($bytesToEncrypt, $P455w0rd, $salt))";
+        $Password = [securestring]$this.ResolvePassword($Password);
+        if (!$this.HasPasswd($ThrowOnFailure)) { [securestring]$this.SetPassword($password, $Expirity, $Compressiontype, $this._PID) }
+        Write-Verbose "[-] Using P455w0rd: $([XConvert]::SecurestringToString($Password))";
+        Write-Verbose "[+] Encrypting ...$($encryptd = [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt))";
         return $encryptd;
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
@@ -1767,7 +1768,7 @@ class K3Y {
     [byte[]]Decrypt([byte[]]$bytesToDecrypt, [securestring]$Password, [byte[]]$salt) {
         $EncryptionDate = $null; $IsStillValid = $false; $kI = $null; $dec = $null
         try {
-            $Password = [securestring]$this.ResolvePassword($Password);
+            $Password = [securestring]$this.ResolvePassword($Password); # (Get The real Password)
             ($IsStillValid, $kI, [AesLg]::CompressionType, $EncryptionDate) = [k3Y]::AnalyseKID($this._KID, $Password);
             Write-Verbose "[i] Key Last used on $EncryptionDate, PID $($kI.PID) by $($kI.User)"; Write-Verbose "[i] Key IsStillValid: $IsStillValid"; Remove-Variable -Name kI -Scope Local
             if (!$IsStillValid) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") }
@@ -1801,10 +1802,10 @@ class K3Y {
             )
         )
     }
-    [securestring]SetPassword([securestring]$Password) {
-        return $this.SetPassword($Password, $this.Expirity.Date, 'Gzip', $this._PID);
+    [void]SetPassword([securestring]$Password) {
+        $this.SetPassword($Password, $this.Expirity.Date, 'Gzip', $this._PID);
     }
-    [securestring]SetPassword([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+    [void]SetPassword([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         # Keep the Password's hash instead of the Original password:
         $ThrowOnFailure = $false
         if (!$this.HasPasswd($ThrowOnFailure)) {
@@ -1818,18 +1819,13 @@ class K3Y {
         } else {
             throw [System.Management.Automation.SetValueException]::new('Password Has Already been set. Please Create Another K3y');
         }
-        return $this.ResolvePassword($this.User.Password);
     }
     [securestring]ResolvePassword([securestring]$Password) {
         $hash = [PasswordHash]::new([byte[]][xconvert]::BytesFromHex([xconvert]::SecurestringToString($this.User.Password))); # (Remember: $this.User.Password is not the actual password its just a 'read-only hash' of the password used during Encryption.)
-        $Passw0rd = $null; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::SecurestringToString($Password));
-        if (!$hash.Verify([string]$Passw0rd)) { throw [System.UnauthorizedAccessException]::new() };
-        return $this.GetDerivedPassword($Password);
-    }
-    [securestring]GetDerivedPassword([securestring]$Password) {
-        $Passw0rd = $null; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::SecurestringToString($Password));
-        $DerivedPassword = $null; Set-Variable -Name DerivedPassword -Option Private -Visibility Private -Value $([xconvert]::SecurestringFromString([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
-        return $DerivedPassword
+        $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::SecurestringToString($Password));
+        if (!$hash.Verify([string]$Passw0rd)) { throw [System.UnauthorizedAccessException]::new('Wrong Password') };
+        $ResolvePassword = $null; Set-Variable -Name ResolvePassword -Option Private -Visibility Private -Value $([xconvert]::SecurestringFromString([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
+        return $ResolvePassword;
     }
     [bool]HasPasswd() {
         return $this.HasPasswd($false);
