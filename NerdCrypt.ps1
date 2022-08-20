@@ -1726,15 +1726,6 @@ class K3Y {
     K3Y([string]$UserName, [securestring]$Password, [Datetime]$Expirity) {
         ($this.User, $this.Expirity) = ([SecureCred]::new([pscredential]::new($UserName, $Password)), [Expirity]::new($Expirity)); $this.SetK3yID();
     }
-    [byte[]]Encrypt([byte[]]$bytesToEncrypt) {
-        $password = [securestring]::new()
-        if (!$this.HasPasswd()) {
-            Set-Variable -Name password -Scope Local -Visibility Private -Option Private -Value ($this.GetPassword())
-        } else {
-            throw 'This Key Has already been used. Please use another One.'
-        }
-        return $this.Encrypt($bytesToEncrypt, $password, $this.Expirity.Date)
-    }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [k3Y]$Key) {
         $AES = $null; $EncryptionDate = $null; $IsStillValid = $false; $enc = $null;
         try {
@@ -1815,7 +1806,7 @@ class K3Y {
         $ThrowOnFailure = $false
         if (!$this.HasPasswd($ThrowOnFailure)) {
             $this.User.PSObject.Properties.Add([psscriptproperty]::new('Password', [ScriptBlock]::Create({
-                            [xconvert]::SecurestringFromString([xconvert]::BytesToHex([PasswordHash]::new([xconvert]::SecurestringToString($Password)).ToArray()))
+                            [xconvert]::SecurestringFromString([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::SecurestringToString($Password)).ToArray())))
                         }
                     )
                 )
