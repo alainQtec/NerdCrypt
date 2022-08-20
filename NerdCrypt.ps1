@@ -1753,8 +1753,11 @@ class K3Y {
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compressiontype, [Datetime]$Expirity) {
         $enc = $null;
-        # Set the '_KID' is a fancy way of storing the salt and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
-        Write-Verbose "[+] Encrypting ...$($enc = [AesLg]::Encrypt($bytesToEncrypt, ([securestring]$this.SetPassword($password, $Expirity, $Compressiontype, $this._PID)), $salt))";
+        Write-Verbose "[+] Encrypting ...$(
+            $enc = [AesLg]::Encrypt($bytesToEncrypt, $(
+                [securestring]$this.SetPassword($password, $Expirity, $Compressiontype, $this._PID)
+            ), $salt)
+        )";
         return $enc;
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
@@ -1789,6 +1792,7 @@ class K3Y {
         $this.SetK3yID($this.User.Password, $this.Expirity.Date, 'Gzip', $this._PID);
     }
     [void]hidden SetK3yID([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+        # Set the '_KID' is a fancy way of storing the salt and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
         $this._KID = [securestring][xconvert]::SecurestringFromString([xconvert]::BytesToHex([System.Text.Encoding]::UTF7.GetBytes([xconvert]::ToCompressed([xconvert]::StringToCustomCipher(
                             [string][K3Y]::CreateKIDString([byte[]][XConvert]::BytesFromObject([PSCustomObject]@{
                                         KeyInfo = [xconvert]::BytesFromObject([PSCustomObject]@{
@@ -1807,10 +1811,10 @@ class K3Y {
             )
         )
     }
-    [securestring]hidden SetPassword([securestring]$Password) {
+    [securestring]SetPassword([securestring]$Password) {
         return $this.SetPassword($Password, $this.Expirity.Date, 'Gzip', $this._PID);
     }
-    [securestring]hidden SetPassword([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+    [securestring]SetPassword([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         # Keep the Password's hash instead of the Original password:
         $ThrowOnFailure = $false
         if (!$this.HasPasswd($ThrowOnFailure)) {
@@ -1847,7 +1851,7 @@ class K3Y {
         if (!$HasPasswd) {
             $this.User.Password = $p
             if ($ThrowOnFailure) {
-                throw [System.ArgumentNullException]::new('Password', 'Please first use SetPassword([securestring]$YourPassword)')
+                throw [System.ArgumentNullException]::new('Password Value cannot be null. Please first use SetPassword([securestring]$YourPassword)', [System.ArgumentNullException]::new('Password'))
             }
         }
         return $HasPasswd
