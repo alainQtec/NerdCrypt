@@ -1752,11 +1752,10 @@ class K3Y {
         return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $Expirity);
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compressiontype, [Datetime]$Expirity) {
-        $enc = $null;
+        $enc = $null; $ThrowOnFailure = $false;
+        $P455w0rd = $null; Set-Variable -Name P455w0rd -Scope Local -Visibility Private -Option Private -Value $(if ($this.HasPasswd($ThrowOnFailure)) { $this.User.Password }else { [securestring]$this.SetPassword($password, $Expirity, $Compressiontype, $this._PID) });
         Write-Verbose "[+] Encrypting ...$(
-            $enc = [AesLg]::Encrypt($bytesToEncrypt, $(
-                [securestring]$this.SetPassword($password, $Expirity, $Compressiontype, $this._PID)
-            ), $salt)
+            $enc = [AesLg]::Encrypt($bytesToEncrypt, $P455w0rd, $salt)
         )";
         return $enc;
     }
