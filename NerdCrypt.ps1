@@ -1833,10 +1833,10 @@ class K3Y {
         $resolvedPassword = $null; Set-Variable -Name resolvedPassword -Option Private -Visibility Private -Value $([xconvert]::SecurestringFromString([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
         return $resolvedPassword
     }
-        [bool]hidden HasPasswd() {
+    [bool]HasPasswd() {
         return $this.HasPasswd($false);
     }
-    [bool]hidden HasPasswd([bool]$ThrowOnFailure) {
+    [bool]HasPasswd([bool]$ThrowOnFailure) {
         # Verifies if The password has already been set Using SetPassword() method.
         [securestring]$p = $this.User.Password; [bool]$HasPasswd = $false;
         try {
@@ -1847,7 +1847,7 @@ class K3Y {
         if (!$HasPasswd) {
             $this.User.Password = $p
             if ($ThrowOnFailure) {
-                throw 'Please first use SetPassword([securestring]$YourPassword)'
+                throw [System.ArgumentNullException]::new('Password', 'Please first use SetPassword([securestring]$YourPassword)')
             }
         }
         return $HasPasswd
