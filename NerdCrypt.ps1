@@ -1154,7 +1154,7 @@ class AesLg {
         return [AesLg]::Bytes;
     }
     [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password) {
-        return [AesLg]::Decrypt($bytesToDecrypt, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'), $false);
+        return [AesLg]::Decrypt($bytesToDecrypt, $Password, 'Gzip');
     }
     [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password, [int]$iterations) {
         $_bytes = $bytesToDecrypt; $Salt = [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_')
@@ -1170,6 +1170,9 @@ class AesLg {
     }
     [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password, [byte[]]$Salt) {
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $Salt, 'GZip', $false);
+    }
+    [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password, [byte[]]$Salt, [bool]$UnProtect) {
+        return [AesLg]::Decrypt($bytesToDecrypt, $Password, $Salt, 'GZip', $UnProtect);
     }
     [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password, [byte[]]$Salt, [string]$Compression) {
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $Salt, $Compression, $false);
@@ -1787,7 +1790,7 @@ class K3Y {
         return $dec
     }
     [void]hidden SetK3yID() {
-        $this.SetK3yID($this.User.Password, $this.Expirity.Date, (Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID);
+        $this.SetK3yID($this.User.Password, $this.Expirity.Date, $(Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID);
     }
     [void]hidden SetK3yID([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         # Set the '_KID' is a fancy way of storing the salt and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
@@ -1819,8 +1822,7 @@ class K3Y {
     [securestring]ResolvePassword([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         if (!$this.HasPasswd()) {
             # Keep the Password's hash instead of the Original password:
-            $ThrowOnFailure = $false
-            if (!$this.HasPasswd($ThrowOnFailure)) {
+            if (!$this.HasPasswd()) {
                 $this.User.PSObject.Properties.Add([psscriptproperty]::new('Password', [ScriptBlock]::Create({
                                 [xconvert]::SecurestringFromString([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::SecurestringToString($Password)).ToArray())))
                             }
