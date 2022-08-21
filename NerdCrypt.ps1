@@ -1058,7 +1058,7 @@ class AesLg {
         return [AesLg]::Bytes;
     }
     [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password) {
-        return [AesLg]::Encrypt($Bytes, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'), $false);
+        return [AesLg]::Encrypt($Bytes, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'));
     }
     [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [int]$iterations) {
         $_bytes = $Bytes; $Salt = [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_')
@@ -1073,7 +1073,10 @@ class AesLg {
         return [AesLg]::Encrypt($Bytes, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'), 'Gzip', $Protect);
     }
     [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [byte[]]$Salt) {
-        return [AesLg]::Encrypt($Bytes, $Password, $Salt, $false);
+        return [AesLg]::Encrypt($Bytes, $Password, $Salt, 'Gzip', $false);
+    }
+    [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [byte[]]$Salt, [bool]$Protect) {
+        return [AesLg]::Encrypt($Bytes, $Password, $Salt, 'Gzip', $Protect);
     }
     [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [string]$Compression) {
         return [AesLg]::Encrypt($Bytes, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'), $Compression, $false);
@@ -1086,7 +1089,7 @@ class AesLg {
     #The encryption uses AES-256 (The str0ng3st Encryption In z3 WOrLd!) and uses SHA1 to hash since it has been proven to be more secure than MD5.
     [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [byte[]]$Salt, [string]$Compression, [bool]$Protect) {
         [int]$PasswordIterations = 2; [int]$KeySize = 256; $CryptoProvider = $null; $EncrBytes = $null
-        if ($Compression -notin ([Enum]::GetNames('Compression' -as 'Type'))) { Throw [System.InvalidCastException]::new("Could cast $Compression to a valid [Compression]`$type.") }
+        if ($Compression -notin ([Enum]::GetNames('Compression' -as 'Type'))) { Throw [System.InvalidCastException]::new("The name '$Compression' is not a valid [Compression]`$typeName.") }
         Set-Variable -Name CryptoProvider -Scope Local -Visibility Private -Option Private -Value ([System.Security.Cryptography.AesCryptoServiceProvider]::new());
         $CryptoProvider.KeySize = [int]$KeySize;
         $CryptoProvider.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7;
