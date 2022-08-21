@@ -1833,7 +1833,7 @@ class K3Y {
             # No need to verify the hash bcs its impossible to have the same Password as its hash (This saves some milliseconds).
             throw [System.UnauthorizedAccessException]::new('Wrong Password')
         }
-        Write-Verbose "[+] Get Password Hash ..."
+        Write-Verbose "[+] Check Password Hash ..."
         $hash = [PasswordHash]::new([byte[]][xconvert]::BytesFromHex([xconvert]::SecurestringToString($this.User.Password))); # (Remember: $this.User.Password is not the actual password its just a 'read-only hash' of the password used during Encryption.)
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::SecurestringToString($Password));
         if (!$hash.Verify([string]$Passw0rd)) { throw [System.UnauthorizedAccessException]::new('Wrong Password') };
@@ -1866,14 +1866,14 @@ class K3Y {
         $KeyI_Obj = $null; Set-Variable -Name KeyI_Obj -Scope Local -Visibility Private -Option Private -Value ([XConvert]::BytesToObject($keyInfoB));
         $Last_PID = [int]$KeyI_Obj.PID # (Also not Encrypted.)
         if ($null -eq $Encr_BCT) { throw [System.MissingMemberException]::new('Attempted to access a missing member.', [System.ArgumentNullException]::new('Compression')) };
-        if ($null -eq $Last_PID) { throw [System.MissingMemberException]::new('Attempted to access a missing member.', [System.ArgumentNullException]::new('PID')) }
+        if ($null -eq $Last_PID) { throw [System.MissingMemberException]::new('Attempted to access a missing member.', [System.ArgumentNullException]::new('PID')) };
         $Prefix = [string]::Empty;
         $Splitr = [string]::Empty;
         $key_Id = [string]::Empty;
         $key_Ex = [Expirity]::new($KeyI_Obj.Expirity);
         $bc = [string]::Empty; $kc = [string]::Empty;
         # Add a prefix String so that I can tell how old the K3YString is just by looking at it.
-            ($Prefix, $Splitr) = switch ($key_Ex.Type.ToString()) {
+        ($Prefix, $Splitr) = switch ($key_Ex.Type.ToString()) {
             "Years" { ('xy\', [string]::Join('', $((Get-Date -UFormat %Y).ToCharArray() | ForEach-Object { [char]([int][string]$_ + 97) }))) }
             "Months" { ('xm\' , [string]::Join('', $((Get-Date -UFormat %m).ToCharArray() | ForEach-Object { [char]([int][string]$_ + 97) }))) }
             "Days" { ('xd\', [string]::Join('', $((Get-Date -UFormat %d).ToCharArray() | ForEach-Object { [char]([int][string]$_ + 97) }))) }
