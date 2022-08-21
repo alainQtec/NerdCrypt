@@ -67,9 +67,9 @@ enum CertStoreName {
     CA
 }
 if ($PSVersionTable.PSEdition -eq "Core" -or $PSVersionTable.PSVersion.Major -gt 5.1) {
-    [void][xgen]::Enumerator('CompressionType', ('Deflate', 'Gzip', 'ZLib'))
+    [void][xgen]::Enumerator('Compression', ('Deflate', 'Gzip', 'ZLib'))
 } else {
-    [void][xgen]::Enumerator('CompressionType', ('Deflate', 'Gzip'))
+    [void][xgen]::Enumerator('Compression', ('Deflate', 'Gzip'))
 }
 # [xgen]::Enumerator('ExpType', ('Milliseconds', 'Years', 'Months', 'Days', 'Hours', 'Minutes', 'Seconds'))
 #endregion enums
@@ -503,16 +503,16 @@ class XConvert {
     [string]static ToCompressed([string]$Plaintext) {
         return [convert]::ToBase64String([XConvert]::ToCompressed([System.Text.Encoding]::UTF8.GetBytes($Plaintext)));
     }
-    [byte[]]static ToCompressed([byte[]]$Bytes, [string]$CompressionType) {
-        if (![bool]("$CompressionType" -as 'CompressionType')) {
-            Throw [System.InvalidCastException]::new('Specified CompressionType is not valid.')
+    [byte[]]static ToCompressed([byte[]]$Bytes, [string]$Compression) {
+        if (![bool]("$Compression" -as 'Compression')) {
+            Throw [System.InvalidCastException]::new('Specified Compression is not valid.')
         }
         $outstream = [System.IO.MemoryStream]::new()
-        $Comstream = switch ($CompressionType) {
+        $Comstream = switch ($Compression) {
             "Gzip" { New-Object System.IO.Compression.GzipStream($outstream, [System.IO.Compression.CompressionLevel]::Optimal) }
             "Deflate" { New-Object System.IO.Compression.DeflateStream($outstream, [System.IO.Compression.CompressionLevel]::Optimal) }
             "ZLib" { New-Object System.IO.Compression.ZLibStream($outstream, [System.IO.Compression.CompressionLevel]::Optimal) }
-            Default { throw "Failed to Compress Bytes. Could Not resolve CompressionType!" }
+            Default { throw "Failed to Compress Bytes. Could Not resolve Compression!" }
         }
         [void]$Comstream.Write($Bytes, 0, $Bytes.Length); $Comstream.Close(); $Comstream.Dispose();
         [byte[]]$OutPut = $outstream.ToArray(); $outStream.Close()
@@ -524,16 +524,16 @@ class XConvert {
     [string]static ToDecompressed([string]$Base64Text) {
         return [System.Text.Encoding]::UTF8.GetString([XConvert]::ToDecompressed([convert]::FromBase64String($Base64Text)));
     }
-    [byte[]]static ToDeCompressed([byte[]]$Bytes, [string]$CompressionType) {
-        if (![bool]("$CompressionType" -as 'CompressionType')) {
-            Throw [System.InvalidCastException]::new('Specified CompressionType is not valid.')
+    [byte[]]static ToDeCompressed([byte[]]$Bytes, [string]$Compression) {
+        if (![bool]("$Compression" -as 'Compression')) {
+            Throw [System.InvalidCastException]::new('Specified Compression is not valid.')
         }
         $inpStream = [System.IO.MemoryStream]::new($Bytes)
-        $ComStream = switch ($CompressionType) {
+        $ComStream = switch ($Compression) {
             "Gzip" { New-Object System.IO.Compression.GzipStream($inpStream, [System.IO.Compression.CompressionMode]::Decompress); }
             "Deflate" { New-Object System.IO.Compression.DeflateStream($inpStream, [System.IO.Compression.CompressionMode]::Decompress); }
             "ZLib" { New-Object System.IO.Compression.ZLibStream($inpStream, [System.IO.Compression.CompressionMode]::Decompress); }
-            Default { throw "Failed to DeCompress Bytes. Could Not resolve CompressionType!" }
+            Default { throw "Failed to DeCompress Bytes. Could Not resolve Compression!" }
         }
         $outStream = [System.IO.MemoryStream]::new();
         [void]$Comstream.CopyTo($outStream); $Comstream.Close(); $Comstream.Dispose(); $inpStream.Close()
@@ -1015,12 +1015,10 @@ Class Expirity {
 #region    Aes~algo
 class AesLg {
     [ValidateNotNullOrEmpty()][byte[]]hidden static $Bytes;
-    [ValidateNotNullOrEmpty()][System.string]hidden static $CompressionType;
     [ValidateNotNullOrEmpty()][System.Security.Cryptography.Aes]hidden static $Algo;
     [ValidateNotNullOrEmpty()][byte[]]hidden static $rgbSalt;
 
     AesLg() {
-        [AesLg]::CompressionType = Get-Random ([Enum]::GetNames('CompressionType' -as 'Type'));
         [AesLg]::rgbSalt = [System.Text.Encoding]::UTF7.GetBytes('^;aq8nP#*A(j 8u[HiFH.Fm,7ykX5F$pEk,baM;m^"j<DYCj":8GTN)BGlA)zWP@C#D|O/A!Ccm8o\|(mRcnX_ qTj=;iY3+.u9CNv[/aHgObS\smT$39<4F=k">r"6dM-"VmSE}Y8s#>3geZnPE&}KNseg(-X{LU2v"i9kV>g:s8{;<4;9fTzG=n/ARV#Cq69]SBhj^-D@K<ci)Gv]G');
     }
     AesLg([System.Object]$Obj) {
@@ -1071,18 +1069,24 @@ class AesLg {
         };
         return $_bytes;
     }
+    [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [bool]$Protect) {
+        return [AesLg]::Encrypt($Bytes, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'), 'Gzip', $Protect);
+    }
     [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [byte[]]$Salt) {
         return [AesLg]::Encrypt($Bytes, $Password, $Salt, $false);
     }
-    [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [bool]$Protect) {
-        return [AesLg]::Encrypt($Bytes, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'), $Protect);
+    [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [string]$Compression) {
+        return [AesLg]::Encrypt($Bytes, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'), $Compression, $false);
+    }
+    [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [byte[]]$Salt, [string]$Compression) {
+        return [AesLg]::Encrypt($Bytes, $Password, $Salt, $Compression, $false);
     }
     #A simple method that takes plainBytes and Password then return an AES encrypted bytes.
     #No other Technical parameters or anything, just your Plaintext and [securestring]Password. The password is used to generate derived Key.
     #The encryption uses AES-256 (The str0ng3st Encryption In z3 WOrLd!) and uses SHA1 to hash since it has been proven to be more secure than MD5.
-    [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [byte[]]$Salt, [bool]$Protect) {
+    [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [byte[]]$Salt, [string]$Compression, [bool]$Protect) {
         [int]$PasswordIterations = 2; [int]$KeySize = 256; $CryptoProvider = $null; $EncrBytes = $null
-        if ($null -eq $bytes) { Throw [System.ArgumentNullException]::New('Bytes') }
+        if ($Compression -notin ([Enum]::GetNames('Compression' -as 'Type'))) { Throw [System.InvalidCastException]::new("Could cast $Compression to a valid [Compression]`$type.") }
         Set-Variable -Name CryptoProvider -Scope Local -Visibility Private -Option Private -Value ([System.Security.Cryptography.AesCryptoServiceProvider]::new());
         $CryptoProvider.KeySize = [int]$KeySize;
         $CryptoProvider.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7;
@@ -1091,6 +1095,7 @@ class AesLg {
         $CryptoProvider.IV = [System.Text.Encoding]::ASCII.GetBytes([xconvert]::Reverse($('c#*Y!/JVe?d)b' + [convert]::ToBase64String($Salt))))[0..15];
         Set-Variable -Name EncrBytes -Scope Local -Visibility Private -Option Private -Value $($CryptoProvider.IV + $CryptoProvider.CreateEncryptor().TransformFinalBlock($Bytes, 0, $Bytes.Length));
         if ($Protect) { $EncrBytes = [xconvert]::ToProtected($EncrBytes, $Salt, [ProtectionScope]::CurrentUser) }
+        Set-Variable -Name EncrBytes -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToCompressed($EncrBytes, $Compression));
         $CryptoProvider.Clear(); $CryptoProvider.Dispose()
         return $EncrBytes
     }
@@ -1100,7 +1105,7 @@ class AesLg {
     [byte[]]static Encrypt([byte[]]$Bytes, [System.Security.Cryptography.Aes]$aes, [int]$iterations) {
         return [AesLg]::Encrypt($Bytes, $aes, 'Gzip', $iterations)
     }
-    [byte[]]static Encrypt([byte[]]$Bytes, [System.Security.Cryptography.Aes]$aes, [string]$CompressionType, [int]$iterations) {
+    [byte[]]static Encrypt([byte[]]$Bytes, [System.Security.Cryptography.Aes]$aes, [string]$Compression, [int]$iterations) {
         Write-Verbose "[+] Starting Encryption..$(
             if ($null -eq $aes) {throw [System.ArgumentNullException]::new('SymetricAlgorithm')}
             if ($null -eq $bytes) { throw [System.ArgumentNullException]::new('Bytes to Encrypt', 'Bytes Value cannot be null. Please first set bytes variable.') }
@@ -1115,7 +1120,7 @@ class AesLg {
                             Get-Member -InputObject $CryptoProvider | Where-Object {$_.MemberType -eq 'Property' -and $_.Name -notin ('LegalBlockSizes', 'LegalKeySizes')} | ForEach-Object {$CryptoProvider.($_.Name) = $aes.($_.Name)}
                             Set-Variable -Name EncrBytes -Scope Local -Visibility Private -Option Private -Value ($CryptoProvider.IV + $CryptoProvider.CreateEncryptor($aes.Key, $aes.IV).TransformFinalBlock($_Bytes, 0, $_Bytes.Length))
                             $CryptoProvider.Clear(); $CryptoProvider.Dispose(); $EncrBytes
-                        ), $CompressionType
+                        ), $Compression
                     )
                 );
             ) Done.";
@@ -1145,11 +1150,11 @@ class AesLg {
         }; [AesLg]::SetBytes($_bytes);
         return [AesLg]::Bytes;
     }
-    [byte[]]static Decrypt([byte[]]$Bytes, [SecureString]$Password) {
-        return [AesLg]::Decrypt($Bytes, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'), $false);
+    [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password) {
+        return [AesLg]::Decrypt($bytesToDecrypt, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'), $false);
     }
-    [byte[]]static Decrypt([byte[]]$Bytes, [SecureString]$Password, [int]$iterations) {
-        $_bytes = $Bytes; $Salt = [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_')
+    [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password, [int]$iterations) {
+        $_bytes = $bytesToDecrypt; $Salt = [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_')
         for ($i = 1; $i -lt $iterations + 1; $i++) {
             Write-Verbose "[+] Decryption [$i/$iterations] ...$(
                 $_bytes = [AesLg]::Decrypt($_bytes, $Password, $Salt)
@@ -1157,23 +1162,29 @@ class AesLg {
         };
         return $_bytes;
     }
-    [byte[]]static Decrypt([byte[]]$Bytes, [SecureString]$Password, [byte[]]$Salt) {
-        return [AesLg]::Decrypt($Bytes, $Password, $Salt, $false);
+    [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password, [bool]$UnProtect) {
+        return [AesLg]::Decrypt($bytesToDecrypt, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'), 'GZip', $UnProtect);
     }
-    [byte[]]static Decrypt([byte[]]$Bytes, [SecureString]$Password, [bool]$UnProtect) {
-        return [AesLg]::Decrypt($Bytes, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'), $UnProtect);
+    [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password, [byte[]]$Salt) {
+        return [AesLg]::Decrypt($bytesToDecrypt, $Password, $Salt, 'GZip', $false);
     }
-    [byte[]]static Decrypt([byte[]]$Bytes, [SecureString]$Password, [byte[]]$Salt, [bool]$UnProtect) {
-        [int]$PasswordIterations = 2; [int]$KeySize = 256; $CryptoProvider = $null; $DEcrBytes = $null
-        if ($null -eq $bytes) { Throw [System.ArgumentNullException]::New('Bytes') }
+    [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password, [byte[]]$Salt, [string]$Compression) {
+        return [AesLg]::Decrypt($bytesToDecrypt, $Password, $Salt, $Compression, $false);
+    }
+    [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password, [string]$Compression) {
+        return [AesLg]::Decrypt($bytesToDecrypt, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'), $Compression, $false);
+    }
+    [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password, [byte[]]$Salt, [string]$Compression, [bool]$UnProtect) {
+        [int]$PasswordIterations = 2; [int]$KeySize = 256; $CryptoProvider = $null; $DEcrBytes = $null; $_Bytes = $null
+        $_Bytes = [XConvert]::ToDeCompressed($bytesToDecrypt, $Compression);
+        if ($UnProtect) { $_Bytes = [xconvert]::ToUnProtected($_Bytes, $Salt, [ProtectionScope]::CurrentUser) }
         Set-Variable -Name CryptoProvider -Scope Local -Visibility Private -Option Private -Value ([System.Security.Cryptography.AesCryptoServiceProvider]::new());
         $CryptoProvider.KeySize = $KeySize;
         $CryptoProvider.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7;
         $CryptoProvider.Mode = [System.Security.Cryptography.CipherMode]::CBC;
         $CryptoProvider.Key = [System.Security.Cryptography.PasswordDeriveBytes]::new([xconvert]::SecurestringToString($Password), $Salt, "SHA1", $PasswordIterations).GetBytes($KeySize / 8);
-        $CryptoProvider.IV = $Bytes[0..15];
-        Set-Variable -Name DEcrBytes -Scope Local -Visibility Private -Option Private -Value $($CryptoProvider.CreateDecryptor().TransformFinalBlock($Bytes, 16, $Bytes.Length - 16))
-        if ($UnProtect) { $DEcrBytes = [xconvert]::ToUnProtected($DEcrBytes, $Salt, [ProtectionScope]::CurrentUser) }
+        $CryptoProvider.IV = $_Bytes[0..15];
+        Set-Variable -Name DEcrBytes -Scope Local -Visibility Private -Option Private -Value $($CryptoProvider.CreateDecryptor().TransformFinalBlock($_Bytes, 16, $_Bytes.Length - 16))
         $CryptoProvider.Clear(); $CryptoProvider.Dispose();
         return $DEcrBytes
     }
@@ -1183,7 +1194,7 @@ class AesLg {
     [byte[]]static Decrypt([byte[]]$Bytes, [System.Security.Cryptography.Aes]$aes, [int]$iterations) {
         return [AesLg]::Decrypt($Bytes, $aes, 'Gzip', $iterations)
     }
-    [byte[]]static Decrypt([byte[]]$Bytes, [System.Security.Cryptography.Aes]$aes, [string]$CompressionType, [int]$iterations) {
+    [byte[]]static Decrypt([byte[]]$Bytes, [System.Security.Cryptography.Aes]$aes, [string]$Compression, [int]$iterations) {
         Write-Verbose "[+] Starting Decryption..$(
             if ($null -eq $aes) {throw [System.ArgumentNullException]::new('SymetricAlgorithm')}
             if ($null -eq $bytes) { throw [System.ArgumentNullException]::new('Bytes to Decrypt', 'Bytes Value cannot be null. Please first set bytes variable.') }
@@ -1194,7 +1205,7 @@ class AesLg {
             if ($null -eq $_bytes) { Throw [System.ArgumentNullException]::New('Bytes') }
             Write-Verbose "[+] Decryption [$i/$iterations] ...$(
                     Set-Variable -Name _bytes -Scope Local -Visibility Private -Option Private -Value $(
-                        Set-Variable -Name _bytes -Scope Local -Visibility Private -Option Private -Value ([xconvert]::ToDeCompressed($_Bytes, $CompressionType));
+                        Set-Variable -Name _bytes -Scope Local -Visibility Private -Option Private -Value ([xconvert]::ToDeCompressed($_Bytes, $Compression));
                         Set-Variable -Name CryptoProvider -Scope Local -Visibility Private -Option Private -Value ([System.Security.Cryptography.AesCryptoServiceProvider]::new());
                         Get-Member -InputObject $CryptoProvider | Where-Object {$_.MemberType -eq 'Property' -and $_.Name -notin ('LegalBlockSizes', 'LegalKeySizes')} | ForEach-Object {$CryptoProvider.($_.Name) = $aes.($_.Name)}
                         Set-Variable -Name DEcrBytes -Scope Local -Visibility Private -Option Private -Value $($CryptoProvider.CreateDecryptor($aes.Key, $aes.IV).TransformFinalBlock($_bytes, 16, $_bytes.Length - 16))
@@ -1211,7 +1222,7 @@ class AesLg {
     }
     [void]static CheckProps([AesLg]$AesLg) {
         $MissingProps = @(); $throw = $false
-        Write-Verbose "[+] Checking Encryption Properties ... $(('Mode','Padding', 'keysize', 'BlockSize') | ForEach-Object { if ($null -eq $AesLg.Algo.$_) { $MissingProps += $_ } } if ([string]::IsNullOrWhiteSpace([AesLg]::CompressionType)) { $MissingProps += 'Compressiontype' };
+        Write-Verbose "[+] Checking Encryption Properties ... $(('Mode','Padding', 'keysize', 'BlockSize') | ForEach-Object { if ($null -eq $AesLg.Algo.$_) { $MissingProps += $_ } };
             if ($MissingProps.Count -eq 0) { "Done. All AES Props are Good." } else { $throw = $true; "System.ArgumentNullException: $([string]::Join(', ', $MissingProps)) cannot be null." }
         )"
         if ($throw) { throw [System.ArgumentNullException]::new([string]::Join(', ', $MissingProps)) }
@@ -1617,7 +1628,7 @@ class XOR {
 Class FileCrypt {
     [ValidateNotNullOrEmpty()][System.IO.FileInfo]static $File
     [ValidateNotNullOrEmpty()][securestring]static $Password
-    [System.string]hidden static $CompressionType = 'Gzip';
+    [System.string]hidden static $Compression = 'Gzip';
 
     FileCrypt() {}
     FileCrypt([string]$Path) {
@@ -1651,7 +1662,7 @@ Class FileCrypt {
             $aes.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7;
             $aes.keysize = 256; $aes.BlockSize = 128;
             $aes.Key = [xgen]::Key($Password); $aes.IV = [xgen]::RandomEntropy();
-            [byte[]]$Enc = [aeslg]::Encrypt([System.IO.File]::ReadAllBytes($InFile), $aes, [FileCrypt]::CompressionType, 1);
+            [byte[]]$Enc = [aeslg]::Encrypt([System.IO.File]::ReadAllBytes($InFile), $aes, [FileCrypt]::Compression, 1);
             [System.IO.FileStream]$fs = [System.IO.File]::Create($OutFile);
             $fs.Write($Enc, 0, $Enc.Length)
             $fs.Flush(); $fs.Dispose()
@@ -1686,7 +1697,7 @@ Class FileCrypt {
             $aes.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7;
             $aes.keysize = 256; $aes.BlockSize = 128;
             $aes.Key = [xgen]::Key($Password); $enc = [System.IO.File]::ReadAllBytes($InFile)
-            $aes.IV = $enc[0..15]; [byte[]]$dec = [aeslg]::Decrypt($enc, $aes, [FileCrypt]::CompressionType, 1);
+            $aes.IV = $enc[0..15]; [byte[]]$dec = [aeslg]::Decrypt($enc, $aes, [FileCrypt]::Compression, 1);
             [System.IO.FileStream]$fs = [System.IO.File]::Create($OutFile)
             $fs.Write($dec, 0, $dec.Length)
             $fs.Flush(); $fs.Dispose()
@@ -1727,29 +1738,26 @@ class K3Y {
         ($this.User, $this.Expirity) = ([SecureCred]::new([pscredential]::new($UserName, $Password)), [Expirity]::new($Expirity)); $this.SetK3yID();
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [k3Y]$Key) {
-        $AES = $null; $EncryptionDate = $null; $IsStillValid = $false; $enc = $null;
+        $Compression = [string]::Empty ; $EncryptionDate = $null; $IsStillValid = $false; $enc = $null;
         try {
-            Set-Variable -Name AES -Scope Local -Visibility Private -Option Private -Value $([AesLg]::new($bytesToEncrypt));
-            ($IsStillValid, $AES::CompressionType, $Salt, $EncryptionDate) = [k3Y]::AnalyseKID($this._KID, $Key.User.Password);
+            ($IsStillValid, $Compression, $Salt, $EncryptionDate) = [k3Y]::AnalyseKID($this._KID, $Key.User.Password);
             Write-Verbose "[K3Y] Encryption date: $EncryptionDate"; Write-Verbose "[K3Y] IsStillValid: $IsStillValid";
             if (!$IsStillValid) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to invalid K3Y.") }
             if (!$Salt.Equals($Key.rgbSalt)) { Throw [System.IO.InvalidDataException]::new('The Key salt is invalid') }
-            $enc = $AES::Encrypt($bytesToEncrypt, $key.User.Password, $Key.rgbSalt);
+            $enc = [AesLg]::Encrypt($bytesToEncrypt, $key.User.Password, $Key.rgbSalt, $Compression);
         } catch {
             throw [System.Management.Automation.PSInvalidOperationException]::new("The Encryption Failed! $($_.Exception.message)", $_.Exception)
         }
         return $enc
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password) {
-        return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $this.Expirity.Date)
+        return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $this.Expirity.Date);
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [Datetime]$Expirity) {
         return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $Expirity);
     }
-    [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compressiontype, [Datetime]$Expirity) {
-        $encryptd = $null; $ThrowOnFailure = $false;
-        $Password = [securestring]$this.ResolvePassword($Password);
-        if (!$this.HasPasswd($ThrowOnFailure)) { [securestring]$this.SetPassword($password, $Expirity, $Compressiontype, $this._PID) }
+    [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
+        $encryptd = $null; $Password = [securestring]$this.ResolvePassword($Password, $Expirity, $Compression, $this._PID);
         Write-Verbose "[-] Using ResolvedP455w0rd: $([XConvert]::SecurestringToString($Password))";
         Write-Verbose "[+] Encrypting ...$($encryptd = [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt))";
         return $encryptd;
@@ -1765,18 +1773,18 @@ class K3Y {
         try {
             $Password = [securestring]$this.ResolvePassword($Password); # (Get The real Password)
             Write-Verbose "[-] Using ResolvedP455w0rd: $([XConvert]::SecurestringToString($Password))";
-            ($IsStillValid, $kI, [AesLg]::CompressionType, $EncryptionDate) = [k3Y]::AnalyseKID($this._KID, $Password);
+            ($IsStillValid, $kI, $Compression, $EncryptionDate) = [k3Y]::AnalyseKID($this._KID, $Password);
             Write-Verbose "[i] Key Last used on $EncryptionDate, PID $($kI.PID) by $($kI.User)"; Write-Verbose "[i] Key IsStillValid: $IsStillValid"; Remove-Variable -Name kI -Scope Local
             if (!$IsStillValid) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") }
         } finally {
             Write-Verbose "[+] Decrypting ...$(
-                $dec = [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt);
+                $dec = [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
             )"
         }
         return $dec
     }
     [void]hidden SetK3yID() {
-        $this.SetK3yID($this.User.Password, $this.Expirity.Date, 'Gzip', $this._PID);
+        $this.SetK3yID($this.User.Password, $this.Expirity.Date, (Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID);
     }
     [void]hidden SetK3yID([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         # Set the '_KID' is a fancy way of storing the salt and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
@@ -1784,6 +1792,7 @@ class K3Y {
                             [string][K3Y]::CreateKIDString([byte[]][XConvert]::BytesFromObject([PSCustomObject]@{
                                         KeyInfo = [xconvert]::BytesFromObject([PSCustomObject]@{
                                                 Expirity = $Expirity
+                                                Version  = [version]::new("1.0.0.1")
                                                 User     = $env:USERNAME
                                                 PID      = $_PID
                                             }
@@ -1801,22 +1810,28 @@ class K3Y {
     [securestring]hidden GetPassword() {
         return $(Get-Variable Host).value.UI.PromptForCredential('NerdCrypt Password Prompt', "Please Enter Your Password", $env:UserName, $env:COMPUTERNAME).Password
     }
-    [void]SetPassword([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        # Keep the Password's hash instead of the Original password:
-        $ThrowOnFailure = $false
-        if (!$this.HasPasswd($ThrowOnFailure)) {
-            $this.User.PSObject.Properties.Add([psscriptproperty]::new('Password', [ScriptBlock]::Create({
-                            [xconvert]::SecurestringFromString([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::SecurestringToString($Password)).ToArray())))
-                        }
+    [securestring]ResolvePassword([securestring]$Password) {
+        return $this.ResolvePassword($Password, $this.Expirity.Date, 'Gzip', $this._PID);
+    }
+    [securestring]ResolvePassword([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+        if (!$this.HasPasswd()) {
+            # Keep the Password's hash instead of the Original password:
+            $ThrowOnFailure = $false
+            if (!$this.HasPasswd($ThrowOnFailure)) {
+                $this.User.PSObject.Properties.Add([psscriptproperty]::new('Password', [ScriptBlock]::Create({
+                                [xconvert]::SecurestringFromString([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::SecurestringToString($Password)).ToArray())))
+                            }
+                        )
                     )
                 )
-            )
-            $this.SetK3yID($password, $Expirity, $Compression, $_PID);
-        } else {
-            throw [System.Management.Automation.SetValueException]::new('Password Has Already been set. Please Create Another K3y');
+                $this.SetK3yID($password, $Expirity, $Compression, $_PID);
+            } else {
+                throw [System.Management.Automation.SetValueException]::new('Password Has Already been set. Please Create Another K3y');
+            }
+        } elseif ($this.User.Password.Equals($Password)) {
+            # No need to verify the hash bcs its impossible to have the same Password as its hash (This saves some milliseconds).
+            throw [System.UnauthorizedAccessException]::new('Wrong Password')
         }
-    }
-    [securestring]ResolvePassword([securestring]$Password) {
         $hash = [PasswordHash]::new([byte[]][xconvert]::BytesFromHex([xconvert]::SecurestringToString($this.User.Password))); # (Remember: $this.User.Password is not the actual password its just a 'read-only hash' of the password used during Encryption.)
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::SecurestringToString($Password));
         if (!$hash.Verify([string]$Passw0rd)) { throw [System.UnauthorizedAccessException]::new('Wrong Password') };
@@ -1848,7 +1863,7 @@ class K3Y {
         $keyInfoB = [byte[]]$Key_Info.KeyInfo # (Not Encrypted.)
         $KeyI_Obj = $null; Set-Variable -Name KeyI_Obj -Scope Local -Visibility Private -Option Private -Value ([XConvert]::BytesToObject($keyInfoB));
         $Last_PID = [int]$KeyI_Obj.PID # (Also not Encrypted.)
-        if ($null -eq $Encr_BCT) { throw [System.MissingMemberException]::new('Attempted to access a missing member.', [System.ArgumentNullException]::new('CompressionType')) };
+        if ($null -eq $Encr_BCT) { throw [System.MissingMemberException]::new('Attempted to access a missing member.', [System.ArgumentNullException]::new('Compression')) };
         if ($null -eq $Last_PID) { throw [System.MissingMemberException]::new('Attempted to access a missing member.', [System.ArgumentNullException]::new('PID')) }
         $Prefix = [string]::Empty;
         $Splitr = [string]::Empty;
@@ -1862,7 +1877,7 @@ class K3Y {
             "Days" { ('xd\', [string]::Join('', $((Get-Date -UFormat %d).ToCharArray() | ForEach-Object { [char]([int][string]$_ + 97) }))) }
             Default { ('', 'ne') }
         }
-        # Create a 'stringID' containing the timestamp, expiry, CompressionType, rgbSalt, and other information for later analysis.
+        # Create a 'stringID' containing the timestamp, expiry, Compression, rgbSalt, and other information for later analysis.
         Set-Variable -Name 'kc' -Scope Local -Visibility Private -Option Private -Value $([xconvert]::BytesToRnStr($keyInfoB));
         Set-Variable -Name 'bc' -Scope Local -Visibility Private -Option Private -Value $([xconvert]::BytesToRnStr($Encr_BCT));
         $a = $(Get-Date -Format o).Replace('+', '').Replace('-', '').Replace(':', '').Replace('T', $Splitr).Split('.')[0].Replace([string]$(Get-Date -UFormat %Y), [string]$Last_PID).ToCharArray(); [array]::Reverse($a)
