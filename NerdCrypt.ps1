@@ -1764,7 +1764,6 @@ class K3Y {
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
         $encryptd = $null; $Password = [securestring]$this.ResolvePassword($Password, $Expirity, $Compression, $this._PID);
-        Write-Verbose "[-] Using ResolvedP455w0rd: $([XConvert]::SecurestringToString($Password))";
         Write-Verbose "[+] Encrypting ...$($encryptd = [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt))";
         return $encryptd;
     }
@@ -1778,9 +1777,8 @@ class K3Y {
         $EncryptionDate = $null; $IsStillValid = $false; $kI = $null; $dec = $null
         try {
             $Password = [securestring]$this.ResolvePassword($Password); # (Get The real Password)
-            Write-Verbose "[-] Using ResolvedP455w0rd: $([XConvert]::SecurestringToString($Password))";
             ($IsStillValid, $kI, $Compression, $EncryptionDate) = [k3Y]::AnalyseKID($this._KID, $Password);
-            Write-Verbose "[i] Key Last used on $EncryptionDate, PID $($kI.PID) by $($kI.User)"; Write-Verbose "[i] Key IsStillValid: $IsStillValid"; Remove-Variable -Name kI -Scope Local
+            $this.IsValid(); Remove-Variable -Name kI -Scope Local
             if (!$IsStillValid) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") }
         } finally {
             Write-Verbose "[+] Decrypting ...$(
@@ -1821,22 +1819,19 @@ class K3Y {
     }
     [securestring]ResolvePassword([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         if (!$this.HasPasswd()) {
-            # Keep the Password's hash instead of the Original password:
-            if (!$this.HasPasswd()) {
-                $this.User.PSObject.Properties.Add([psscriptproperty]::new('Password', [ScriptBlock]::Create({
-                                [xconvert]::SecurestringFromString([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::SecurestringToString($Password)).ToArray())))
-                            }
-                        )
+            Write-Verbose "[+] Set Password ..."
+            $this.User.PSObject.Properties.Add([psscriptproperty]::new('Password', [ScriptBlock]::Create({
+                            [xconvert]::SecurestringFromString([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::SecurestringToString($Password)).ToArray())))
+                        }
                     )
                 )
-                $this.SetK3yID($password, $Expirity, $Compression, $_PID);
-            } else {
-                throw [System.Management.Automation.SetValueException]::new('Password Has Already been set. Please Create Another K3y');
-            }
+            )
+            $this.SetK3yID($password, $Expirity, $Compression, $_PID);
         } elseif ($this.User.Password.Equals($Password)) {
             # No need to verify the hash bcs its impossible to have the same Password as its hash (This saves some milliseconds).
             throw [System.UnauthorizedAccessException]::new('Wrong Password')
         }
+        Write-Verbose "[+] Get Password Hash ..."
         $hash = [PasswordHash]::new([byte[]][xconvert]::BytesFromHex([xconvert]::SecurestringToString($this.User.Password))); # (Remember: $this.User.Password is not the actual password its just a 'read-only hash' of the password used during Encryption.)
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::SecurestringToString($Password));
         if (!$hash.Verify([string]$Passw0rd)) { throw [System.UnauthorizedAccessException]::new('Wrong Password') };
@@ -1954,9 +1949,9 @@ class K3Y {
     }
     [bool]IsValid() {
         ($IsStillValid, $kI, $Salt, $EncryptionDate) = [k3Y]::AnalyseKID($this._KID, $this.User.Password);
-        Write-Verbose "[i] Key Last used on $EncryptionDate, PID $($kI.PID) by $($kI.User)";
-        Write-Verbose "[i] Key Expiration date: $($kI.Expirity.date)";
-        Write-Verbose "[i] Key is valid: $IsStillValid";
+        Write-Verbose "[i] Key $(if ($this.HasPasswd()) { 'Last used' }else { 'created' }) on: $EncryptionDate, PID: $($kI.PID) by $($kI.User)";
+        Write-Verbose "[i] Key expiration date: $($kI.Expirity.date)";
+        Write-Verbose "[i] Key is still valid: $IsStillValid";
         Remove-Variable -Name kI -Scope Local; Remove-Variable -Name Salt -Scope Local; Remove-Variable -Name EncryptionDate -Scope Local
         return $IsStillValid
     }
