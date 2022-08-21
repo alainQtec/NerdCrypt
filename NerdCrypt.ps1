@@ -1788,7 +1788,9 @@ class K3Y {
         return $dec
     }
     [void]hidden SetK3yID() {
-        $this.SetK3yID($this.User.Password, $this.Expirity.Date, $(Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID);
+        $compression = Get-Random ([Enum]::GetNames('Compression' -as 'Type'))
+        Write-Verbose "[-] Set COmpression: $compression"
+        $this.SetK3yID($this.User.Password, $this.Expirity.Date, $compression, $this._PID);
     }
     [void]hidden SetK3yID([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         # Set the '_KID' is a fancy way of storing the salt and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
