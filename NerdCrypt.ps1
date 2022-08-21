@@ -1106,11 +1106,11 @@ class AesLg {
         return [AesLg]::Encrypt($Bytes, $aes, 'Gzip', 1);
     }
     [byte[]]static Encrypt([byte[]]$Bytes, [System.Security.Cryptography.Aes]$aes, [int]$iterations) {
-        return [AesLg]::Encrypt($Bytes, $aes, 'Gzip', $iterations)
+        return [AesLg]::Encrypt($Bytes, $aes, 'Gzip', $iterations);
     }
     [byte[]]static Encrypt([byte[]]$Bytes, [System.Security.Cryptography.Aes]$aes, [string]$Compression, [int]$iterations) {
         Write-Verbose "[+] Starting Encryption..$(
-            if ($null -eq $aes) {throw [System.ArgumentNullException]::new('SymetricAlgorithm')}
+            if ($null -eq $aes) { throw [System.ArgumentNullException]::new('SymetricAlgorithm') }
             if ($null -eq $bytes) { throw [System.ArgumentNullException]::new('Bytes to Encrypt', 'Bytes Value cannot be null. Please first set bytes variable.') }
             if ($iterations -le 0) { throw [System.ArgumentException]::new('Zero or Negative iteration counts are not alowed!', [System.ArgumentException]::new()) }
         )Done."
