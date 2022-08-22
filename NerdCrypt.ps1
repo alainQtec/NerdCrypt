@@ -1772,7 +1772,7 @@ class K3Y {
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
     [void]hidden SetK3YUID() {
-        $this.SetK3YUID($this.User.Password, $this.Expirity.Date, ([Enum]::GetNames('Compression' -as 'Type')), $this._PID);
+        $this.SetK3YUID($this.User.Password, $this.Expirity.Date, $(Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID);
     }
     [securestring]hidden GetK3YUID([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         return [securestring][xconvert]::SecurestringFromString([xconvert]::BytesToHex([System.Text.Encoding]::UTF7.GetBytes([xconvert]::ToCompressed([xconvert]::StringToCustomCipher(
