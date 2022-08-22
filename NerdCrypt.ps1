@@ -1767,7 +1767,7 @@ class K3Y {
     [byte[]]Decrypt([byte[]]$bytesToDecrypt, [securestring]$Password, [byte[]]$salt) {
         $Password = [securestring]$this.ResolvePassword($Password); # (Get The real Password)
         if (!$this.IsValid()) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") }
-        ($IsStillValid, $kI, $Compression, $EncryptionDate) = [k3Y]::AnalyseK3YUID($this.UID, $Password);
+        $Compression = [k3Y]::AnalyseK3YUID($this.UID, $Password)[2];
         Write-Verbose "[+] Decrypting ..."
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
