@@ -1767,7 +1767,7 @@ class K3Y {
     [byte[]]Decrypt([byte[]]$bytesToDecrypt, [securestring]$Password, [byte[]]$salt) {
         $Password = [securestring]$this.ResolvePassword($Password); # (Get The real Password)
         if (!$this.IsValid()) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") }
-        $Compression = [k3Y]::AnalyseK3YUID($this.UID, $Password)[2];
+        $Compression = [k3Y]::AnalyseK3YUID($this, $Password)[2];
         Write-Verbose "[+] Decrypting ..."
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
@@ -1835,16 +1835,23 @@ class K3Y {
     [bool]HasPasswd() {
         return $this.HasPasswd($false);
     }
+    [bool]static HasPasswd([K3Y]$k3y) {
+        $ThrowOnFailure = $false
+        return [K3Y]::HasPasswd($k3y, $ThrowOnFailure);
+    }
     [bool]hidden HasPasswd([bool]$ThrowOnFailure) {
+        return [K3Y]::HasPasswd($this, $ThrowOnFailure);
+    }
+    [bool]static hidden HasPasswd([K3Y]$k3y, [bool]$ThrowOnFailure) {
         # Verifies if The password has already been set.
-        [securestring]$p = $this.User.Password; [bool]$HasPasswd = $false;
+        [securestring]$p = $k3y.User.Password; [bool]$HasPasswd = $false;
         try {
-            $this.User.Password = [securestring]::new()
+            $k3y.User.Password = [securestring]::new()
         } catch [System.Management.Automation.SetValueException] {
             $HasPasswd = $true
         }
         if (!$HasPasswd) {
-            $this.User.Password = $p
+            $k3y.User.Password = $p
             if ($ThrowOnFailure) {
                 throw [System.ArgumentNullException]::new('Password Value cannot be null.', [System.ArgumentNullException]::new('Password'))
             }
@@ -1898,21 +1905,21 @@ class K3Y {
         Set-Variable -Name UIDstr -Scope Local -Visibility Private -Option Private -Value ($($Prefix + $([string]($bc + $keyUID.split($Splitr)[1]).length + $Splitr + [string]($keyUID + $bc).length + $Splitr + [string]$bc.length + $Splitr + $kc + $keyUID + $bc)).Trim());
         return $UIDstr
     }
-    [Object[]]static AnalyseK3YUID([securestring]$UID) {
-        return [K3Y]::AnalyseK3YUID($UID, [K3Y]::GetPassword());
+    [Object[]]static AnalyseK3YUID([K3Y]$K3Y) {
+        return [K3Y]::AnalyseK3YUID($K3Y, [K3Y]::GetPassword());
     }
-    [Object[]]static AnalyseK3YUID([securestring]$UID, [securestring]$Password) {
+    [Object[]]static AnalyseK3YUID([K3Y]$K3Y, [securestring]$Password) {
         $ThrowOnFailure = $true
-        return [K3Y]::AnalyseK3YUID($UID, $Password, $ThrowOnFailure);
+        return [K3Y]::AnalyseK3YUID($K3Y, $Password, $ThrowOnFailure);
     }
-    [Object[]]static AnalyseK3YUID([securestring]$UID, [securestring]$Password, [bool]$ThrowOnFailure) {
+    [Object[]]static AnalyseK3YUID([K3Y]$K3Y, [securestring]$Password, [bool]$ThrowOnFailure) {
         $CreateReport = $false
-        return [K3Y]::AnalyseK3YUID($UID, $Password, $ThrowOnFailure, $CreateReport);
+        return [K3Y]::AnalyseK3YUID($K3Y, $Password, $ThrowOnFailure, $CreateReport);
     }
-    [Object[]]static AnalyseK3YUID([securestring]$UID, [securestring]$Password, [bool]$ThrowOnFailure, [bool]$CreateReport) {
+    [Object[]]static AnalyseK3YUID([K3Y]$K3Y, [securestring]$Password, [bool]$ThrowOnFailure, [bool]$CreateReport) {
         $KIDstring = [string]::Empty; $Output = @()
         try {
-            Set-Variable -Name KIDstring -Scope Local -Visibility Private -Option Private -Value $([xconvert]::StringFromCustomCipher([xconvert]::ToDeCompressed([System.Text.Encoding]::UTF7.GetString([xconvert]::BytesFromHex([xconvert]::SecurestringToString($UID))))));
+            Set-Variable -Name KIDstring -Scope Local -Visibility Private -Option Private -Value $([xconvert]::StringFromCustomCipher([xconvert]::ToDeCompressed([System.Text.Encoding]::UTF7.GetString([xconvert]::BytesFromHex([xconvert]::SecurestringToString($K3Y.UID))))));
         } catch { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation Failed due to invalid K3Y.", $_.Exception) };
         [bool]$Is_Valid = $false; [datetime]$EncrDate = Get-Date -Month 1 -Day 1 -Hour 0 -Minute 0 -Year 1; $Info_Obj = $null; $B_C_type = [string]::Empty; $skID = [string]::Empty; #Key ID string (Plaintext)
         try {
@@ -1951,12 +1958,12 @@ class K3Y {
         }
         if ($CreateReport) {
             $Report = [PSCustomObject]@{
-                Summary    = "K3Y $(if ([K3Y]::HasPasswd()) { 'Last used' }else { 'created' }) on: $($Output[-1]), PID: $($Output[1].PID) by $($Output[1].User)"
+                Summary    = "K3Y $(if ([K3Y]::HasPasswd($K3Y)) { 'Last used' }else { 'created' }) on: $($Output[-1]), PID: $($Output[1].PID) by $($Output[1].User)"
                 Expiration = $Output[1].Expirity.date
                 IsValid    = $Output[0]
             }
             return $Report
-        }else {
+        } else {
             return $Output
         }
     }
@@ -1983,7 +1990,7 @@ class K3Y {
         # $c.ConvertTo($Object, $destinationType)
     }
     [bool]IsValid() {
-        $ThrowOnFailure = $false; $IsStillValid = [k3Y]::AnalyseK3YUID($this.UID, $this.User.Password, $ThrowOnFailure)[0];
+        $ThrowOnFailure = $false; $IsStillValid = [k3Y]::AnalyseK3YUID($this, $this.User.Password, $ThrowOnFailure)[0];
         return $IsStillValid
     }
     [void]SaveToVault() {
