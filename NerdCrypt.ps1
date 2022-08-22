@@ -1906,7 +1906,11 @@ class K3Y {
         return [K3Y]::AnalyseK3YUID($UID, $Password, $ThrowOnFailure);
     }
     [Object[]]static AnalyseK3YUID([securestring]$UID, [securestring]$Password, [bool]$ThrowOnFailure) {
-        $KIDstring = [string]::Empty;
+        $CreateReport = $false
+        return [K3Y]::AnalyseK3YUID($UID, $Password, $ThrowOnFailure, $CreateReport);
+    }
+    [Object[]]static AnalyseK3YUID([securestring]$UID, [securestring]$Password, [bool]$ThrowOnFailure, [bool]$CreateReport) {
+        $KIDstring = [string]::Empty; $Output = @()
         try {
             Set-Variable -Name KIDstring -Scope Local -Visibility Private -Option Private -Value $([xconvert]::StringFromCustomCipher([xconvert]::ToDeCompressed([System.Text.Encoding]::UTF7.GetString([xconvert]::BytesFromHex([xconvert]::SecurestringToString($UID))))));
         } catch { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation Failed due to invalid K3Y.", $_.Exception) };
@@ -1941,10 +1945,20 @@ class K3Y {
             $Is_Valid = $($Info_Obj.Expirity - [datetime]::Now) -ge [timespan]::new(0)
             $B_C_type = $(try { [System.Text.Encoding]::UTF7.GetString([AesLg]::Decrypt($ebc, $Password)) }catch { if ($ThrowOnFailure) { throw [System.InvalidOperationException]::new("Please Provide a valid Password.", [System.UnauthorizedAccessException]::new('Wrong Password')) }else { [string]::Empty } }); # (Byte Compression Type)
             $EncrDate = Get-Date -Month $Mon -Day $Day -Hour $Hrs -Minute $Min # An estimate of when was the last encryption Done
+            $Output = ($Is_Valid, $Info_Obj, $B_C_type, $EncrDate);
         } catch {
             if ($ThrowOnFailure) { throw $_.Exception }
         }
-        return ($Is_Valid, $Info_Obj, $B_C_type, $EncrDate)
+        if ($CreateReport) {
+            $Report = [PSCustomObject]@{
+                Summary    = "K3Y $(if ([K3Y]::HasPasswd()) { 'Last used' }else { 'created' }) on: $($Output[-1]), PID: $($Output[1].PID) by $($Output[1].User)"
+                Expiration = $Output[1].Expirity.date
+                IsValid    = $Output[0]
+            }
+            return $Report
+        }else {
+            return $Output
+        }
     }
     [string]Export() {
         $NotNullProps = ('User', 'UID', 'Expirity');
@@ -1969,11 +1983,7 @@ class K3Y {
         # $c.ConvertTo($Object, $destinationType)
     }
     [bool]IsValid() {
-        $ThrowOnFailure = $false; ($IsStillValid, $kI, $Compression, $EncryptionDate) = [k3Y]::AnalyseK3YUID($this.UID, $this.User.Password, $ThrowOnFailure);
-        Write-Verbose "[i] Key $(if ($this.HasPasswd()) { 'Last used' }else { 'created' }) on: $EncryptionDate, PID: $($kI.PID) by $($kI.User)";
-        Write-Verbose "[i] Key expiration date: $($kI.Expirity.date)";
-        Write-Verbose "[i] Key is still valid: $IsStillValid";
-        Remove-Variable -Name kI -Scope Local; Remove-Variable -Name Salt -Scope Local; Remove-Variable -Name EncryptionDate -Scope Local
+        $ThrowOnFailure = $false; $IsStillValid = [k3Y]::AnalyseK3YUID($this.UID, $this.User.Password, $ThrowOnFailure)[0];
         return $IsStillValid
     }
     [void]SaveToVault() {
@@ -2027,10 +2037,10 @@ class NerdCrypt {
     #
     #region    ParanoidCrypto
     [void]Encrypt() {
-        $this.SetBytes($this.Encrypt($this.Object.Bytes, $this.key.User.Password))
+        $this.SetBytes($this.Encrypt($this.Object.Bytes, [K3Y]::GetPassword()))
     }
     [byte[]]Encrypt([int]$iterations) {
-        $this.SetBytes($this.Encrypt($this.Object.Bytes, $this.key.User.Password, $iterations));
+        $this.SetBytes($this.Encrypt($this.Object.Bytes, [K3Y]::GetPassword(), $iterations));
         return $this.Object.Bytes
     }
     [byte[]]Encrypt([byte[]]$bytes, [securestring]$Password) {
@@ -2046,10 +2056,10 @@ class NerdCrypt {
         return $_bytes
     }
     [void]Decrypt() {
-        $this.SetBytes($this.Decrypt($this.Object.Bytes, $this.key.User.Password))
+        $this.SetBytes($this.Decrypt($this.Object.Bytes, [K3Y]::GetPassword()))
     }
     [byte[]]Decrypt([int]$iterations) {
-        $this.SetBytes($this.Decrypt($this.Object.Bytes, $this.key.User.Password, $Iterations));
+        $this.SetBytes($this.Decrypt($this.Object.Bytes, [K3Y]::GetPassword(), $Iterations));
         return $this.Object.Bytes
     }
     [byte[]]Decrypt([byte[]]$bytes, [securestring]$Password) {
