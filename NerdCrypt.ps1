@@ -1728,20 +1728,20 @@ class K3Y {
     [ValidateNotNullOrEmpty()][byte[]]hidden $rgbSalt = [System.Text.Encoding]::UTF7.GetBytes('hR#ho"rK6FMu mdZFXp}JMY\?NC]9(.:6;>oB5U>.GkYC-JD;@;XRgXBgsEi|%MqU>_+w/RpUJ}Kt.>vWr[WZ;[e8GM@P@YKuT947Z-]ho>E2"c6H%_L2A:O5:E)6Fv^uVE; aN\4t\|(*;rPRndSOS(7& xXLRKX)VL\/+ZB4q.iY { %Ko^<!sW9n@r8ihj*=T $+Cca-Nvv#JnaZh');
 
     K3Y() {
-        $this.User = [SecureCred]::new([pscredential]::new($env:USERNAME, [securestring]::new())); $this.SetK3yID();
+        $this.User = [SecureCred]::new([pscredential]::new($env:USERNAME, [securestring]::new())); $this.SetK3YUID();
     }
     K3Y([Datetime]$Expirity) {
         $this.User = [SecureCred]::new([pscredential]::new($env:USERNAME, [securestring]::new()));
-        $this.Expirity = [Expirity]::new($Expirity); $this.SetK3yID();
+        $this.Expirity = [Expirity]::new($Expirity); $this.SetK3YUID();
     }
     K3Y([pscredential]$User, [Datetime]$Expirity) {
-        ($this.User, $this.Expirity) = ([SecureCred]::new($User), [Expirity]::new($Expirity)); $this.SetK3yID();
+        ($this.User, $this.Expirity) = ([SecureCred]::new($User), [Expirity]::new($Expirity)); $this.SetK3YUID();
     }
     K3Y([string]$UserName, [securestring]$Password) {
-        $this.User = [SecureCred]::new([pscredential]::new($UserName, $Password)); $this.SetK3yID();
+        $this.User = [SecureCred]::new([pscredential]::new($UserName, $Password)); $this.SetK3YUID();
     }
     K3Y([string]$UserName, [securestring]$Password, [Datetime]$Expirity) {
-        ($this.User, $this.Expirity) = ([SecureCred]::new([pscredential]::new($UserName, $Password)), [Expirity]::new($Expirity)); $this.SetK3yID();
+        ($this.User, $this.Expirity) = ([SecureCred]::new([pscredential]::new($UserName, $Password)), [Expirity]::new($Expirity)); $this.SetK3YUID();
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt) {
         return $this.Encrypt($bytesToEncrypt, [K3Y]::GetPassword());
@@ -1754,7 +1754,7 @@ class K3Y {
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
         $Password = [securestring]$this.ResolvePassword($Password, $Expirity, $Compression, $this._PID);
-        $this.SetK3yID($Password, $Expirity, $Compression, $this._PID);
+        $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID);
         Write-Verbose "$([XConvert]::SecurestringToString($Password))";
         Write-Verbose "[+] Encrypting ...";
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
@@ -1775,14 +1775,13 @@ class K3Y {
         Write-Verbose "[+] Decrypting ..."
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
-    [void]hidden SetK3yID() {
+    [void]hidden SetK3YUID() {
         $compression = Get-Random ([Enum]::GetNames('Compression' -as 'Type'))
         Write-Verbose "[-] Set COmpression: $compression"
-        $this.SetK3yID($this.User.Password, $this.Expirity.Date, $compression, $this._PID);
+        $this.SetK3YUID($this.User.Password, $this.Expirity.Date, $compression, $this._PID);
     }
-    [void]hidden SetK3yID([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        # Set the 'UID' is a fancy way of storing the salt and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
-        $K3yUID = [securestring][xconvert]::SecurestringFromString([xconvert]::BytesToHex([System.Text.Encoding]::UTF7.GetBytes([xconvert]::ToCompressed([xconvert]::StringToCustomCipher(
+    [securestring]hidden GetK3YUID([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+        return [securestring][xconvert]::SecurestringFromString([xconvert]::BytesToHex([System.Text.Encoding]::UTF7.GetBytes([xconvert]::ToCompressed([xconvert]::StringToCustomCipher(
                             [string][K3Y]::CreateKIDString([byte[]][XConvert]::BytesFromObject([PSCustomObject]@{
                                         KeyInfo = [xconvert]::BytesFromObject([PSCustomObject]@{
                                                 Expirity = $Expirity
@@ -1800,15 +1799,19 @@ class K3Y {
                 )
             )
         )
+    }
+    [void]hidden SetK3YUID([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         if ($this.HasPasswd()) {
+            Write-Verbose "[+] Set K3Y UID ..."
             $this.PSObject.Properties.Add([psscriptproperty]::new('UID', [ScriptBlock]::Create({
-                            $K3yUID
+                            $this.GetK3YUID($password, $Expirity, $Compression, $_PID);
                         }
                     )
                 )
             )
         } else {
-            $this.UID = $K3yUID
+            # Set the 'UID' is a fancy way of storing the salt and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
+            $this.UID = $this.GetK3YUID($password, $Expirity, $Compression, $_PID);
         }
     }
     [securestring]hidden static GetPassword() {
@@ -1834,7 +1837,7 @@ class K3Y {
                     )
                 )
             )
-            $this.SetK3yID($password, $Expirity, $Compression, $_PID);
+            $this.SetK3YUID($password, $Expirity, $Compression, $_PID);
         } elseif ($this.User.Password.Equals($Password)) {
             # No need to verify the hash bcs its impossible to have the same Password as its hash (This saves some milliseconds).
             throw [System.UnauthorizedAccessException]::new('Wrong Password')
