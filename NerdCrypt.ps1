@@ -1755,7 +1755,6 @@ class K3Y {
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
         $Password = [securestring]$this.ResolvePassword($Password, $Expirity, $Compression, $this._PID);
         $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID);
-        Write-Verbose "$([XConvert]::SecurestringToString($Password))";
         Write-Verbose "[+] Encrypting ...";
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
@@ -1766,12 +1765,9 @@ class K3Y {
         return $this.Decrypt($bytesToDecrypt, $Password, $this.rgbSalt);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt, [securestring]$Password, [byte[]]$salt) {
-        $EncryptionDate = $null; $kI = $null;
         $Password = [securestring]$this.ResolvePassword($Password); # (Get The real Password)
         if (!$this.IsValid()) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") }
         ($IsStillValid, $kI, $Compression, $EncryptionDate) = [k3Y]::AnalyseK3YUID($this.UID, $Password);
-        Remove-Variable -Name kI -Scope Local; Remove-Variable -Name IsStillValid -Scope Local
-        Write-Verbose "$([XConvert]::SecurestringToString($Password))";
         Write-Verbose "[+] Decrypting ..."
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
@@ -1955,7 +1951,7 @@ class K3Y {
         # $c.ConvertTo($Object, ('PscustomObject' -as 'Type'))
     }
     [bool]IsValid() {
-        $ThrowOnFailure = $false; ($IsStillValid, $kI, $Salt, $EncryptionDate) = [k3Y]::AnalyseK3YUID($this.UID, $this.User.Password, $ThrowOnFailure);
+        $ThrowOnFailure = $false; ($IsStillValid, $kI, $Compression, $EncryptionDate) = [k3Y]::AnalyseK3YUID($this.UID, $this.User.Password, $ThrowOnFailure);
         Write-Verbose "[i] Key $(if ($this.HasPasswd()) { 'Last used' }else { 'created' }) on: $EncryptionDate, PID: $($kI.PID) by $($kI.User)";
         Write-Verbose "[i] Key expiration date: $($kI.Expirity.date)";
         Write-Verbose "[i] Key is still valid: $IsStillValid";
