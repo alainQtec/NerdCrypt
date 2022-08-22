@@ -1828,16 +1828,14 @@ class K3Y {
             throw [System.UnauthorizedAccessException]::new('Wrong Password')
         }
         Write-Verbose "[+] Get Password Hash ..."
-        $hash = [PasswordHash]::new([byte[]][xconvert]::BytesFromHex([xconvert]::SecurestringToString($this.User.Password))); # (Remember: $this.User.Password is not the actual password its just a 'read-only hash' of the password used during Encryption.)
-        $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::SecurestringToString($Password));
-        if (!$hash.Verify([string]$Passw0rd)) { throw [System.UnauthorizedAccessException]::new('Wrong Password') };
+        $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::SecurestringToString($Password)); $this.VerifyPassword($Passw0rd);
         $ResolvePassword = $null; Set-Variable -Name ResolvePassword -Option Private -Visibility Private -Value $([xconvert]::SecurestringFromString([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
         return $ResolvePassword;
     }
     [bool]HasPasswd() {
         return $this.HasPasswd($false);
     }
-    [bool]HasPasswd([bool]$ThrowOnFailure) {
+    [bool]hidden HasPasswd([bool]$ThrowOnFailure) {
         # Verifies if The password has already been set.
         [securestring]$p = $this.User.Password; [bool]$HasPasswd = $false;
         try {
@@ -1852,6 +1850,25 @@ class K3Y {
             }
         }
         return $HasPasswd
+    }
+    [bool]VerifyPassword([string]$Passw0rd) {
+        return $this.VerifyPassword($Passw0rd, $true);
+    }
+    [bool]hidden VerifyPassword([string]$Passw0rd, [bool]$ThrowOnFailure) {
+        [bool]$IsValid = $false; $InnerException = [System.UnauthorizedAccessException]::new('Wrong Password.');
+        try {
+            $hash = [PasswordHash]::new([byte[]][xconvert]::BytesFromHex([xconvert]::SecurestringToString($this.User.Password))); # (Remember: $this.User.Password is not the actual password its just a 'read-only hash' of the password used during Encryption.)
+            if ($hash.Verify([string]$Passw0rd)) { $IsValid = $true }else {
+                throw $InnerException
+            }
+        } catch {
+            $InnerException = $_.Exception
+        } finally {
+            if ($ThrowOnFailure -and !$IsValid) {
+                throw [System.Management.Automation.RuntimeException]::new('Error.', $InnerException)
+            }
+        }
+        return $IsValid
     }
     [string]hidden static CreateUIDstring([byte[]]$bytes) {
         # 'UIDstring' containing the timestamp, expiry, Compression, rgbSalt, and other information for later analysis.
@@ -1948,7 +1965,8 @@ class K3Y {
         $Obj = [K3Y]$Obj; $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $Obj.$Prop }
         return $Obj
         # $c = [System.ComponentModel.GuidConverter]::new()
-        # $c.ConvertTo($Object, ('PscustomObject' -as 'Type'))
+        # $destinationType = ('PscustomObject' -as 'Type')
+        # $c.ConvertTo($Object, $destinationType)
     }
     [bool]IsValid() {
         $ThrowOnFailure = $false; ($IsStillValid, $kI, $Compression, $EncryptionDate) = [k3Y]::AnalyseK3YUID($this.UID, $this.User.Password, $ThrowOnFailure);
