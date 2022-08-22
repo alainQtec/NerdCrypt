@@ -1743,18 +1743,8 @@ class K3Y {
     K3Y([string]$UserName, [securestring]$Password, [Datetime]$Expirity) {
         ($this.User, $this.Expirity) = ([SecureCred]::new([pscredential]::new($UserName, $Password)), [Expirity]::new($Expirity)); $this.SetK3yID();
     }
-    [byte[]]Encrypt([byte[]]$bytesToEncrypt, [k3Y]$Key) {
-        $Compression = [string]::Empty ; $EncryptionDate = $null; $IsStillValid = $false; $enc = $null;
-        try {
-            ($IsStillValid, $Compression, $Salt, $EncryptionDate) = [k3Y]::AnalyseKID($this._KID, $Key.User.Password);
-            Write-Verbose "[K3Y] Encryption date: $EncryptionDate"; Write-Verbose "[K3Y] IsStillValid: $IsStillValid";
-            if (!$IsStillValid) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to invalid K3Y.") }
-            if (!$Salt.Equals($Key.rgbSalt)) { Throw [System.IO.InvalidDataException]::new('The Key salt is invalid') }
-            $enc = [AesLg]::Encrypt($bytesToEncrypt, $key.User.Password, $Key.rgbSalt, $Compression);
-        } catch {
-            throw [System.Management.Automation.PSInvalidOperationException]::new("The Encryption Failed! $($_.Exception.message)", $_.Exception)
-        }
-        return $enc
+    [byte[]]Encrypt([byte[]]$bytesToEncrypt) {
+        return $this.Encrypt($bytesToEncrypt, [K3Y]::GetPassword());
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password) {
         return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $this.Expirity.Date);
@@ -1764,24 +1754,26 @@ class K3Y {
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
         $encryptd = $null; $Password = [securestring]$this.ResolvePassword($Password, $Expirity, $Compression, $this._PID);
+        Write-Verbose "Real Password: $([XConvert]::SecurestringToString($Password))"
         Write-Verbose "[+] Encrypting ...$($encryptd = [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt))";
         return $encryptd;
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
-        return $this.Decrypt($bytesToDecrypt, $this.GetPassword());
+        return $this.Decrypt($bytesToDecrypt, [K3Y]::GetPassword());
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt, [securestring]$Password) {
         return $this.Decrypt($bytesToDecrypt, $Password, $this.rgbSalt);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt, [securestring]$Password, [byte[]]$salt) {
-        $EncryptionDate = $null; $IsStillValid = $false; $kI = $null; $dec = $null
+        $EncryptionDate = $null; $kI = $null; $dec = $null
         try {
             $Password = [securestring]$this.ResolvePassword($Password); # (Get The real Password)
+            if (!$this.IsValid()) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") }
             ($IsStillValid, $kI, $Compression, $EncryptionDate) = [k3Y]::AnalyseKID($this._KID, $Password);
-            $this.IsValid(); Remove-Variable -Name kI -Scope Local
-            if (!$IsStillValid) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") }
+            Remove-Variable -Name kI -Scope Local; Remove-Variable -Name IsStillValid -Scope Local
         } finally {
             Write-Verbose "[+] Decrypting ...$(
+                "Real Password: $([XConvert]::SecurestringToString($Password))"
                 $dec = [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
             )"
         }
@@ -1813,15 +1805,23 @@ class K3Y {
             )
         )
     }
-    [securestring]hidden GetPassword() {
-        return $(Get-Variable Host).value.UI.PromptForCredential('NerdCrypt Password Prompt', "Please Enter Your Password", $env:UserName, $env:COMPUTERNAME).Password
+    [securestring]hidden static GetPassword() {
+        $ThrowOnFailure = $true
+        return [K3Y]::GetPassword($ThrowOnFailure);
+    }
+    [securestring]hidden static GetPassword([bool]$ThrowOnFailure) {
+        $Password = $null; Set-Variable -Name Password -Scope Local -Visibility Private -Option Private -Value ($(Get-Variable Host).value.UI.PromptForCredential('NerdCrypt Password Prompt', "Please Enter Your Password", $env:UserName, $env:COMPUTERNAME).Password);
+        if ($ThrowOnFailure -and ($null -eq $Password -or $([string]::IsNullOrWhiteSpace([xconvert]::SecurestringToString($Password))))) {
+            throw [System.InvalidOperationException]::new("Please Provide a valid Password. That is not Null Or WhiteSpace.", [System.ArgumentNullException]::new("Password"));
+        }
+        return $Password
     }
     [securestring]ResolvePassword([securestring]$Password) {
         return $this.ResolvePassword($Password, $this.Expirity.Date, 'Gzip', $this._PID);
     }
     [securestring]ResolvePassword([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         if (!$this.HasPasswd()) {
-            Write-Verbose "[+] Set Password ..."
+            Write-Verbose "[+] Get Password ..."
             $this.User.PSObject.Properties.Add([psscriptproperty]::new('Password', [ScriptBlock]::Create({
                             [xconvert]::SecurestringFromString([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::SecurestringToString($Password)).ToArray())))
                         }
@@ -1833,7 +1833,7 @@ class K3Y {
             # No need to verify the hash bcs its impossible to have the same Password as its hash (This saves some milliseconds).
             throw [System.UnauthorizedAccessException]::new('Wrong Password')
         }
-        Write-Verbose "[+] Check Password Hash ..."
+        Write-Verbose "[+] Get Password Hash ..."
         $hash = [PasswordHash]::new([byte[]][xconvert]::BytesFromHex([xconvert]::SecurestringToString($this.User.Password))); # (Remember: $this.User.Password is not the actual password its just a 'read-only hash' of the password used during Encryption.)
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::SecurestringToString($Password));
         if (!$hash.Verify([string]$Passw0rd)) { throw [System.UnauthorizedAccessException]::new('Wrong Password') };
@@ -1844,7 +1844,7 @@ class K3Y {
         return $this.HasPasswd($false);
     }
     [bool]HasPasswd([bool]$ThrowOnFailure) {
-        # Verifies if The password has already been set Using 'Set Password' method.
+        # Verifies if The password has already been set.
         [securestring]$p = $this.User.Password; [bool]$HasPasswd = $false;
         try {
             $this.User.Password = [XConvert]::SecurestringFromString('T9st Pa55w0rd')
@@ -1887,7 +1887,14 @@ class K3Y {
         $key_Xt = $($Prefix + $([string]($bc + $key_Id.split($Splitr)[1]).length + $Splitr + [string]($key_Id + $bc).length + $Splitr + [string]$bc.length + $Splitr + $kc + $key_Id + $bc)).Trim();
         return $key_Xt
     }
+    [Object[]]static AnalyseKID([securestring]$_KID) {
+        return [K3Y]::AnalyseKID($_KID, [K3Y]::GetPassword());
+    }
     [Object[]]static AnalyseKID([securestring]$_KID, [securestring]$Password) {
+        $ThrowOnFailure = $true
+        return [K3Y]::AnalyseKID($_KID, $Password, $ThrowOnFailure);
+    }
+    [Object[]]static AnalyseKID([securestring]$_KID, [securestring]$Password, [bool]$ThrowOnFailure) {
         $KIDstring = [string]::Empty;
         try {
             Set-Variable -Name KIDstring -Scope Local -Visibility Private -Option Private -Value $([xconvert]::StringFromCustomCipher([xconvert]::ToDeCompressed([System.Text.Encoding]::UTF7.GetString([xconvert]::BytesFromHex([xconvert]::SecurestringToString($_KID))))));
@@ -1921,10 +1928,10 @@ class K3Y {
             $ebc = [byte[]][xconvert]::BytesFromRnStr($_rc)
             $Info_Obj = [xconvert]::BytesToObject([xconvert]::BytesFromRnStr($_rk))
             $Is_Valid = $($Info_Obj.Expirity - [datetime]::Now) -ge [timespan]::new(0)
-            $B_C_type = $(try { [System.Text.Encoding]::UTF7.GetString([AesLg]::Decrypt($ebc, $Password)) }catch { [string]::Empty }); # (Byte Compression Type)
+            $B_C_type = $(try { [System.Text.Encoding]::UTF7.GetString([AesLg]::Decrypt($ebc, $Password)) }catch { if ($ThrowOnFailure) { throw [System.InvalidOperationException]::new("Please Provide a valid Password.", [System.UnauthorizedAccessException]::new('Wrong Password')) }else { [string]::Empty } }); # (Byte Compression Type)
             $EncrDate = Get-Date -Month $Mon -Day $Day -Hour $Hrs -Minute $Min # An estimate of when was the last encryption Done
         } catch {
-            Write-Warning "Errored: $($_.Exception.Message)`n"
+            if ($ThrowOnFailure) { throw $_.Exception }
         }
         return ($Is_Valid, $Info_Obj, $B_C_type, $EncrDate)
     }
@@ -1950,7 +1957,7 @@ class K3Y {
         # $c.ConvertTo($Object, ('PscustomObject' -as 'Type'))
     }
     [bool]IsValid() {
-        ($IsStillValid, $kI, $Salt, $EncryptionDate) = [k3Y]::AnalyseKID($this._KID, $this.User.Password);
+        $ThrowOnFailure = $false; ($IsStillValid, $kI, $Salt, $EncryptionDate) = [k3Y]::AnalyseKID($this._KID, $this.User.Password, $ThrowOnFailure);
         Write-Verbose "[i] Key $(if ($this.HasPasswd()) { 'Last used' }else { 'created' }) on: $EncryptionDate, PID: $($kI.PID) by $($kI.User)";
         Write-Verbose "[i] Key expiration date: $($kI.Expirity.date)";
         Write-Verbose "[i] Key is still valid: $IsStillValid";
