@@ -1958,9 +1958,11 @@ class K3Y {
         }
         if ($CreateReport) {
             $Report = [PSCustomObject]@{
-                Summary    = "K3Y $(if ([K3Y]::HasPasswd($K3Y)) { 'Last used' }else { 'created' }) on: $($Output[-1]), PID: $($Output[1].PID) by $($Output[1].User)"
-                Expiration = $Output[1].Expirity.date
-                IsValid    = $Output[0]
+                Summary        = "K3Y $(if ([K3Y]::HasPasswd($K3Y)) { 'Last used' }else { 'created' }) on: $($Output[3]), PID: $($Output[1].PID) by $($Output[1].User)"
+                ExpirationDate = $Output[1].Expirity.date
+                LastUsedOn     = $Output[3]
+                Compression    = $Output[2]
+                IsValid        = $Output[0]
             }
             return $Report
         } else {
