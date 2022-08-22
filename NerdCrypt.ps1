@@ -1776,13 +1776,11 @@ class K3Y {
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
     [void]hidden SetK3YUID() {
-        $compression = Get-Random ([Enum]::GetNames('Compression' -as 'Type'))
-        Write-Verbose "[-] Set COmpression: $compression"
-        $this.SetK3YUID($this.User.Password, $this.Expirity.Date, $compression, $this._PID);
+        $this.SetK3YUID($this.User.Password, $this.Expirity.Date, ([Enum]::GetNames('Compression' -as 'Type')), $this._PID);
     }
     [securestring]hidden GetK3YUID([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         return [securestring][xconvert]::SecurestringFromString([xconvert]::BytesToHex([System.Text.Encoding]::UTF7.GetBytes([xconvert]::ToCompressed([xconvert]::StringToCustomCipher(
-                            [string][K3Y]::CreateKIDString([byte[]][XConvert]::BytesFromObject([PSCustomObject]@{
+                            [string][K3Y]::CreateUIDstring([byte[]][XConvert]::BytesFromObject([PSCustomObject]@{
                                         KeyInfo = [xconvert]::BytesFromObject([PSCustomObject]@{
                                                 Expirity = $Expirity
                                                 Version  = [version]::new("1.0.0.1")
@@ -1801,9 +1799,8 @@ class K3Y {
         )
     }
     [void]hidden SetK3YUID([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        Write-Verbose "[+] Set K3Y UID ..."
-        # the 'UID' is a fancy way of storing the salt and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
-        # if ($this.HasPasswd()) { "Do stuff here" }
+        Write-Verbose "[+] $(if ($null -eq $this.UID) { "Create" }else { "Update" }) K3Y UID ..."
+        # The K3Y 'UID' is a fancy way of storing the salt and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
         $this.UID = $this.GetK3YUID($password, $Expirity, $Compression, $_PID);
     }
     [securestring]hidden static GetPassword() {
@@ -1848,7 +1845,7 @@ class K3Y {
         # Verifies if The password has already been set.
         [securestring]$p = $this.User.Password; [bool]$HasPasswd = $false;
         try {
-            $this.User.Password = [XConvert]::SecurestringFromString('T9st Pa55w0rd')
+            $this.User.Password = [securestring]::new()
         } catch [System.Management.Automation.SetValueException] {
             $HasPasswd = $true
         }
@@ -1860,8 +1857,9 @@ class K3Y {
         }
         return $HasPasswd
     }
-    [string]hidden static CreateKIDString([byte[]]$bytes) {
-        $Key_Info = $null; Set-Variable -Name Key_Info -Scope Local -Visibility Private -Option Private -Value ([XConvert]::BytesToObject($bytes));
+    [string]hidden static CreateUIDstring([byte[]]$bytes) {
+        # 'UIDstring' containing the timestamp, expiry, Compression, rgbSalt, and other information for later analysis.
+        $Key_Info = $null; $UIDstr = [string]::Empty; Set-Variable -Name Key_Info -Scope Local -Visibility Private -Option Private -Value ([XConvert]::BytesToObject($bytes));
         $Encr_BCT = [byte[]]$Key_Info.BytesCT # (Encrypted.)
         $keyInfoB = [byte[]]$Key_Info.KeyInfo # (Not Encrypted.)
         $KeyI_Obj = $null; Set-Variable -Name KeyI_Obj -Scope Local -Visibility Private -Option Private -Value ([XConvert]::BytesToObject($keyInfoB));
@@ -1870,7 +1868,7 @@ class K3Y {
         if ($null -eq $Last_PID) { throw [System.MissingMemberException]::new('Attempted to access a missing member.', [System.ArgumentNullException]::new('PID')) };
         $Prefix = [string]::Empty;
         $Splitr = [string]::Empty;
-        $key_Id = [string]::Empty;
+        $keyUID = [string]::Empty;
         $key_Ex = [Expirity]::new($KeyI_Obj.Expirity);
         $bc = [string]::Empty; $kc = [string]::Empty;
         # Add a prefix String so that I can tell how old the K3YString is just by looking at it.
@@ -1880,13 +1878,12 @@ class K3Y {
             "Days" { ('xd\', [string]::Join('', $((Get-Date -UFormat %d).ToCharArray() | ForEach-Object { [char]([int][string]$_ + 97) }))) }
             Default { ('', 'ne') }
         }
-        # Create a 'stringID' containing the timestamp, expiry, Compression, rgbSalt, and other information for later analysis.
         Set-Variable -Name 'kc' -Scope Local -Visibility Private -Option Private -Value $([xconvert]::BytesToRnStr($keyInfoB));
         Set-Variable -Name 'bc' -Scope Local -Visibility Private -Option Private -Value $([xconvert]::BytesToRnStr($Encr_BCT));
         $a = $(Get-Date -Format o).Replace('+', '').Replace('-', '').Replace(':', '').Replace('T', $Splitr).Split('.')[0].Replace([string]$(Get-Date -UFormat %Y), [string]$Last_PID).ToCharArray(); [array]::Reverse($a)
-        $key_Id = [string]::Join('', $a); # Hopefully it doesn't look like a normal timestamp.
-        $key_Xt = $($Prefix + $([string]($bc + $key_Id.split($Splitr)[1]).length + $Splitr + [string]($key_Id + $bc).length + $Splitr + [string]$bc.length + $Splitr + $kc + $key_Id + $bc)).Trim();
-        return $key_Xt
+        $keyUID = [string]::Join('', $a); # Hopefully it doesn't look like a normal timestamp.
+        Set-Variable -Name UIDstr -Scope Local -Visibility Private -Option Private -Value ($($Prefix + $([string]($bc + $keyUID.split($Splitr)[1]).length + $Splitr + [string]($keyUID + $bc).length + $Splitr + [string]$bc.length + $Splitr + $kc + $keyUID + $bc)).Trim());
+        return $UIDstr
     }
     [Object[]]static AnalyseK3YUID([securestring]$UID) {
         return [K3Y]::AnalyseK3YUID($UID, [K3Y]::GetPassword());
