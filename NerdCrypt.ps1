@@ -1801,18 +1801,10 @@ class K3Y {
         )
     }
     [void]hidden SetK3YUID([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        if ($this.HasPasswd()) {
-            Write-Verbose "[+] Set K3Y UID ..."
-            $this.PSObject.Properties.Add([psscriptproperty]::new('UID', [ScriptBlock]::Create({
-                            $this.GetK3YUID($password, $Expirity, $Compression, $_PID);
-                        }
-                    )
-                )
-            )
-        } else {
-            # Set the 'UID' is a fancy way of storing the salt and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
-            $this.UID = $this.GetK3YUID($password, $Expirity, $Compression, $_PID);
-        }
+        Write-Verbose "[+] Set K3Y UID ..."
+        # the 'UID' is a fancy way of storing the salt and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
+        # if ($this.HasPasswd()) { "Do stuff here" }
+        $this.UID = $this.GetK3YUID($password, $Expirity, $Compression, $_PID);
     }
     [securestring]hidden static GetPassword() {
         $ThrowOnFailure = $true
