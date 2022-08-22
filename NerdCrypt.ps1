@@ -1766,17 +1766,14 @@ class K3Y {
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt, [securestring]$Password, [byte[]]$salt) {
         $EncryptionDate = $null; $kI = $null; $dec = $null
-        try {
-            $Password = [securestring]$this.ResolvePassword($Password); # (Get The real Password)
-            if (!$this.IsValid()) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") }
-            ($IsStillValid, $kI, $Compression, $EncryptionDate) = [k3Y]::AnalyseKID($this._KID, $Password);
-            Remove-Variable -Name kI -Scope Local; Remove-Variable -Name IsStillValid -Scope Local
-        } finally {
-            Write-Verbose "[+] Decrypting ...$(
-                "Real Password: $([XConvert]::SecurestringToString($Password))"
+        $Password = [securestring]$this.ResolvePassword($Password); # (Get The real Password)
+        if (!$this.IsValid()) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") }
+        ($IsStillValid, $kI, $Compression, $EncryptionDate) = [k3Y]::AnalyseKID($this._KID, $Password);
+        Remove-Variable -Name kI -Scope Local; Remove-Variable -Name IsStillValid -Scope Local
+        Write-Verbose "Real Password: $([XConvert]::SecurestringToString($Password))"
+        Write-Verbose "[+] Decrypting ...$(
                 $dec = [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
             )"
-        }
         return $dec
     }
     [void]hidden SetK3yID() {
