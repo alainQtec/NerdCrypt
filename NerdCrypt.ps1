@@ -2074,6 +2074,10 @@ class NerdCrypt {
     [byte[]]Encrypt([byte[]]$bytes, [securestring]$Password) {
         return $this.Encrypt($bytes, $Password, 1);
     }
+    [byte[]]Encrypt([securestring]$Password, [int]$Iterations) {
+        $this.SetBytes($this.Encrypt($this.Object.Bytes, $Password, $iterations));
+        return $this.Object.Bytes
+    }
     [byte[]]Encrypt([byte[]]$bytes, [securestring]$Password, [int]$Iterations) {
         $_bytes = $bytes
         for ($i = 1; $i -lt $Iterations + 1; $i++) {
@@ -2092,6 +2096,10 @@ class NerdCrypt {
     }
     [byte[]]Decrypt([byte[]]$bytes, [securestring]$Password) {
         return $this.Decrypt($bytes, $Password, 1);
+    }
+    [byte[]]Decrypt([securestring]$Password, [int]$Iterations) {
+        $this.SetBytes($this.Decrypt($this.Object.Bytes, $Password, $Iterations));
+        return $this.Object.Bytes
     }
     [byte[]]Decrypt([byte[]]$bytes, [securestring]$Password, [int]$Iterations) {
         $_bytes = $bytes
@@ -2129,7 +2137,7 @@ function Encrypt-Object {
     .SYNOPSIS
         A nerdy function for perform paranoid encryption.
     .DESCRIPTION
-        Perform multiple symmetric encryptions to an Object.
+        Perform multiple encryptions to an Object.
         Any object that can be transformed to byte array can be enrypted, decrpted and transformed(serialized) back to that object.
         Currently this functions can encrypt Objects (I mean [System.Object]$Object) and files.
         The function uses Rijndael AES-256, Rivest-Shamir-Adleman encryption (RSA) algorithms combined with MD5 Tripledes and other Stuff.
@@ -2138,7 +2146,7 @@ function Encrypt-Object {
         Its dangerous to Print/send sensitive info to the terminal/console or via RMM,
         better to use nerdy non-standard (That you only know how to decrypt) encrypted String.
         The encryption Key(s) are stored in windows Password vault so that
-        The Decryptor Function (Decrypt-String) Uses them to decrypt without need of The user entering them again.
+        The Decryptor Function (Decrypt-Object) Uses them to decrypt without need of The user entering them again.
     .NOTES
         1. Obviusly the biggest weakness of this script is that its a script (Non-Obfuscated, cleartext script!),
             If you or some hacker can't get the password but have the source code you can reverse engineer to findout why you are not getting clear output.
@@ -2163,7 +2171,7 @@ function Encrypt-Object {
     .LINK
         https://github.com/alainQtec/.files/blob/main/src/scripts/Security/NerdCrypt/NerdCrypt.ps1
     .LINK
-        Decrypt-String
+        Decrypt-Object
     .EXAMPLE
         $Encrypted = Encrypt-Object "Helllo?><)*&%^#$@!~_++:`"}{`world" -Verbose
 
@@ -2184,7 +2192,7 @@ function Encrypt-Object {
 
         ynOESoZ41NLD4tqxkE74HtRYK+iJmjk4/wX8SJ2wFrJUrvV....
 
-        Decrypt-String "ynOESoZ41NLD4tqxkE74HtRYK+iJmjk4/wX8SJ2wFrJUrvV...."
+        Decrypt-Object "ynOESoZ41NLD4tqxkE74HtRYK+iJmjk4/wX8SJ2wFrJUrvV...."
 
         This is my email, don't show it to anyone. alain.1337dev@outlook.com
     #>
@@ -2236,14 +2244,18 @@ function Encrypt-Object {
         [ValidateNotNullOrEmpty()]
         [ValidateSet('None', '1Year', '1Month', '1Day')]
         [Alias('KeyExpirity')]
-        [datetime]$Expirity
+        [datetime]$Expirity,
+
+        [Parameter(Mandatory = $false, ParameterSetName = '__AllParameterSets')]
+        [ValidateNotNullOrEmpty()]
+        [int]$Iterations = 2
     )
 
     DynamicParam {
         $DynamicParams = [System.Management.Automation.RuntimeDefinedParameterDictionary]::new()
         [bool]$IsPossiblefileType = $false
         [bool]$IsArrayObject = $false
-        [int]$P = 4 #(position)
+        [int]$P = 4 #(Position)
         try {
             if ($Object.count -gt 1) {
                 $InputType = @()
@@ -2294,7 +2306,7 @@ function Encrypt-Object {
         #region IgnoredArguments
         $attributeCollection = [System.Collections.ObjectModel.Collection[System.Attribute]]::new()
         $attributes = [System.Management.Automation.ParameterAttribute]::new(); $attHash = @{
-            Position                        = $p
+            Position                        = $P
             ParameterSetName                = '__AllParameterSets'
             Mandatory                       = $False
             ValueFromPipeline               = $true
@@ -2313,37 +2325,36 @@ function Encrypt-Object {
     begin {
         $eap = $ErrorActionPreference; $ErrorActionPreference = "SilentlyContinue"
         $PsCmdlet.MyInvocation.BoundParameters.GetEnumerator() | ForEach-Object { New-Variable -Name $_.Key -Value $_.Value -ea 'SilentlyContinue' }
-        Write-Verbose "`$InputType : $InputType"
-        Write-Verbose "`$ObjectIsFile : $IsPossiblefileType"
-        Write-Verbose "`$IsArrayObject : $IsArrayObject"
-        switch ($InputType) {
-            "string" {
-                if ($(try { [bool]$(Get-ChildItem $Object).PSIsContainer } catch { $false })) {
-                    Write-Verbose "Input is A Directory ..."
-                } else {
-                    Write-Verbose "Input is a file?? ..."
-                    # [System.IO.File]::ReadAllText($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Object.FullName))
-                }
-            }
-        }
+        # switch ($InputType) {
+        #     "string" {
+        #         if ($(try { [bool]$(Get-ChildItem $Object).PSIsContainer } catch { $false })) {
+        #             Write-Verbose "Input is A Directory ..."
+        #         } else {
+        #             Write-Verbose "Input is a file?? ..."
+        #             # [System.IO.File]::Exists($Object)
+        #         }
+        #     }
+        # }
         $fxn = ('[' + $MyInvocation.MyCommand.Name + ']')
         # Write-Invocation $MyInvocation
     }
 
     process {
-        Write-Verbose "$fxn $($PsCmdlet.ParameterSetName) ..."
-        $Obj = [nerdcrypt]::new($Object); $bytes = $null
+        Write-Verbose "[+] $fxn $($PsCmdlet.ParameterSetName) ..."
         $PsW = switch ($PsCmdlet.ParameterSetName) {
             'WithKey' {  }
             'WithVault' {  }
-            'WithPlainKey' {  }
-            'WithSecureKey' {  }
+            'WithPlainKey' { [xconvert]::SecurestringFromString($PlainPass) }
+            'WithSecureKey' { $password }
             Default {
                 throw 'Error!'
             }
         }
-        $obj.key.User.Password = [SecureString]$PsW
-        $Obj.Encrypt(); $bytes = [byte[]]$Obj.Object.Bytes
+        $Obj = [nerdcrypt]::new($Object);
+        if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('Expirity')) {
+            $Obj.key.Expirity = [Expirity]::new($Expirity);
+        }
+        $Obj.SetBytes($Obj.Encrypt($PsW, $Iterations));
         if ($PsCmdlet.ParameterSetName -ne 'WithKey' -and $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
             if (![string]::IsNullOrEmpty($KeyOutFile)) {
                 $Obj.key.Export($KeyOutFile, $true)
@@ -2353,7 +2364,7 @@ function Encrypt-Object {
 
     end {
         $ErrorActionPreference = $eap
-        return $bytes
+        return $Obj.Object.Bytes
     }
 }
 function Decrypt-Object {
@@ -2384,7 +2395,11 @@ function Decrypt-Object {
         # Path OF the KeyFile (Containing You saved key base64String Key)
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithKeyFile')]
         [ValidateNotNullOrEmpty()]
-        [string]$KeyFile
+        [string]$KeyFile,
+
+        [Parameter(Mandatory = $false, ParameterSetName = '__AllParameterSets')]
+        [ValidateNotNullOrEmpty()]
+        [int]$Iterations = 2
     )
 
     begin {
@@ -2392,19 +2407,18 @@ function Decrypt-Object {
     }
 
     process {
-        Write-Verbose "$fxn $($PsCmdlet.ParameterSetName) ..."
-        $Obj = [nerdcrypt]::new($InputBytes); $bytes = $null
+        Write-Verbose "[+] $fxn $($PsCmdlet.ParameterSetName) ..."
         $PsW = switch ($PsCmdlet.ParameterSetName) {
             'WithKey' {  }
             'WithVault' {  }
-            'WithPlainKey' {  }
-            'WithSecureKey' {  }
+            'WithPlainKey' { [xconvert]::SecurestringFromString($PlainPass) }
+            'WithSecureKey' { $password }
             Default {
                 throw 'Error!'
             }
         }
-        $Obj.key.User.Password = [SecureString]$PsW
-        $Obj.Decrypt(); $bytes = [byte[]]$Obj.Object.Bytes
+        $Obj = [nerdcrypt]::new($InputBytes);
+        $Obj.SetBytes($Obj.Decrypt($PsW, $Iterations));
         if ($PsCmdlet.ParameterSetName -ne 'WithKey' -and $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
             if (![string]::IsNullOrEmpty($KeyOutFile)) {
                 $Obj.key.Export($KeyOutFile, $true)
@@ -2414,7 +2428,7 @@ function Decrypt-Object {
 
     end {
         $ErrorActionPreference = $eap
-        return $bytes
+        return $Obj.Object.Bytes
     }
 }
 function Protect-Data {
