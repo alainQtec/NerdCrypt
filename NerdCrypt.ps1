@@ -479,7 +479,7 @@ class XConvert {
     [PSCustomObject]Static ToPSObject([System.Object]$Obj) {
         $PSObj = [PSCustomObject]::new()
         $Obj | Get-Member -MemberType Properties | ForEach-Object {
-            $Name = $_.Name; $PSObj | Add-Member -Name $Name -MemberType NoteProperty -Value $(if ($null -ne $Obj.$Name) { if ("Deserialized" -in (($Obj.$Name | Get-Member).TypeName.Split('.') | Sort-Object -Unique)) { Write-Verbose "Going Deep ..."; $([xconvert]::ToPSObject($Obj.$Name)) } else { $Obj.$Name } } else { $null })
+            $Name = $_.Name; $PSObj | Add-Member -Name $Name -MemberType NoteProperty -Value $(if ($null -ne $Obj.$Name) { if ("Deserialized" -in (($Obj.$Name | Get-Member).TypeName.Split('.') | Sort-Object -Unique)) { $([xconvert]::ToPSObject($Obj.$Name)) } else { $Obj.$Name } } else { $null })
         }
         return $PSObj
     }
@@ -848,9 +848,9 @@ class PasswordHash {
 # Its basically a wrapper to protect object bytes I use in this script.
 class NcObject {
     [Type]hidden $OGType;
-    [SdCategory]$Category;
     [byte[]]hidden $Bytes;
     [Object]hidden $Object;
+    [SdCategory]hidden $Category;
     [ProtectionScope]hidden $ProtectionScope = [ProtectionScope]::CurrentUser;
 
     NcObject() {}
@@ -1772,7 +1772,6 @@ class K3Y {
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
         $Password = [securestring]$this.ResolvePassword($Password, $Expirity, $Compression, $this._PID);
         $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID);
-        Write-Verbose "[+] Encrypting ...";
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
@@ -1785,7 +1784,6 @@ class K3Y {
         $Password = [securestring]$this.ResolvePassword($Password); # (Get The real Password)
         if (!$this.IsValid()) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") }
         $Compression = [k3Y]::AnalyseK3YUID($this, $Password)[2];
-        Write-Verbose "[+] Decrypting ..."
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
     [void]hidden SetK3YUID() {
@@ -1832,7 +1830,7 @@ class K3Y {
     }
     [securestring]ResolvePassword([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         if (!$this.HasPasswd()) {
-            Write-Verbose "[+] Set Password ..."
+            Write-Verbose "[+] Set Password.."
             $this.User.PSObject.Properties.Add([psscriptproperty]::new('Password', [ScriptBlock]::Create({
                             [xconvert]::SecurestringFromString([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::SecurestringToString($Password)).ToArray())))
                         }
@@ -1840,11 +1838,8 @@ class K3Y {
                 )
             )
             $this.SetK3YUID($password, $Expirity, $Compression, $_PID);
-        } elseif ($this.User.Password.Equals($Password)) {
-            # No need to verify the hash bcs its impossible to have the same Password as its hash (This saves some milliseconds).
-            throw [System.UnauthorizedAccessException]::new('Wrong Password')
         }
-        Write-Verbose "[+] Get Password Hash ..."
+        Write-Verbose "[+] Check Password Hash.."
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::SecurestringToString($Password)); $this.VerifyPassword($Passw0rd);
         $ResolvePassword = $null; Set-Variable -Name ResolvePassword -Option Private -Visibility Private -Value $([xconvert]::SecurestringFromString([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
         return $ResolvePassword;
@@ -2082,7 +2077,7 @@ class NerdCrypt {
     [byte[]]Encrypt([byte[]]$bytes, [securestring]$Password, [int]$Iterations) {
         $_bytes = $bytes
         for ($i = 1; $i -lt $Iterations + 1; $i++) {
-            Write-Verbose "[+] Encryption [$i/$Iterations] $(
+            Write-Verbose "[+] Encryption [$i/$Iterations] ...$(
                 $_bytes = $this.key.Encrypt($_bytes, $Password);
             ) Done."
         }; if ($_bytes.Equals($bytes)) { $_bytes = $null }
@@ -2101,7 +2096,7 @@ class NerdCrypt {
     [byte[]]Decrypt([byte[]]$bytes, [securestring]$Password, [int]$Iterations) {
         $_bytes = $bytes
         for ($i = 1; $i -lt $Iterations + 1; $i++) {
-            Write-Verbose "[+] Decryption [$i/$Iterations] $(
+            Write-Verbose "[+] Decryption [$i/$Iterations] ...$(
                 $_bytes = $this.key.Decrypt($_bytes, $Password);
             ) Done."
         }; if ($_bytes.Equals($bytes)) { $_bytes = $null }
