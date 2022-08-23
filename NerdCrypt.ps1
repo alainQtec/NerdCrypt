@@ -1985,13 +1985,20 @@ class K3Y {
         if ($encrypt) { $(Get-Item $FilePath).Encrypt() }
     }
     [K3Y]Import([string]$StringK3Y) {
+        # $convert = [scriptblock]::Create({
+        #         param (
+        #             [Parameter()][System.Object]$Obj
+        #         )
+        #         Invoke-Expression "[PSCustomObject]@{$($Obj | Get-Member -MemberType Properties | ForEach-Object {"$($_.Name) = `$Obj.$($_.Name);"})}"
+        #     }
+        # )
+        # if (($obj.User | Get-Member).TypeName[0] -like "Deserialized.*") {
+        #     <# Action to perform if the condition is true #>
+        # }
         $Obj = $null; Set-Variable -Name Obj -Scope Local -Visibility Private -Option Private -Value ([xconvert]::BytesToObject([convert]::FromBase64String([xconvert]::ToDeCompressed($StringK3Y))))
         $Obj = Invoke-Expression "[PSCustomObject]@{$($Obj | Get-Member -MemberType Properties | ForEach-Object {"$($_.Name) = `$Obj.$($_.Name);"})}"
         $Obj = [K3Y]$Obj; $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $Obj.$Prop }
         return $Obj
-        # $c = [System.ComponentModel.GuidConverter]::new()
-        # $destinationType = ('PscustomObject' -as 'Type')
-        # $c.ConvertTo($Object, $destinationType)
     }
     [bool]IsValid() {
         $ThrowOnFailure = $false; $IsStillValid = [k3Y]::AnalyseK3YUID($this, $this.User.Password, $ThrowOnFailure)[0];
