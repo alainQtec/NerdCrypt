@@ -1810,7 +1810,7 @@ class K3Y {
         )
     }
     [void]hidden SetK3YUID([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        Write-Verbose "[+] $(if ($null -eq $this.UID) { "Create" }else { "Update" }) K3Y UID ..."
+        Write-Verbose "[+] $(if ($null -eq $this.UID) { "Create" }else { "Update" }) UID ..."
         # The K3Y 'UID' is a fancy way of storing the salt and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
         $this.UID = $this.GetK3YUID($password, $Expirity, $Compression, $_PID);
     }
@@ -2361,9 +2361,12 @@ function Encrypt-Object {
             $Obj.key.Expirity = [Expirity]::new($Expirity);
         }
         $Obj.SetBytes($Obj.Encrypt($PsW, $Iterations));
-        if ($PsCmdlet.ParameterSetName -ne 'WithKey' -and $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
-            if (![string]::IsNullOrEmpty($KeyOutFile)) {
+        if ($PsCmdlet.ParameterSetName -ne 'WithKey') {
+            if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile') -and ![string]::IsNullOrEmpty($KeyOutFile)) {
                 $Obj.key.Export($KeyOutFile, $true)
+            }else {
+                Write-Verbose "Public Key:"
+                Write-Verbose "$($Obj.key.Export())"
             }
         }
         $_Br = $(if ($_Br.Equals($Obj.Object.Bytes)) { $null }else { $Obj.Object.Bytes })
