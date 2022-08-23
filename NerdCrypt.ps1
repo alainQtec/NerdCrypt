@@ -2353,6 +2353,9 @@ function Encrypt-Object {
             }
         }
         $Obj = [nerdcrypt]::new($Object);
+        if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('PublicKey')) {
+            $Obj.SetPublicKey($PublicKey);
+        }
         $_Br = $Obj.Object.Bytes
         if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('Expirity')) {
             $Obj.key.Expirity = [Expirity]::new($Expirity);
@@ -2426,7 +2429,7 @@ function Decrypt-Object {
                 throw 'Error!'
             }
         }
-        $Obj = [nerdcrypt]::new($InputBytes);
+        $Obj = [nerdcrypt]::new($InputBytes); $Obj.SetPublicKey($PublicKey);
         $_Br = $Obj.Object.Bytes
         $Obj.SetBytes($Obj.Decrypt($PsW, $Iterations));
         if ($PsCmdlet.ParameterSetName -ne 'WithKey' -and $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
