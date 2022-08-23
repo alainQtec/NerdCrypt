@@ -2112,6 +2112,9 @@ class NerdCrypt {
         return $_bytes
     }
     #endregion ParanoidCrypto
+    [void]SetPublicKey([string]$StringK3Y) {
+        [void]$this.key.Import($StringK3Y);
+    }
     [Securestring]ToSecureString() {
         return $(if ($null -eq $this.Object.Bytes) { [Securestring]::new() }else {
                 [xconvert]::SecurestringFromString([xconvert]::StringFromCharCode($this.Object.Bytes, ''))
@@ -2212,7 +2215,10 @@ function Encrypt-Object {
         # With a locked local Password vault it will require much more than just guessing The password, or any BruteForce tool.
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithSecureKey')]
         [Alias('SecurePassword')]
-        [SecureString]$password = [K3Y]::GetPassword(),
+        [SecureString]$PrivateKey = [K3Y]::GetPassword(),
+
+        [Parameter(Mandatory = $false, Position = 2, ParameterSetName = 'WithSecureKey')]
+        [string]$PublicKey,
 
         # So not worth it! Unless youre too lazy to create a SecureString, Or your Password is temporal (Ex: Gets changed by your Password Generator, every 60 seconds).
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithPlainKey')]
@@ -2233,7 +2239,7 @@ function Encrypt-Object {
         [Parameter(Mandatory = $false, Position = 2, ParameterSetName = 'WithKey')]
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithVault')]
         [Parameter(Mandatory = $false, Position = 2, ParameterSetName = 'WithPlainKey')]
-        [Parameter(Mandatory = $false, Position = 2, ParameterSetName = 'WithSecureKey')]
+        [Parameter(Mandatory = $false, Position = 3, ParameterSetName = 'WithSecureKey')]
         [Alias('ExportFile')]
         [string]$KeyOutFile,
 
@@ -2341,7 +2347,7 @@ function Encrypt-Object {
             'WithKey' {  }
             'WithVault' {  }
             'WithPlainKey' { [xconvert]::SecurestringFromString($PlainPass) }
-            'WithSecureKey' { $password }
+            'WithSecureKey' { $PrivateKey }
             Default {
                 throw 'Error!'
             }
@@ -2378,7 +2384,10 @@ function Decrypt-Object {
 
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithSecureKey')]
         [Alias('SecurePassword')]
-        [SecureString]$password = [K3Y]::GetPassword(),
+        [SecureString]$PrivateKey = [K3Y]::GetPassword(),
+
+        [Parameter(Mandatory = $true, Position = 2, ParameterSetName = 'WithSecureKey')]
+        [string]$PublicKey,
 
         # So not worth it! Unless youre too lazy to create a SecureString, Or your Password is temporal (Ex: Gets changed by your Password Generator, every 60 seconds).
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithPlainKey')]
@@ -2412,7 +2421,7 @@ function Decrypt-Object {
             'WithKey' {  }
             'WithVault' {  }
             'WithPlainKey' { [xconvert]::SecurestringFromString($PlainPass) }
-            'WithSecureKey' { $password }
+            'WithSecureKey' { $PrivateKey }
             Default {
                 throw 'Error!'
             }
