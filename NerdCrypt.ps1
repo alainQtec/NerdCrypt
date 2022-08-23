@@ -2182,16 +2182,6 @@ function Encrypt-Object {
         Encrypting your Password By inputing as plainText
 
     .EXAMPLE
-        $EncSTR = Encrypt-Object -Object "My_Secret_Message_That_I_want_to_Send" -KeyOutFile My.key -Verbose
-        # Now I Can safely Send $EncSTR over an Unsecured (http) Network
-
-        # Then On the Server:
-        $DecSTR = ConvertTo-Decrypted -cipherText $EncSTR -KeyFile .\Pathto\My.key
-
-        # # Then On the same PC: Since the parameterset used saved the key both in vault and in My.key, I can:
-        $DecSTR = ConvertTo-Decrypted -cipherText $EncSTR
-
-    .EXAMPLE
         Encrypt-Object "This is my email, don't show it to anyone. alain.1337dev@outlook.com"
 
         ynOESoZ41NLD4tqxkE74HtRYK+iJmjk4/wX8SJ2wFrJUrvV....
@@ -2327,16 +2317,6 @@ function Encrypt-Object {
     begin {
         $eap = $ErrorActionPreference; $ErrorActionPreference = "SilentlyContinue"
         $PsCmdlet.MyInvocation.BoundParameters.GetEnumerator() | ForEach-Object { New-Variable -Name $_.Key -Value $_.Value -ea 'SilentlyContinue' }
-        # switch ($InputType) {
-        #     "string" {
-        #         if ($(try { [bool]$(Get-ChildItem $Object).PSIsContainer } catch { $false })) {
-        #             Write-Verbose "Input is A Directory ..."
-        #         } else {
-        #             Write-Verbose "Input is a file?? ..."
-        #             # [System.IO.File]::Exists($Object)
-        #         }
-        #     }
-        # }
         $fxn = ('[' + $MyInvocation.MyCommand.Name + ']')
         # Write-Invocation $MyInvocation
     }
@@ -2450,8 +2430,7 @@ function Decrypt-Object {
 }
 function Protect-Data {
     [CmdletBinding()]
-    param (
-    )
+    param ()
 
     begin {
         #Load The Assemblies
@@ -2460,16 +2439,13 @@ function Protect-Data {
         # Invoke-Expression $((Invoke-RestMethod -Method Get https://api.github.com/gists/0be5415643e5556b4d8395df12101f6a).files.'Nerdcrypt.ps1'.content)
     }
 
-    process {
-    }
+    process {}
 
-    end {
-    }
+    end {}
 }
 function UnProtect-Data {
     [CmdletBinding()]
-    param (
-    )
+    param ()
 
     begin {
         #Load The Assemblies
@@ -2478,10 +2454,93 @@ function UnProtect-Data {
         # Invoke-Expression $((Invoke-RestMethod -Method Get https://api.github.com/gists/0be5415643e5556b4d8395df12101f6a).files.'Nerdcrypt.ps1'.content)
     }
 
-    process {
-    }
+    process {}
 
-    end {
-    }
+    end {}
 }
 #endregion Functions
+# Credential Vault:
+# [Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
+# $vault = New-Object Windows.Security.Credentials.PasswordVault
+# $vault.RetrieveAll() | ForEach-Object { $_.RetrievePassword(); $_ }
+
+$code = @"
+using System.Text;
+using System;
+using System.Runtime.InteropServices;
+
+namespace CredManager {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct CredentialMem {
+        public int flags;
+        public int type;
+        public string targetName;
+        public string comment;
+        public System.Runtime.InteropServices.ComTypes.FILETIME lastWritten;
+        public int credentialBlobSize;
+        public IntPtr credentialBlob;
+        public int persist;
+        public int attributeCount;
+        public IntPtr credAttribute;
+        public string targetAlias;
+        public string userName;
+    }
+
+    public class Credential {
+        public string target;
+        public string username;
+        public string password;
+        public Credential(string target, string username, string password) {
+        this.target = target;
+        this.username = username;
+        this.password = password;
+        }
+    }
+
+    public class Util {
+        [DllImport("advapi32.dll", EntryPoint = "CredReadW", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool CredRead(string target, int type, int reservedFlag, out IntPtr credentialPtr);
+
+        public static Credential GetUserCredential(string target) {
+            CredentialMem credMem;
+            IntPtr credPtr;
+
+            if (CredRead(target, 1, 0, out credPtr)) {
+                credMem = Marshal.PtrToStructure<CredentialMem>(credPtr);
+                byte[] passwordBytes = new byte[credMem.credentialBlobSize];
+                Marshal.Copy(credMem.credentialBlob, passwordBytes, 0, credMem.credentialBlobSize);
+                Credential cred = new Credential(credMem.targetName, credMem.userName, Encoding.Unicode.GetString(passwordBytes));
+                return cred;
+            } else {
+                throw new Exception("Failed to retrieve credentials");
+            }
+        }
+
+        [DllImport("Advapi32.dll", SetLastError = true, EntryPoint = "CredWriteW", CharSet = CharSet.Unicode)]
+        private static extern bool CredWrite([In] ref CredentialMem userCredential, [In] int flags);
+
+        public static void SetUserCredential(string target, string userName, string password) {
+            CredentialMem userCredential = new CredentialMem();
+
+            userCredential.targetName = target;
+            userCredential.type = 1;
+            userCredential.userName = userName;
+            userCredential.attributeCount = 0;
+            userCredential.persist = 3;
+            byte[] bpassword = Encoding.Unicode.GetBytes(password);
+            userCredential.credentialBlobSize = (int)bpassword.Length;
+            userCredential.credentialBlob = Marshal.StringToCoTaskMemUni(password);
+            if (!CredWrite(ref userCredential, 0)) {
+                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+            }
+        }
+    }
+}
+"@
+Add-Type -TypeDefinition $code -Language CSharp
+# How to store credentials
+# [CredManager.Util]::SetUserCredential("Application Name", "Username", "Password")
+# # How to retrieve credentials
+# [CredManager.Util]::GetUserCredential("Application Name")
+# # How to just get the password
+# [CredManager.Util]::GetUserCredential("Application Name").password
