@@ -1810,8 +1810,8 @@ class K3Y {
         )
     }
     [void]hidden SetK3YUID([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        Write-Verbose "[+] $(if ($null -eq $this.UID) { "Create" }else { "Update" }) UID ..."
-        # The K3Y 'UID' is a fancy way of storing the salt and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
+        if ($null -ne $this.UID) { Write-Verbose "[+] Update UID ..." }
+        # The K3Y 'UID' is a fancy way of storing the Key version, user, compressiontype and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
         $this.UID = $this.GetK3YUID($password, $Expirity, $Compression, $_PID);
     }
     [securestring]static GetPassword() {
