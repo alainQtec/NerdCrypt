@@ -466,6 +466,13 @@ class XConvert {
         $Text = [string]::Join('', $($(foreach ($Item in $_Arr) { [System.Numerics.BigInteger]::ModPow($Item, $2753, $_Mod) }) | ForEach-Object { [char][int]$_ }))
         return $Text
     }
+    [PSCustomObject]Static ToPSObject([System.Object]$Obj) {
+        $PSObj = [PSCustomObject]::new()
+        $Obj | Get-Member -MemberType Properties | ForEach-Object {
+            $Name = $_.Name; $PSObj | Add-Member -Name $Name -MemberType NoteProperty -Value $(if ($null -ne $Obj.$Name) { if ("Deserialized" -in (($Obj.$Name | Get-Member).TypeName.Split('.') | Sort-Object -Unique)) { Write-Verbose "Going Deep ..."; $([xconvert]::ToPSObject($Obj.$Name)) } else { $Obj.$Name } } else { $null })
+        }
+        return $PSObj
+    }
     [string]static ToProtected([string]$string, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope) {
         return [xconvert]::BytesToObject([xconvert]::ToProtected([xconvert]::BytesFromObject($string), $Entropy, $ProtectionScope))
     }
@@ -1985,18 +1992,8 @@ class K3Y {
         if ($encrypt) { $(Get-Item $FilePath).Encrypt() }
     }
     [K3Y]Import([string]$StringK3Y) {
-        # $convert = [scriptblock]::Create({
-        #         param (
-        #             [Parameter()][System.Object]$Obj
-        #         )
-        #         Invoke-Expression "[PSCustomObject]@{$($Obj | Get-Member -MemberType Properties | ForEach-Object {"$($_.Name) = `$Obj.$($_.Name);"})}"
-        #     }
-        # )
-        # if (($obj.User | Get-Member).TypeName[0] -like "Deserialized.*") {
-        #     <# Action to perform if the condition is true #>
-        # }
         $Obj = $null; Set-Variable -Name Obj -Scope Local -Visibility Private -Option Private -Value ([xconvert]::BytesToObject([convert]::FromBase64String([xconvert]::ToDeCompressed($StringK3Y))))
-        $Obj = Invoke-Expression "[PSCustomObject]@{$($Obj | Get-Member -MemberType Properties | ForEach-Object {"$($_.Name) = `$Obj.$($_.Name);"})}"
+        $Obj = [xconvert]::ToPSObject($Obj);
         $Obj = [K3Y]$Obj; $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $Obj.$Prop }
         return $Obj
     }
