@@ -2253,7 +2253,7 @@ function Encrypt-Object {
         [Alias('KeyExpirity')]
         [datetime]$Expirity,
 
-        [Parameter(Mandatory = $false, ParameterSetName = '__AllParameterSets')]
+        [Parameter(Mandatory = $false, Position = 4, ParameterSetName = '__AllParameterSets')]
         [ValidateNotNullOrEmpty()]
         [int]$Iterations = 2
     )
@@ -2262,7 +2262,7 @@ function Encrypt-Object {
         $DynamicParams = [System.Management.Automation.RuntimeDefinedParameterDictionary]::new()
         [bool]$IsPossiblefileType = $false
         [bool]$IsArrayObject = $false
-        [int]$P = 4 #(Position)
+        [int]$P = 5 #(Position)
         try {
             if ($Object.count -gt 1) {
                 $InputType = @()
@@ -2364,7 +2364,7 @@ function Encrypt-Object {
         if ($PsCmdlet.ParameterSetName -ne 'WithKey') {
             if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile') -and ![string]::IsNullOrEmpty($KeyOutFile)) {
                 $Obj.key.Export($KeyOutFile, $true)
-            }else {
+            } else {
                 Write-Verbose "Public Key:"
                 Write-Verbose "$($Obj.key.Export())"
             }
@@ -2410,7 +2410,7 @@ function Decrypt-Object {
         [ValidateNotNullOrEmpty()]
         [string]$KeyFile,
 
-        [Parameter(Mandatory = $false, ParameterSetName = '__AllParameterSets')]
+        [Parameter(Mandatory = $false, Position = 4, ParameterSetName = '__AllParameterSets')]
         [ValidateNotNullOrEmpty()]
         [int]$Iterations = 2
     )
