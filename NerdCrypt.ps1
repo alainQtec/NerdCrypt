@@ -921,7 +921,7 @@ class NcObject {
 class SecureCred : NcObject {
     [ValidateNotNullOrEmpty()][string]$UserName = $env:Username;
     [ValidateNotNullOrEmpty()][securestring]$Password = [securestring]::new();
-    [ValidateNotNullOrEmpty()][string]hidden $PasswordHash;
+    [string]hidden $PasswordHash;
     [string]hidden $Domain;
     SecureCred() {}
     SecureCred([PSCredential]$PSCredential) {
@@ -1995,6 +1995,14 @@ class K3Y {
         $Obj = $null; Set-Variable -Name Obj -Scope Local -Visibility Private -Option Private -Value ([xconvert]::BytesToObject([convert]::FromBase64String([xconvert]::ToDeCompressed($StringK3Y))))
         $Obj = [xconvert]::ToPSObject($Obj);
         $Obj = [K3Y]$Obj; $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $Obj.$Prop }
+        if (![string]::IsNullOrWhiteSpace([xconvert]::SecurestringToString($Obj.User.Password))) {
+            $this.User.PSObject.Properties.Add([psscriptproperty]::new('Password', [ScriptBlock]::Create({
+                            $Obj.User.Password
+                        }
+                    )
+                )
+            )
+        }
         return $Obj
     }
     [bool]IsValid() {
