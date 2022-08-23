@@ -1814,7 +1814,7 @@ class K3Y {
         # The K3Y 'UID' is a fancy way of storing the salt and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
         $this.UID = $this.GetK3YUID($password, $Expirity, $Compression, $_PID);
     }
-    [securestring]hidden static GetPassword() {
+    [securestring]static GetPassword() {
         $ThrowOnFailure = $true
         return [K3Y]::GetPassword($ThrowOnFailure);
     }
@@ -1840,7 +1840,8 @@ class K3Y {
             $this.SetK3YUID($password, $Expirity, $Compression, $_PID);
         }
         Write-Verbose "[+] Check Password Hash.."
-        $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::SecurestringToString($Password)); $this.VerifyPassword($Passw0rd);
+        $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::SecurestringToString($Password));
+        if (!$this.VerifyPassword($Passw0rd)) { Throw [System.UnauthorizedAccessException]::new('Wrong Password.') };
         $ResolvePassword = $null; Set-Variable -Name ResolvePassword -Option Private -Visibility Private -Value $([xconvert]::SecurestringFromString([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
         return $ResolvePassword;
     }
@@ -2211,7 +2212,7 @@ function Encrypt-Object {
         # With a locked local Password vault it will require much more than just guessing The password, or any BruteForce tool.
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithSecureKey')]
         [Alias('SecurePassword')]
-        [SecureString]$password,
+        [SecureString]$password = [K3Y]::GetPassword(),
 
         # So not worth it! Unless youre too lazy to create a SecureString, Or your Password is temporal (Ex: Gets changed by your Password Generator, every 60 seconds).
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithPlainKey')]
@@ -2269,17 +2270,12 @@ function Encrypt-Object {
             }
         } catch { $InputType = [string]::Empty }
         $IsPossiblefileTypes = @('string', 'string[]', 'System.IO.FileInfo', 'System.IO.FileInfo[]', 'System.Object', 'System.Object[]')
-        $supportedInputTypes = $IsPossiblefileTypes + @('System.IO.DirectoryInfo', 'System.IO.DirectoryInfo[]', 'System.Management.Automation.PathInfo', 'System.Management.Automation.PathInfo[]')
         if ($IsArrayObject) {
             foreach ($type in $InputType) {
                 $IsPossiblefileType = [bool]($type -in $IsPossiblefileTypes) -or $IsPossiblefileType
             }
         } else {
-            if ($InputType -notin $supportedInputTypes) {
-                throw "Unsupported Object type '$InputType'. Please Use -? to see the acceptable types. ex: $supportedInputTypes."
-            } else {
-                $IsPossiblefileType = [bool]($InputType -in $IsPossiblefileTypes)
-            }
+            $IsPossiblefileType = [bool]($InputType -in $IsPossiblefileTypes)
         }
         #region OutFile
         if ($IsPossiblefileType) {
@@ -2351,6 +2347,7 @@ function Encrypt-Object {
             }
         }
         $Obj = [nerdcrypt]::new($Object);
+        $_Br = $Obj.Object.Bytes
         if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('Expirity')) {
             $Obj.key.Expirity = [Expirity]::new($Expirity);
         }
@@ -2360,11 +2357,12 @@ function Encrypt-Object {
                 $Obj.key.Export($KeyOutFile, $true)
             }
         }
+        $_Br = $(if ($_Br.Equals($Obj.Object.Bytes)) { $null }else { $Obj.Object.Bytes })
     }
 
     end {
         $ErrorActionPreference = $eap
-        return $Obj.Object.Bytes
+        return $_Br
     }
 }
 function Decrypt-Object {
@@ -2380,7 +2378,7 @@ function Decrypt-Object {
 
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithSecureKey')]
         [Alias('SecurePassword')]
-        [SecureString]$password,
+        [SecureString]$password = [K3Y]::GetPassword(),
 
         # So not worth it! Unless youre too lazy to create a SecureString, Or your Password is temporal (Ex: Gets changed by your Password Generator, every 60 seconds).
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithPlainKey')]
@@ -2404,6 +2402,8 @@ function Decrypt-Object {
 
     begin {
         $eap = $ErrorActionPreference; $ErrorActionPreference = "SilentlyContinue"
+        $fxn = ('[' + $MyInvocation.MyCommand.Name + ']');
+        # Write-Invocation $MyInvocation
     }
 
     process {
@@ -2418,17 +2418,19 @@ function Decrypt-Object {
             }
         }
         $Obj = [nerdcrypt]::new($InputBytes);
+        $_Br = $Obj.Object.Bytes
         $Obj.SetBytes($Obj.Decrypt($PsW, $Iterations));
         if ($PsCmdlet.ParameterSetName -ne 'WithKey' -and $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
             if (![string]::IsNullOrEmpty($KeyOutFile)) {
                 $Obj.key.Export($KeyOutFile, $true)
             }
         }
+        $_Br = $(if ($_Br.Equals($Obj.Object.Bytes)) { $null }else { $Obj.Object.Bytes })
     }
 
     end {
         $ErrorActionPreference = $eap
-        return $Obj.Object.Bytes
+        return $_Br
     }
 }
 function Protect-Data {
