@@ -2447,7 +2447,7 @@ function Decrypt-Object {
     }
 }
 function Protect-Data {
-    [CmdletBinding()]
+    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'Bytes', SupportsShouldProcess = $true)]
     param (
         [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Bytes')]
         [ValidateNotNullOrEmpty()]
@@ -2471,7 +2471,9 @@ function Protect-Data {
 
     process {
         $InputBytes = $null
-        $ProtectedD = [xconvert]::ToProtected([byte[]]$InputBytes, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope)
+        if ($PSCmdlet.ShouldProcess("InputObj", "Protect")) {
+            $ProtectedD = [xconvert]::ToProtected([byte[]]$InputBytes, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope)
+        }
     }
 
     end {
@@ -2479,7 +2481,7 @@ function Protect-Data {
     }
 }
 function UnProtect-Data {
-    [CmdletBinding()]
+    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'Bytes', SupportsShouldProcess = $true)]
     param (
         [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Bytes')]
         [ValidateNotNullOrEmpty()]
@@ -2504,7 +2506,9 @@ function UnProtect-Data {
 
     process {
         $InputBytes = $null
-        $UnProtected = [xconvert]::ToUnProtected([byte[]]$InputBytes, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope)
+        if ($PSCmdlet.ShouldProcess("InputBytes", "Unprotect")) {
+            $UnProtected = [xconvert]::ToUnProtected([byte[]]$InputBytes, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope)
+        }
     }
 
     end {
