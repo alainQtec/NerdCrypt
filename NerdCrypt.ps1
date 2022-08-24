@@ -2433,7 +2433,9 @@ function Decrypt-Object {
         $Obj.SetBytes($Obj.Decrypt($PsW, $Iterations));
         if ($PsCmdlet.ParameterSetName -ne 'WithKey' -and $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
             if (![string]::IsNullOrEmpty($KeyOutFile)) {
-                $Obj.key.Export($KeyOutFile, $true)
+                if ($PSCmdlet.ShouldProcess("$KeyOutFile", "Export PublicKey")) {
+                    $Obj.key.Export($KeyOutFile, $true)
+                }
             }
         }
         $_Br = $(if ($_Br.Equals($Obj.Object.Bytes)) { $null }else { $Obj.Object.Bytes })
@@ -2446,13 +2448,21 @@ function Decrypt-Object {
 }
 function Protect-Data {
     [CmdletBinding()]
-    param ()
+    param (
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Bytes')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('Bytes')]
+        [byte[]]$InputBytes,
+
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Xml')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('XmlDoc')]
+        [xml]$InputXml
+    )
 
     begin {
         #Load The Assemblies
         if (!("System.Security.Cryptography.ProtectedData" -is 'Type')) { Add-Type -AssemblyName System.Security }
-        #Load The classes
-        # Invoke-Expression $((Invoke-RestMethod -Method Get https://api.github.com/gists/0be5415643e5556b4d8395df12101f6a).files.'Nerdcrypt.ps1'.content)
     }
 
     process {}
@@ -2461,13 +2471,21 @@ function Protect-Data {
 }
 function UnProtect-Data {
     [CmdletBinding()]
-    param ()
+    param (
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Bytes')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('Bytes')]
+        [byte[]]$InputBytes,
+
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Xml')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('XmlDoc')]
+        [xml]$InputXml
+    )
 
     begin {
         #Load The Assemblies
         if (!("System.Security.Cryptography.ProtectedData" -is 'Type')) { Add-Type -AssemblyName System.Security }
-        #Load The classes
-        # Invoke-Expression $((Invoke-RestMethod -Method Get https://api.github.com/gists/0be5415643e5556b4d8395df12101f6a).files.'Nerdcrypt.ps1'.content)
     }
 
     process {}
