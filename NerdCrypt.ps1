@@ -2470,7 +2470,9 @@ function Protect-Data {
     }
 
     process {
-        $InputBytes = $null
+        if ($PSCmdlet.ParameterSetName -eq 'Xml') {
+            $InputBytes = [xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))
+        }
         if ($PSCmdlet.ShouldProcess("InputObj", "Protect")) {
             $ProtectedD = [xconvert]::ToProtected([byte[]]$InputBytes, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope)
         }
@@ -2505,7 +2507,9 @@ function UnProtect-Data {
     }
 
     process {
-        $InputBytes = $null
+        if ($PSCmdlet.ParameterSetName -eq 'Xml') {
+            $InputBytes = [xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))
+        }
         if ($PSCmdlet.ShouldProcess("InputBytes", "Unprotect")) {
             $UnProtected = [xconvert]::ToUnProtected([byte[]]$InputBytes, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope)
         }
