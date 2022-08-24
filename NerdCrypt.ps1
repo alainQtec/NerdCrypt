@@ -1810,7 +1810,7 @@ class K3Y {
         )
     }
     [void]hidden SetK3YUID([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        if ($null -ne $this.UID) { Write-Verbose "[+] Update UID ..." }
+        # if ($null -ne $this.UID) { Write-Verbose "[+] Update UID ..." }
         # The K3Y 'UID' is a fancy way of storing the Key version, user, compressiontype and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
         $this.UID = $this.GetK3YUID($password, $Expirity, $Compression, $_PID);
     }
@@ -1839,7 +1839,7 @@ class K3Y {
             )
             $this.SetK3YUID($password, $Expirity, $Compression, $_PID);
         }
-        Write-Verbose "[+] Check Password Hash.."
+        # Write-Verbose "[+] Check Password Hash.."
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::SecurestringToString($Password));
         if (!$this.VerifyPassword($Passw0rd)) { Throw [System.UnauthorizedAccessException]::new('Wrong Password.') };
         $ResolvePassword = $null; Set-Variable -Name ResolvePassword -Option Private -Visibility Private -Value $([xconvert]::SecurestringFromString([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
@@ -2035,14 +2035,20 @@ class NerdCrypt {
     NerdCrypt([Object]$Object) {
         $this.Object = [NcObject]::new($Object);
     }
-    NerdCrypt([Object]$Object, [string]$User) {
+    NerdCrypt([Object]$Object, [string]$PublicKey) {
         $this.Object = [NcObject]::new($Object);
+        $this.SetPublicKey($PublicKey);
+    }
+    NerdCrypt([Object]$Object, [string]$User, [string]$PublicKey) {
+        $this.Object = [NcObject]::new($Object);
+        $this.SetPublicKey($PublicKey);
         $this.User.UserName = $User;
     }
-    NerdCrypt([Object]$Object, [string]$User, [securestring]$Password) {
+    NerdCrypt([Object]$Object, [string]$User, [securestring]$PrivateKey, [string]$PublicKey) {
         $this.Object = [NcObject]::new($Object);
         $this.User.UserName = $User;
-        $this.SetCredentials([pscredential]::new($User, $Password));
+        $this.SetPublicKey($PublicKey);
+        $this.SetCredentials([pscredential]::new($User, $PrivateKey));
     }
     [void]SetBytes([byte[]]$bytes) {
         $this.Object.Bytes = $bytes;
@@ -2207,7 +2213,8 @@ function Encrypt-Object {
         [Alias('SecurePassword')]
         [SecureString]$PrivateKey = [K3Y]::GetPassword(),
 
-        [Parameter(Mandatory = $false, Position = 2, ParameterSetName = 'WithSecureKey')]
+        [Parameter(Mandatory = $false, Position = 2, ParameterSetName = '__AllParameterSets')]
+        [ValidateNotNullOrEmpty()]
         [string]$PublicKey,
 
         # So not worth it! Unless youre too lazy to create a SecureString, Or your Password is temporal (Ex: Gets changed by your Password Generator, every 60 seconds).
@@ -2226,24 +2233,24 @@ function Encrypt-Object {
         [string]$KeyFile,
 
         # FilePath to store your keys. Saves keys as base64 in an enrypted file. Ex: some_random_Name.key (Not recomended)
-        [Parameter(Mandatory = $false, Position = 2, ParameterSetName = 'WithKey')]
-        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithVault')]
-        [Parameter(Mandatory = $false, Position = 2, ParameterSetName = 'WithPlainKey')]
-        [Parameter(Mandatory = $false, Position = 3, ParameterSetName = 'WithSecureKey')]
+        [Parameter(Mandatory = $false, Position = 3, ParameterSetName = '__AllParameterSets')]
         [Alias('ExportFile')]
         [string]$KeyOutFile,
 
         # How long you want the encryption to last. (!Caution Your data will be LOST Forever if you do not decrypt before the expirity date!)
-        [Parameter(Mandatory = $false, Position = 2, ParameterSetName = 'WithVault')]
-        [Parameter(Mandatory = $false, Position = 3, ParameterSetName = 'WithKey')]
+        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithVault')]
+        [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WithKey')]
         [Parameter(Mandatory = $false, Position = 3, ParameterSetName = 'WithPlainKey')]
         [Parameter(Mandatory = $false, Position = 3, ParameterSetName = 'WithSecureKey')]
-        [ValidateNotNullOrEmpty()]
         [ValidateSet('None', '1Year', '1Month', '1Day')]
+        [ValidateNotNullOrEmpty()]
         [Alias('KeyExpirity')]
         [datetime]$Expirity,
 
-        [Parameter(Mandatory = $false, Position = 4, ParameterSetName = '__AllParameterSets')]
+        [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WithSecureKey')]
+        [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WithPlainKey')]
+        [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WithVault')]
+        [Parameter(Mandatory = $false, Position = 5, ParameterSetName = 'WithKey')]
         [ValidateNotNullOrEmpty()]
         [int]$Iterations = 2
     )
@@ -2252,7 +2259,7 @@ function Encrypt-Object {
         $DynamicParams = [System.Management.Automation.RuntimeDefinedParameterDictionary]::new()
         [bool]$IsPossiblefileType = $false
         [bool]$IsArrayObject = $false
-        [int]$P = 5 #(Position)
+        [int]$P = 6 #(Position)
         try {
             if ($Object.count -gt 1) {
                 $InputType = @()
@@ -2333,20 +2340,22 @@ function Encrypt-Object {
             }
         }
         $Obj = [nerdcrypt]::new($Object);
-        if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('PublicKey')) {
-            $Obj.SetPublicKey($PublicKey);
-        }
-        $_Br = $Obj.Object.Bytes
         if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('Expirity')) {
             $Obj.key.Expirity = [Expirity]::new($Expirity);
         }
+        if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('PublicKey')) {
+            $Obj.SetPublicKey($PublicKey);
+        } else {
+            Write-Verbose "[+] Create New PublicKey ..."
+            $Obj.SetPublicKey($(New-PublicKey -UserName $Obj.key.User.UserName -PrivateKey $PsW -Expirity $Obj.key.Expirity.date));
+        }
+        $_Br = $Obj.Object.Bytes
         $Obj.SetBytes($Obj.Encrypt($PsW, $Iterations));
         if ($PsCmdlet.ParameterSetName -ne 'WithKey') {
             if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile') -and ![string]::IsNullOrEmpty($KeyOutFile)) {
                 $Obj.key.Export($KeyOutFile, $true)
             } else {
-                Write-Verbose "Public Key:"
-                Write-Verbose "$([k3Y]::GetPublicKey($Obj.key))"
+                Write-Verbose "Public Key:`n$([k3Y]::GetPublicKey($Obj.key))"
             }
         }
         $_Br = $(if ($_Br.Equals($Obj.Object.Bytes)) { $null }else { $Obj.Object.Bytes })
@@ -2461,6 +2470,33 @@ function UnProtect-Data {
     process {}
 
     end {}
+}
+function New-PublicKey {
+    [CmdletBinding(ConfirmImpact = "Medium")]
+    [OutputType([string])]
+    param (
+        [Parameter(Mandatory = $false, Position = 0)]
+        [ValidateNotNullOrEmpty()]
+        [string]$UserName = $env:USERNAME,
+
+        [Parameter(Mandatory = $true, Position = 1)]
+        [ValidateNotNullOrEmpty()]
+        [securestring]$PrivateKey,
+
+        [Parameter(Mandatory = $false, Position = 2)]
+        [ValidateNotNullOrEmpty()]
+        [datetime]$Expirity = ([Datetime]::Now + [TimeSpan]::new(30, 0, 0, 0)) # One month
+    )
+
+    begin {}
+
+    process {
+        $K = [K3Y]::new($UserName, $PrivateKey, $Expirity)
+    }
+
+    end {
+        return [string][K3Y]::GetPublicKey($K);
+    }
 }
 #endregion Functions
 # Credential Vault:
