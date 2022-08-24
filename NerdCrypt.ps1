@@ -1985,6 +1985,7 @@ class K3Y {
         }
     }
     [string]static GetPublicKey([k3Y]$K3Y) {
+        if ($null -eq $K3Y) { return [string]::Empty };
         $NotNullProps = ('User', 'UID', 'Expirity');
         $CustomObject = Invoke-Expression "[PSCustomObject]@{$($K3Y | Get-Member -MemberType Properties | ForEach-Object {$Prop = $_.Name; if ($null -eq $K3Y.$Prop -and $Prop -in $NotNullProps) { throw [System.ArgumentNullException]::new($Prop) }; "$Prop = `$this.$Prop;"})}"
         return [string][xconvert]::ToCompressed([System.Convert]::ToBase64String([XConvert]::BytesFromObject($CustomObject))); #(PublicKey)
@@ -2472,7 +2473,7 @@ function UnProtect-Data {
     end {}
 }
 function New-PublicKey {
-    [CmdletBinding(ConfirmImpact = "Medium")]
+    [CmdletBinding(ConfirmImpact = "Medium", SupportsShouldProcess = $true)]
     [OutputType([string])]
     param (
         [Parameter(Mandatory = $false, Position = 0)]
@@ -2491,7 +2492,10 @@ function New-PublicKey {
     begin {}
 
     process {
-        $K = [K3Y]::new($UserName, $PrivateKey, $Expirity)
+        $k = $null
+        if ($PSCmdlet.ShouldProcess("Create PublicKey")) {
+            $K = [K3Y]::new($UserName, $PrivateKey, $Expirity)
+        }
     }
 
     end {
