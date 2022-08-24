@@ -1819,7 +1819,7 @@ class K3Y {
         return [K3Y]::GetPassword($ThrowOnFailure);
     }
     [securestring]hidden static GetPassword([bool]$ThrowOnFailure) {
-        $Password = $null; Set-Variable -Name Password -Scope Local -Visibility Private -Option Private -Value ($(Get-Variable Host).value.UI.PromptForCredential('NerdCrypt Password Prompt', "Please Enter Your Password", $env:UserName, $env:COMPUTERNAME).Password);
+        $Password = $null; Set-Variable -Name Password -Scope Local -Visibility Private -Option Private -Value ($(Get-Variable Host).value.UI.PromptForCredential('NerdCrypt', "Please Enter Your Password", $env:UserName, $env:COMPUTERNAME).Password);
         if ($ThrowOnFailure -and ($null -eq $Password -or $([string]::IsNullOrWhiteSpace([xconvert]::SecurestringToString($Password))))) {
             throw [System.InvalidOperationException]::new("Please Provide a valid Password. That is not Null Or WhiteSpace.", [System.ArgumentNullException]::new("Password"));
         }
@@ -2489,11 +2489,9 @@ function New-PublicKey {
         [datetime]$Expirity = ([Datetime]::Now + [TimeSpan]::new(30, 0, 0, 0)) # One month
     )
 
-    begin {}
-
     process {
         $k = $null
-        if ($PSCmdlet.ShouldProcess("Create PublicKey")) {
+        if ($PSCmdlet.ShouldProcess("$env:ComputerName", "Create PublicKey")) {
             $K = [K3Y]::new($UserName, $PrivateKey, $Expirity)
         }
     }
@@ -2581,7 +2579,9 @@ namespace CredManager {
     }
 }
 "@
-Add-Type -TypeDefinition $code -Language CSharp
+if (![bool]("CredManager.Util" -as "type")) {
+    Add-Type -TypeDefinition $code -Language CSharp
+}
 # How to store credentials
 # [CredManager.Util]::SetUserCredential("Application Name", "Username", "Password")
 # # How to retrieve credentials
