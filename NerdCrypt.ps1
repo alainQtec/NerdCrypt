@@ -2451,13 +2451,17 @@ function Protect-Data {
     param (
         [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Bytes')]
         [ValidateNotNullOrEmpty()]
-        [Alias('Bytes')]
-        [byte[]]$InputBytes,
+        [byte[]]$Bytes,
 
         [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Xml')]
         [ValidateNotNullOrEmpty()]
         [Alias('XmlDoc')]
-        [xml]$InputXml
+        [xml]$InputXml,
+
+        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = '__AllParameterSets')]
+        [ValidateSet('CurrentUser', 'LocalMachine')]
+        [ValidateNotNullOrEmpty()]
+        [string]$ProtectionScope
     )
 
     begin {
@@ -2465,9 +2469,14 @@ function Protect-Data {
         if (!("System.Security.Cryptography.ProtectedData" -is 'Type')) { Add-Type -AssemblyName System.Security }
     }
 
-    process {}
+    process {
+        $InputBytes = $null
+        $ProtectedD = [xconvert]::ToProtected([byte[]]$InputBytes, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope)
+    }
 
-    end {}
+    end {
+        return $ProtectedD
+    }
 }
 function UnProtect-Data {
     [CmdletBinding()]
@@ -2480,7 +2489,12 @@ function UnProtect-Data {
         [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Xml')]
         [ValidateNotNullOrEmpty()]
         [Alias('XmlDoc')]
-        [xml]$InputXml
+        [xml]$InputXml,
+
+        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = '__AllParameterSets')]
+        [ValidateSet('CurrentUser', 'LocalMachine')]
+        [ValidateNotNullOrEmpty()]
+        [string]$ProtectionScope
     )
 
     begin {
@@ -2488,9 +2502,14 @@ function UnProtect-Data {
         if (!("System.Security.Cryptography.ProtectedData" -is 'Type')) { Add-Type -AssemblyName System.Security }
     }
 
-    process {}
+    process {
+        $InputBytes = $null
+        $UnProtected = [xconvert]::ToUnProtected([byte[]]$InputBytes, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope)
+    }
 
-    end {}
+    end {
+        return $UnProtected
+    }
 }
 function New-PublicKey {
     [CmdletBinding(ConfirmImpact = "Medium", SupportsShouldProcess = $true)]
