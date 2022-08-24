@@ -2184,7 +2184,7 @@ function Encrypt-Object {
     .LINK
         Decrypt-Object
     .EXAMPLE
-        $Encrypted = Encrypt-Object "Helllo?><)*&%^#$@!~_++:`"}{`world" -Verbose
+        $Encrypted = Encrypt-Object -Object "Hello World! #O101O#" -KeyOutFile .\Kee.txt
 
         Encrypting your Password By inputing as plainText
 
@@ -2199,7 +2199,7 @@ function Encrypt-Object {
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '', Justification = 'Prefer verb usage')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingConvertToSecureStringWithPlainText", '')]
-    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'WithSecureKey')]
+    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'WithSecureKey', SupportsShouldProcess = $true)]
     [OutputType([byte[]])]
     param (
         # The Object you want to encrypt
@@ -2354,7 +2354,9 @@ function Encrypt-Object {
         $Obj.SetBytes($Obj.Encrypt($PsW, $Iterations));
         if ($PsCmdlet.ParameterSetName -ne 'WithKey') {
             if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile') -and ![string]::IsNullOrEmpty($KeyOutFile)) {
-                $Obj.key.Export($KeyOutFile, $true)
+                if ($PSCmdlet.ShouldProcess("$KeyOutFile", "ExportKey")) {
+                    $Obj.key.Export($KeyOutFile, $true)
+                }
             } else {
                 Write-Verbose "Public Key:`n$([k3Y]::GetPublicKey($Obj.key))"
             }
@@ -2370,7 +2372,7 @@ function Encrypt-Object {
 function Decrypt-Object {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '', Justification = 'Prefer verb usage')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingConvertToSecureStringWithPlainText", '')]
-    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'WithSecureKey')]
+    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'WithSecureKey', SupportsShouldProcess = $true)]
     [OutputType([byte[]])]
     param (
         # The Object you want to encrypt
@@ -2426,7 +2428,7 @@ function Decrypt-Object {
                 throw 'Error!'
             }
         }
-        $Obj = [nerdcrypt]::new($InputBytes); $Obj.SetPublicKey($PublicKey);
+        $Obj = [nerdcrypt]::new($InputBytes, $PublicKey);
         $_Br = $Obj.Object.Bytes
         $Obj.SetBytes($Obj.Decrypt($PsW, $Iterations));
         if ($PsCmdlet.ParameterSetName -ne 'WithKey' -and $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
