@@ -1984,21 +1984,21 @@ class K3Y {
             return $Output
         }
     }
-    [string]Export() {
+    [string]static GetPublicKey([k3Y]$K3Y) {
         $NotNullProps = ('User', 'UID', 'Expirity');
-        $CustomObject = Invoke-Expression "[PSCustomObject]@{$($this | Get-Member -MemberType Properties | ForEach-Object {$Prop = $_.Name; if ($null -eq $this.$Prop -and $Prop -in $NotNullProps) { throw [System.ArgumentNullException]::new($Prop) }; "$Prop = `$this.$Prop;"})}"
-        return [string][xconvert]::ToCompressed([System.Convert]::ToBase64String([XConvert]::BytesFromObject($CustomObject)));
+        $CustomObject = Invoke-Expression "[PSCustomObject]@{$($K3Y | Get-Member -MemberType Properties | ForEach-Object {$Prop = $_.Name; if ($null -eq $K3Y.$Prop -and $Prop -in $NotNullProps) { throw [System.ArgumentNullException]::new($Prop) }; "$Prop = `$this.$Prop;"})}"
+        return [string][xconvert]::ToCompressed([System.Convert]::ToBase64String([XConvert]::BytesFromObject($CustomObject))); #(PublicKey)
     }
     [void]Export([string]$FilePath) {
         $this.Export($FilePath, $false);
     }
     [void]Export([string]$FilePath, [bool]$encrypt) {
         if (![IO.File]::Exists($FilePath)) { New-Item -Path $FilePath -ItemType File | Out-Null }
-        Write-Output $this.Export() | Out-File -FilePath $FilePath -Encoding utf8 -NoNewline;
+        Set-Content -Path $FilePath -Value ([k3Y]::GetPublicKey($this)) -Encoding UTF8 -NoNewline
         if ($encrypt) { $(Get-Item $FilePath).Encrypt() }
     }
-    [K3Y]Import([string]$StringK3Y) {
-        $Obj = $null; Set-Variable -Name Obj -Scope Local -Visibility Private -Option Private -Value ([xconvert]::BytesToObject([convert]::FromBase64String([xconvert]::ToDeCompressed($StringK3Y))))
+    [K3Y]Import([string]$PublicKey) {
+        $Obj = $null; Set-Variable -Name Obj -Scope Local -Visibility Private -Option Private -Value ([xconvert]::BytesToObject([convert]::FromBase64String([xconvert]::ToDeCompressed($PublicKey))))
         $Obj = [xconvert]::ToPSObject($Obj);
         $Obj = [K3Y]$Obj; $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $Obj.$Prop }
         if (![string]::IsNullOrWhiteSpace([xconvert]::SecurestringToString($Obj.User.Password))) {
@@ -2112,8 +2112,8 @@ class NerdCrypt {
         return $_bytes
     }
     #endregion ParanoidCrypto
-    [void]SetPublicKey([string]$StringK3Y) {
-        [void]$this.key.Import($StringK3Y);
+    [void]SetPublicKey([string]$PublicKey) {
+        [void]$this.key.Import($PublicKey);
     }
     [Securestring]ToSecureString() {
         return $(if ($null -eq $this.Object.Bytes) { [Securestring]::new() }else {
@@ -2346,7 +2346,7 @@ function Encrypt-Object {
                 $Obj.key.Export($KeyOutFile, $true)
             } else {
                 Write-Verbose "Public Key:"
-                Write-Verbose "$($Obj.key.Export())"
+                Write-Verbose "$([k3Y]::GetPublicKey($Obj.key))"
             }
         }
         $_Br = $(if ($_Br.Equals($Obj.Object.Bytes)) { $null }else { $Obj.Object.Bytes })
@@ -2365,18 +2365,22 @@ function Decrypt-Object {
     param (
         # The Object you want to encrypt
         [Parameter(Mandatory = $true, Position = 0, ParameterSetName = '__AllParameterSets')]
+        [ValidateNotNullOrEmpty()]
         [Alias('Bytes')]
         [byte[]]$InputBytes,
 
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithSecureKey')]
+        [ValidateNotNullOrEmpty()]
         [Alias('SecurePassword')]
         [SecureString]$PrivateKey = [K3Y]::GetPassword(),
 
-        [Parameter(Mandatory = $true, Position = 2, ParameterSetName = 'WithSecureKey')]
+        [Parameter(Mandatory = $true, Position = 2, ParameterSetName = '__AllParameterSets')]
+        [ValidateNotNullOrEmpty()]
         [string]$PublicKey,
 
         # So not worth it! Unless youre too lazy to create a SecureString, Or your Password is temporal (Ex: Gets changed by your Password Generator, every 60 seconds).
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithPlainKey')]
+        [ValidateNotNullOrEmpty()]
         [Alias('PlainPassword')]
         [string]$PlainPass,
 
