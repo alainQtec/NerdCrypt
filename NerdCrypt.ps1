@@ -270,17 +270,6 @@ class XConvert {
         }
         return $Out
     }
-    [SecureString]static ToSecurestring([string]$String) {
-        $SecureString = [System.Security.SecureString]::new()
-        if (![string]::IsNullOrEmpty($String)) {
-            $Chars = $String.toCharArray()
-            ForEach ($Char in $Chars) {
-                $SecureString.AppendChar($Char)
-            }
-        }
-        $SecureString.MakeReadOnly();
-        return $SecureString
-    }
     [string]static Tostring([Object]$Object) {
         $Bytes = [byte[]]::new(0);
         if ($Object.GetType() -eq [String]) {
@@ -312,6 +301,17 @@ class XConvert {
             }
         }
         return $Pstr;
+    }
+    [SecureString]static ToSecurestring([string]$String) {
+        $SecureString = $null; Set-Variable -Name SecureString -Scope Local -Visibility Private -Option Private -Value ([System.Security.SecureString]::new());
+        if (![string]::IsNullOrEmpty($String)) {
+            $Chars = $String.toCharArray()
+            ForEach ($Char in $Chars) {
+                $SecureString.AppendChar($Char)
+            }
+        }
+        $SecureString.MakeReadOnly();
+        return $SecureString
     }
     [int[]]static StringToCharCode([string[]]$string) {
         [bool]$encoderShouldEmitUTF8Identifier = $false; $Codes = @()
