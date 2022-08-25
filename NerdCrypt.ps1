@@ -1839,7 +1839,7 @@ class K3Y {
     }
     [securestring]ResolvePassword([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         if (!$this.HasPasswd()) {
-            Write-Verbose "[+] Set Password.."
+            Write-Verbose "[+] Set Password ..."
             $this.User.PSObject.Properties.Add([psscriptproperty]::new('Password', [ScriptBlock]::Create({
                             [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($Password)).ToArray())))
                         }
@@ -1993,10 +1993,16 @@ class K3Y {
             return $Output
         }
     }
-    [string]static GetPublicKey([k3Y]$K3Y) {
+    [K3Y]static Create([string]$K3yString) {
+        $Obj = $null; Set-Variable -Name Obj -Scope Local -Visibility Private -Option Private -Value ([xconvert]::BytesToObject([convert]::FromBase64String([xconvert]::ToDeCompressed($K3yString))));
+        $K3Y = [K3Y][xconvert]::ToPSObject($Obj);
+        return $K3Y
+    }
+    [string]static ReadNerdKey([k3Y]$K3Y) {
         if ($null -eq $K3Y) { return [string]::Empty };
         $NotNullProps = ('User', 'UID', 'Expirity');
-        $CustomObject = Invoke-Expression "[PSCustomObject]@{$($K3Y | Get-Member -MemberType Properties | ForEach-Object {$Prop = $_.Name; if ($null -eq $K3Y.$Prop -and $Prop -in $NotNullProps) { throw [System.ArgumentNullException]::new($Prop) }; "$Prop = `$this.$Prop;"})}"
+        $K3Y | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; if ($Prop -in $NotNullProps) { throw [System.ArgumentNullException]::new($Prop) } };
+        $CustomObject = [xconvert]::ToPSObject($K3Y);
         return [string][xconvert]::ToCompressed([System.Convert]::ToBase64String([XConvert]::BytesFromObject($CustomObject))); #(PublicKey)
     }
     [void]Export([string]$FilePath) {
@@ -2004,22 +2010,21 @@ class K3Y {
     }
     [void]Export([string]$FilePath, [bool]$encrypt) {
         if (![IO.File]::Exists($FilePath)) { New-Item -Path $FilePath -ItemType File | Out-Null }
-        Set-Content -Path $FilePath -Value ([k3Y]::GetPublicKey($this)) -Encoding UTF8 -NoNewline
+        Set-Content -Path $FilePath -Value ([k3Y]::ReadNerdKey($this)) -Encoding UTF8 -NoNewline;
         if ($encrypt) { $(Get-Item $FilePath).Encrypt() }
     }
-    [K3Y]Import([string]$PublicKey) {
-        $Obj = $null; Set-Variable -Name Obj -Scope Local -Visibility Private -Option Private -Value ([xconvert]::BytesToObject([convert]::FromBase64String([xconvert]::ToDeCompressed($PublicKey))))
-        $Obj = [xconvert]::ToPSObject($Obj);
-        $Obj = [K3Y]$Obj; $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $Obj.$Prop }
-        if (![string]::IsNullOrWhiteSpace([xconvert]::ToString($Obj.User.Password))) {
+    [K3Y]Import([string]$StringK3y) {
+        $K3Y = $null; Set-Variable -Name K3Y -Scope Local -Visibility Private -Option Private -Value ([K3Y]::Create($StringK3y));
+        $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $K3Y.$Prop }
+        if (![string]::IsNullOrWhiteSpace([xconvert]::ToString($K3Y.User.Password))) {
             $this.User.PSObject.Properties.Add([psscriptproperty]::new('Password', [ScriptBlock]::Create({
-                            $Obj.User.Password
+                            $K3Y.User.Password
                         }
                     )
                 )
             )
         }
-        return $Obj
+        return $K3Y
     }
     [bool]IsValid() {
         $ThrowOnFailure = $false; $IsStillValid = [k3Y]::AnalyseK3YUID($this, $this.User.Password, $ThrowOnFailure)[0];
@@ -2367,7 +2372,7 @@ function Encrypt-Object {
                     $Obj.key.Export($KeyOutFile, $true)
                 }
             } else {
-                Write-Verbose "Public Key:`n$([k3Y]::GetPublicKey($Obj.key))"
+                Write-Verbose "Public Key:`n$([k3Y]::ReadNerdKey($Obj.key))"
             }
         }
         $_Br = $(if ($_Br.Equals($Obj.Object.Bytes)) { $null }else { $Obj.Object.Bytes })
@@ -2566,7 +2571,7 @@ function New-PublicNerdKey {
     }
 
     end {
-        return [string][K3Y]::GetPublicKey($K);
+        return [string][K3Y]::ReadNerdKey($K);
     }
 }
 #endregion Functions
