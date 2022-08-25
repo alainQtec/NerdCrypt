@@ -2572,10 +2572,23 @@ function New-PublicNerdKey {
 
     process {
         $k = $null
-        if ($PSCmdlet.ShouldProcess("$env:ComputerName", "CreateNerdKey")) {
-            $K = [K3Y]::new($UserName, $PrivateKey, $Expirity);
+        if ($PSCmdlet.ParameterSetName -eq 'Params') {
+            if ($PSCmdlet.ShouldProcess("$env:ComputerName", "CreateNerdKey")) {
+                $K = [K3Y]::new($UserName, $PrivateKey, $Expirity);
+            }
+            $k = [string][K3Y]::ReadNerdKey($K);
+        } elseif ($PSCmdlet.ParameterSetName -eq 'FromK3Y') {
+            if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('UserName')) {
+                $K3YoBJ.User.UserName = $UserName
+            }
+            if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('PrivateKey')) {
+                $K3YoBJ
+            }
+            if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Expirity')) {
+                $K3YoBJ
+            }
+            $k = [K3Y]::ReadNerdKey($K3YoBJ)
         }
-        $k = [string][K3Y]::ReadNerdKey($K);
     }
 
     end {
