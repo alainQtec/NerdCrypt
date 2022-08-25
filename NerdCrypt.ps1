@@ -1993,6 +1993,9 @@ class K3Y {
             return $Output
         }
     }
+    [K3Y]static Create() {
+        return [K3Y]::new()
+    }
     [K3Y]static Create([string]$K3yString) {
         $Obj = $null; Set-Variable -Name Obj -Scope Local -Visibility Private -Option Private -Value ([xconvert]::BytesToObject([convert]::FromBase64String([xconvert]::ToDeCompressed($K3yString))));
         $K3Y = [K3Y][xconvert]::ToPSObject($Obj);
