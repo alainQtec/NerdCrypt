@@ -2216,7 +2216,7 @@ function Encrypt-Object {
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '', Justification = 'Prefer verb usage')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingConvertSecurestringWithPlainText", '')]
-    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'WithSecureKey', SupportsShouldProcess = $true)]
+    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'WithSecureKey')]
     [OutputType([byte[]])]
     param (
         # The Object you want to encrypt
@@ -2371,10 +2371,9 @@ function Encrypt-Object {
         $_Br = $Obj.Object.Bytes
         $Obj.SetBytes($Obj.Encrypt($PsW, $Iterations));
         if ($PsCmdlet.ParameterSetName -ne 'WithKey') {
-            if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile') -and ![string]::IsNullOrEmpty($KeyOutFile)) {
-                if ($PSCmdlet.ShouldProcess("$KeyOutFile", "ExportKey")) {
-                    $Obj.key.Export($KeyOutFile, $true)
-                }
+            if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
+                Write-Verbose "[-] Export PublicKey .."
+                $Obj.key.Export($KeyOutFile, $true)
             } else {
                 Write-Verbose "StringK3y:`n$([k3Y]::ReadNerdKey($Obj.key))"
             }
@@ -2390,7 +2389,7 @@ function Encrypt-Object {
 function Decrypt-Object {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '', Justification = 'Prefer verb usage')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingConvertSecurestringWithPlainText", '')]
-    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'WithSecureKey', SupportsShouldProcess = $true)]
+    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'WithSecureKey')]
     [OutputType([byte[]])]
     param (
         # The Object you want to encrypt
@@ -2451,9 +2450,8 @@ function Decrypt-Object {
         $Obj.SetBytes($Obj.Decrypt($PsW, $Iterations));
         if ($PsCmdlet.ParameterSetName -ne 'WithKey' -and $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
             if (![string]::IsNullOrEmpty($KeyOutFile)) {
-                if ($PSCmdlet.ShouldProcess("$KeyOutFile", "Export PublicKey")) {
-                    $Obj.key.Export($KeyOutFile, $true)
-                }
+                Write-Verbose "[-] Export PublicKey .."
+                $Obj.key.Export($KeyOutFile, $true)
             }
         }
         $_Br = $(if ($_Br.Equals($Obj.Object.Bytes)) { $null }else { $Obj.Object.Bytes })
@@ -2582,10 +2580,10 @@ function New-PublicNerdKey {
                 $K3YoBJ.User.UserName = $UserName
             }
             if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('PrivateKey')) {
-                $K3YoBJ
+                [void]$K3YoBJ.ResolvePassword($PrivateKey)
             }
             if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Expirity')) {
-                $K3YoBJ
+                $K3YoBJ.Expirity = [Expirity]::new($Expirity)
             }
             $k = [K3Y]::ReadNerdKey($K3YoBJ)
         }
