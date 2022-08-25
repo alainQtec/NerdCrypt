@@ -2055,17 +2055,17 @@ class NerdCrypt {
     }
     NerdCrypt([Object]$Object, [string]$PublicKey) {
         $this.Object = [NcObject]::new($Object);
-        $this.SetPublicKey($PublicKey);
+        $this.SetNerdKey($PublicKey);
     }
     NerdCrypt([Object]$Object, [string]$User, [string]$PublicKey) {
         $this.Object = [NcObject]::new($Object);
-        $this.SetPublicKey($PublicKey);
+        $this.SetNerdKey($PublicKey);
         $this.User.UserName = $User;
     }
     NerdCrypt([Object]$Object, [string]$User, [securestring]$PrivateKey, [string]$PublicKey) {
         $this.Object = [NcObject]::new($Object);
         $this.User.UserName = $User;
-        $this.SetPublicKey($PublicKey);
+        $this.SetNerdKey($PublicKey);
         $this.SetCredentials([pscredential]::new($User, $PrivateKey));
     }
     [void]SetBytes([byte[]]$bytes) {
@@ -2136,8 +2136,8 @@ class NerdCrypt {
         return $_bytes
     }
     #endregion ParanoidCrypto
-    [void]SetPublicKey([string]$PublicKey) {
-        [void]$this.key.Import($PublicKey);
+    [void]SetNerdKey([string]$StringK3y) {
+        [void]$this.key.Import($StringK3y);
     }
     [Securestring]Securestring() {
         return $(if ($null -eq $this.Object.Bytes) { [Securestring]::new() }else {
@@ -2362,10 +2362,11 @@ function Encrypt-Object {
             $Obj.key.Expirity = [Expirity]::new($Expirity);
         }
         if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('PublicKey')) {
-            $Obj.SetPublicKey($PublicKey);
+            $Obj.SetNerdKey($PublicKey);
         } else {
-            Write-Verbose "[+] Create New PublicKey ..."
-            $Obj.SetPublicKey($(New-PublicNerdKey -UserName $Obj.key.User.UserName -PrivateKey $PsW -Expirity $Obj.key.Expirity.date));
+            Write-Verbose "[+] Create NerdKey ...";
+            $Obj.SetNerdKey($(New-PublicNerdKey -UserName $Obj.key.User.UserName -PrivateKey $PsW -Expirity $Obj.key.Expirity.date));
+            Write-Verbose "[-] Hash: $([xconvert]::ToString($Obj.key.User.Password))";
         }
         $_Br = $Obj.Object.Bytes
         $Obj.SetBytes($Obj.Encrypt($PsW, $Iterations));
@@ -2375,7 +2376,7 @@ function Encrypt-Object {
                     $Obj.key.Export($KeyOutFile, $true)
                 }
             } else {
-                Write-Verbose "Public Key:`n$([k3Y]::ReadNerdKey($Obj.key))"
+                Write-Verbose "StringK3y:`n$([k3Y]::ReadNerdKey($Obj.key))"
             }
         }
         $_Br = $(if ($_Br.Equals($Obj.Object.Bytes)) { $null }else { $Obj.Object.Bytes })
