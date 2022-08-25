@@ -2551,31 +2551,35 @@ function New-PublicNerdKey {
         Test-MyTestFunction -Verbose
         Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines
     #>
-    [CmdletBinding(ConfirmImpact = "Medium", SupportsShouldProcess = $true)]
+    [CmdletBinding(ConfirmImpact = "Medium", SupportsShouldProcess = $true, DefaultParameterSetName = 'Params')]
     [OutputType([string])]
     param (
-        [Parameter(Mandatory = $false, Position = 0)]
-        [ValidateNotNullOrEmpty()]
-        [string]$UserName = $env:USERNAME,
+        [Parameter(Mandatory = $false, Position = 0, ParameterSetName = 'FromK3Y')]
+        [ValidateNotNullOrEmpty()][K3Y]$K3YoBJ,
 
-        [Parameter(Mandatory = $true, Position = 1)]
-        [ValidateNotNullOrEmpty()]
-        [securestring]$PrivateKey,
+        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'FromK3Y')]
+        [Parameter(Mandatory = $false, Position = 0, ParameterSetName = 'Params')]
+        [ValidateNotNullOrEmpty()][string]$UserName = $env:USERNAME,
 
-        [Parameter(Mandatory = $false, Position = 2)]
-        [ValidateNotNullOrEmpty()]
-        [datetime]$Expirity = ([Datetime]::Now + [TimeSpan]::new(30, 0, 0, 0)) # One month
+        [Parameter(Mandatory = $false, Position = 2, ParameterSetName = 'FromK3Y')]
+        [Parameter(Mandatory = $true, Position = 1, ParameterSetName = 'Params')]
+        [ValidateNotNullOrEmpty()][securestring]$PrivateKey,
+
+        [Parameter(Mandatory = $false, Position = 3, ParameterSetName = 'FromK3Y')]
+        [Parameter(Mandatory = $false, Position = 2, ParameterSetName = 'Params')]
+        [ValidateNotNullOrEmpty()][datetime]$Expirity = ([Datetime]::Now + [TimeSpan]::new(30, 0, 0, 0)) # One month
     )
 
     process {
         $k = $null
-        if ($PSCmdlet.ShouldProcess("$env:ComputerName", "Create PublicKey")) {
-            $K = [K3Y]::new($UserName, $PrivateKey, $Expirity)
+        if ($PSCmdlet.ShouldProcess("$env:ComputerName", "CreateNerdKey")) {
+            $K = [K3Y]::new($UserName, $PrivateKey, $Expirity);
         }
+        $k = [string][K3Y]::ReadNerdKey($K);
     }
 
     end {
-        return [string][K3Y]::ReadNerdKey($K);
+        return $k
     }
 }
 #endregion Functions
