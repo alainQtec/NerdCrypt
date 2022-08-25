@@ -1748,7 +1748,7 @@ Class FileCrypt {
 class K3Y {
     [ValidateNotNullOrEmpty()][SecureCred]$User;
     [ValidateNotNullOrEmpty()][Expirity]$Expirity = [Expirity]::new(0, 1); # Default is 30 days
-    [ValidateNotNullOrEmpty()][keyStoreMode]hidden $StorageMode = [KeyStoreMode]::ToSecurestring;
+    [ValidateNotNullOrEmpty()][keyStoreMode]hidden $StorageMode = [KeyStoreMode]::Securestring;
     [ValidateNotNullOrEmpty()][int]hidden $_PID = $(Get-Variable -Name PID).value;
     [ValidateNotNullOrEmpty()][securestring]hidden $UID;
     [ValidateNotNullOrEmpty()][byte[]]hidden $rgbSalt = [System.Text.Encoding]::UTF7.GetBytes('hR#ho"rK6FMu mdZFXp}JMY\?NC]9(.:6;>oB5U>.GkYC-JD;@;XRgXBgsEi|%MqU>_+w/RpUJ}Kt.>vWr[WZ;[e8GM@P@YKuT947Z-]ho>E2"c6H%_L2A:O5:E)6Fv^uVE; aN\4t\|(*;rPRndSOS(7& xXLRKX)VL\/+ZB4q.iY { %Ko^<!sW9n@r8ihj*=T $+Cca-Nvv#JnaZh');
@@ -2357,7 +2357,7 @@ function Encrypt-Object {
             $Obj.SetPublicKey($PublicKey);
         } else {
             Write-Verbose "[+] Create New PublicKey ..."
-            $Obj.SetPublicKey($(New-PublicKey -UserName $Obj.key.User.UserName -PrivateKey $PsW -Expirity $Obj.key.Expirity.date));
+            $Obj.SetPublicKey($(New-PublicNerdKey -UserName $Obj.key.User.UserName -PrivateKey $PsW -Expirity $Obj.key.Expirity.date));
         }
         $_Br = $Obj.Object.Bytes
         $Obj.SetBytes($Obj.Encrypt($PsW, $Iterations));
@@ -2528,7 +2528,20 @@ function UnProtect-Data {
         return $UnProtected
     }
 }
-function New-PublicKey {
+function New-PublicNerdKey {
+    <#
+    .SYNOPSIS
+        Create K3Y
+    .DESCRIPTION
+        A longer description of the function, its purpose, common use cases, etc.
+    .NOTES
+        Information or caveats about the function e.g. 'This function is not supported in Linux'
+    .LINK
+        Specify a URI to a help page, this will show when Get-Help -Online is used.
+    .EXAMPLE
+        Test-MyTestFunction -Verbose
+        Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines
+    #>
     [CmdletBinding(ConfirmImpact = "Medium", SupportsShouldProcess = $true)]
     [OutputType([string])]
     param (
