@@ -275,7 +275,7 @@ class XConvert {
         if ($Object.GetType() -eq [String]) {
             return $Object
         } else {
-            $Bytes = [XConvert]::BytesFromObject($Object)
+            $Bytes = [XConvert]::BytesFromObject($Object);
         }
         return [string][System.Convert]::ToBase64String($Bytes);
     }
@@ -293,7 +293,7 @@ class XConvert {
             return [string]::Empty;
         }
         try {
-            Set-Variable -Name zero -Scope Local -Visibility Private -Option Private -Value ([System.Runtime.InteropServices.Marshal]::ToSecurestringToBSTR($SecureString));
+            Set-Variable -Name zero -Scope Local -Visibility Private -Option Private -Value ([System.Runtime.InteropServices.Marshal]::SecurestringToBSTR($SecureString));
             Set-Variable -Name Pstr -Scope Local -Visibility Private -Option Private -Value ([System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($zero));
         } finally {
             if ($zero -ne [IntPtr]::Zero) {
