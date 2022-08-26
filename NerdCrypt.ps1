@@ -290,8 +290,8 @@ class XConvert {
         $String = @(); foreach ($n in $CharCodes) { $String += [string][char]$n }
         return $String
     }
-    [string]static ToString([int[]]$Code, [string]$JoinSeparator) {
-        return [string]::Join($JoinSeparator, [XConvert]::ToString($Code));
+    [string]static ToString([int[]]$CharCodes, [string]$separator) {
+        return [string]::Join($separator, [XConvert]::ToString($CharCodes));
     }
     [string]static ToString([System.Security.SecureString]$SecureString) {
         [string]$Pstr = [string]::Empty;
