@@ -2489,6 +2489,7 @@ function New-NerdKey {
 
         [Parameter(Mandatory = $false, Position = 2, ParameterSetName = 'FromK3Y')]
         [Parameter(Mandatory = $true, Position = 1, ParameterSetName = 'Params')]
+        [Alias('Password', 'Securestring')]
         [ValidateNotNullOrEmpty()][securestring]$PrivateKey,
 
         [Parameter(Mandatory = $false, Position = 3, ParameterSetName = 'FromK3Y')]
@@ -2499,7 +2500,6 @@ function New-NerdKey {
     process {
         $k = $null
         if ($PSCmdlet.ParameterSetName -eq 'Params') {
-            Write-Verbose "[-] Create NerdKey ..."
             $k = [string][xconvert]::Tostring([K3Y]::new($UserName, $PrivateKey, $Expirity));
         } elseif ($PSCmdlet.ParameterSetName -eq 'FromK3Y') {
             if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('UserName')) {
@@ -2512,6 +2512,8 @@ function New-NerdKey {
                 $K3YoBJ.Expirity = [Expirity]::new($Expirity);
             }
             $k = [xconvert]::Tostring($K3YoBJ);
+        } else {
+            throw [System.Management.Automation.ParameterBindingException]::new("Could Not Resolve ParameterSetname.");
         }
     }
 
