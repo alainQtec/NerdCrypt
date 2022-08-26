@@ -2018,7 +2018,7 @@ class K3Y {
     }
     [K3Y]Import([string]$StringK3y) {
         $K3Y = $null; Set-Variable -Name K3Y -Scope Local -Visibility Private -Option Private -Value ([K3Y]::Create($StringK3y));
-        $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $K3Y.$Prop }
+        $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $K3Y.$Prop };
         if (![string]::IsNullOrWhiteSpace([xconvert]::ToString($K3Y.User.Password))) {
             $this.User.PSObject.Properties.Add([psscriptproperty]::new('Password', [ScriptBlock]::Create({
                             $K3Y.User.Password
@@ -2499,21 +2499,19 @@ function New-PublicNerdKey {
     process {
         $k = $null
         if ($PSCmdlet.ParameterSetName -eq 'Params') {
-            if ($PSCmdlet.ShouldProcess("$env:ComputerName", "CreateNerdKey")) {
-                $K = [K3Y]::new($UserName, $PrivateKey, $Expirity);
-            }
-            $k = [string][K3Y]::ReadNerdKey($K);
+            Write-Verbose "[-] Create NerdKey ..."
+            $k = [string][K3Y]::ReadNerdKey([K3Y]::new($UserName, $PrivateKey, $Expirity));
         } elseif ($PSCmdlet.ParameterSetName -eq 'FromK3Y') {
             if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('UserName')) {
-                $K3YoBJ.User.UserName = $UserName
+                $K3YoBJ.User.UserName = $UserName;
             }
             if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('PrivateKey')) {
-                [void]$K3YoBJ.ResolvePassword($PrivateKey)
+                [void]$K3YoBJ.ResolvePassword($PrivateKey);
             }
             if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Expirity')) {
                 $K3YoBJ.Expirity = [Expirity]::new($Expirity)
             }
-            $k = [K3Y]::ReadNerdKey($K3YoBJ)
+            $k = [K3Y]::ReadNerdKey($K3YoBJ);
         }
     }
 
