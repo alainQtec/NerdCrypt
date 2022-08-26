@@ -2261,10 +2261,9 @@ function Encrypt-Object {
         [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WithKey')]
         [Parameter(Mandatory = $false, Position = 3, ParameterSetName = 'WithPlainKey')]
         [Parameter(Mandatory = $false, Position = 3, ParameterSetName = 'WithSecureKey')]
-        [ValidateSet('None', '1Year', '1Month', '1Day')]
         [ValidateNotNullOrEmpty()]
         [Alias('KeyExpirity')]
-        [datetime]$Expirity,
+        [datetime]$Expirity = ([Datetime]::Now + [TimeSpan]::new(30, 0, 0, 0)), # One month
 
         [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WithSecureKey')]
         [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WithPlainKey')]
