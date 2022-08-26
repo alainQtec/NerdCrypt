@@ -2477,7 +2477,7 @@ function New-PublicNerdKey {
         Test-MyTestFunction -Verbose
         Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines
     #>
-    [CmdletBinding(ConfirmImpact = "Medium", SupportsShouldProcess = $true, DefaultParameterSetName = 'Params')]
+    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'Params')]
     [OutputType([string])]
     param (
         [Parameter(Mandatory = $false, Position = 0, ParameterSetName = 'FromK3Y')]
@@ -2509,7 +2509,7 @@ function New-PublicNerdKey {
                 [void]$K3YoBJ.ResolvePassword($PrivateKey);
             }
             if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Expirity')) {
-                $K3YoBJ.Expirity = [Expirity]::new($Expirity)
+                $K3YoBJ.Expirity = [Expirity]::new($Expirity);
             }
             $k = [K3Y]::ReadNerdKey($K3YoBJ);
         }
