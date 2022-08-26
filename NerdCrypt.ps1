@@ -2366,8 +2366,7 @@ function Encrypt-Object {
             $Obj.SetNerdKey($PublicKey);
         } else {
             Write-Verbose "[+] Create NerdKey ...";
-            New-NerdKey -UserName $Obj.key.User.UserName -Password $PsW
-            $Obj.SetNerdKey($(New-NerdKey -UserName $Obj.key.User.UserName -PrivateKey $PsW -Expirity $Obj.key.Expirity.date));
+            $Obj.SetNerdKey($(New-NerdKey -UserName $Obj.key.User.UserName -Password $PsW -Expirity $Obj.key.Expirity.date));
             Write-Verbose "[-] Hash: $([xconvert]::Tostring($Obj.key.User.Password))";
         }
         $_Br = $Obj.Object.Bytes
