@@ -2366,7 +2366,7 @@ function Encrypt-Object {
             $Obj.SetNerdKey($PublicKey);
         } else {
             Write-Verbose "[+] Create NerdKey ...";
-            $Obj.SetNerdKey($(New-PublicNerdKey -UserName $Obj.key.User.UserName -PrivateKey $PsW -Expirity $Obj.key.Expirity.date));
+            $Obj.SetNerdKey($(New-NerdKey -UserName $Obj.key.User.UserName -PrivateKey $PsW -Expirity $Obj.key.Expirity.date));
             Write-Verbose "[-] Hash: $([xconvert]::Tostring($Obj.key.User.Password))";
         }
         $_Br = $Obj.Object.Bytes
@@ -2463,10 +2463,10 @@ function Decrypt-Object {
         return $_Br
     }
 }
-function New-PublicNerdKey {
+function New-NerdKey {
     <#
     .SYNOPSIS
-        Create K3Y
+        Create [K3Y] Object and Outputs it as a string.
     .DESCRIPTION
         A longer description of the function, its purpose, common use cases, etc.
     .NOTES
