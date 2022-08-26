@@ -2229,8 +2229,8 @@ function Encrypt-Object {
         # Add this if you want 3rd layer of security. Useful when someone(Ex: Hacker) has somehow gained admin priviledges of your PC;
         # With a locked local Password vault it will require much more than just guessing The password, or any BruteForce tool.
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithSecureKey')]
-        [Alias('SecurePassword')]
-        [SecureString]$PrivateKey = [K3Y]::GetPassword(),
+        [Alias('Password', 'Securestring')]
+        [SecureString]$PrivateKey = ([K3Y]::GetPassword()),
 
         [Parameter(Mandatory = $false, Position = 2, ParameterSetName = '__AllParameterSets')]
         [ValidateNotNullOrEmpty()]
@@ -2366,6 +2366,7 @@ function Encrypt-Object {
             $Obj.SetNerdKey($PublicKey);
         } else {
             Write-Verbose "[+] Create NerdKey ...";
+            New-NerdKey -UserName $Obj.key.User.UserName -Password $PsW
             $Obj.SetNerdKey($(New-NerdKey -UserName $Obj.key.User.UserName -PrivateKey $PsW -Expirity $Obj.key.Expirity.date));
             Write-Verbose "[-] Hash: $([xconvert]::Tostring($Obj.key.User.Password))";
         }
