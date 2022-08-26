@@ -2019,15 +2019,6 @@ class K3Y {
     [K3Y]Import([string]$StringK3y) {
         $K3Y = $null; Set-Variable -Name K3Y -Scope Local -Visibility Private -Option Private -Value ([K3Y]::Create($StringK3y));
         $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $K3Y.$Prop };
-        if (![string]::IsNullOrWhiteSpace([xconvert]::ToString($K3Y.User.Password))) {
-            $this.User.PSObject.Properties.Add([psscriptproperty]::new('Password', [ScriptBlock]::Create({
-                            $K3Y.User.Password
-                            # [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($K3Y.User.Password)).ToArray())))
-                        }
-                    )
-                )
-            )
-        }
         return $K3Y
     }
     [bool]IsValid() {
@@ -2256,14 +2247,14 @@ function Encrypt-Object {
         [Alias('ExportFile')]
         [string]$KeyOutFile,
 
-        # How long you want the encryption to last. (!Caution Your data will be LOST Forever if you do not decrypt before the expirity date!)
+        # How long you want the encryption to last. Default to one month (!Caution Your data will be LOST Forever if you do not decrypt before the expirity date!)
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithVault')]
         [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WithKey')]
         [Parameter(Mandatory = $false, Position = 3, ParameterSetName = 'WithPlainKey')]
         [Parameter(Mandatory = $false, Position = 3, ParameterSetName = 'WithSecureKey')]
         [ValidateNotNullOrEmpty()]
         [Alias('KeyExpirity')]
-        [datetime]$Expirity = ([Datetime]::Now + [TimeSpan]::new(30, 0, 0, 0)), # One month
+        [datetime]$Expirity = ([Datetime]::Now + [TimeSpan]::new(30, 0, 0, 0)),
 
         [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WithSecureKey')]
         [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WithPlainKey')]
@@ -2342,22 +2333,24 @@ function Encrypt-Object {
     begin {
         $eap = $ErrorActionPreference; $ErrorActionPreference = "SilentlyContinue"
         $PsCmdlet.MyInvocation.BoundParameters.GetEnumerator() | ForEach-Object { New-Variable -Name $_.Key -Value $_.Value -ea 'SilentlyContinue' }
+        $PsW = $null; $Obj = $null;
         $fxn = ('[' + $MyInvocation.MyCommand.Name + ']')
         # Write-Invocation $MyInvocation
     }
 
     process {
         Write-Verbose "[+] $fxn $($PsCmdlet.ParameterSetName) ..."
-        $PsW = switch ($PsCmdlet.ParameterSetName) {
-            'WithKey' {  }
-            'WithVault' {  }
-            'WithPlainKey' { [xconvert]::ToSecurestring($PlainPass) }
-            'WithSecureKey' { $PrivateKey }
-            Default {
-                throw 'Error!'
+        Set-Variable -Name PsW -Scope Local -Visibility Private -Option Private -Value $(switch ($PsCmdlet.ParameterSetName) {
+                'WithKey' {  }
+                'WithVault' {  }
+                'WithPlainKey' { [xconvert]::ToSecurestring($PlainPass) }
+                'WithSecureKey' { $PrivateKey }
+                Default {
+                    throw 'Error!'
+                }
             }
-        }
-        $Obj = [nerdcrypt]::new($Object);
+        );
+        Set-Variable -Name Obj -Scope Local -Visibility Private -Option Private -Value $([nerdcrypt]::new($Object));
         if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('Expirity')) {
             $Obj.key.Expirity = [Expirity]::new($Expirity);
         }
@@ -2366,24 +2359,25 @@ function Encrypt-Object {
         } else {
             Write-Verbose "[+] Create NerdKey ...";
             $Obj.SetNerdKey($(New-NerdKey -UserName $Obj.key.User.UserName -Password $PsW -Expirity $Obj.key.Expirity.date));
-            Write-Verbose "[-] Hash: $([xconvert]::Tostring($Obj.key.User.Password))";
         }
-        $_Br = $Obj.Object.Bytes
+        $bytes = $Obj.Object.Bytes
+        Set-Variable -Name PsW -Scope Local -Visibility Private -Option Private -Value ($Obj.key.ResolvePassword($Obj.key.User.Password));
+        Write-Verbose "[-] Hash: $([xconvert]::Tostring($Obj.key.User.Password))";
         $Obj.SetBytes($Obj.Encrypt($PsW, $Iterations));
         if ($PsCmdlet.ParameterSetName -ne 'WithKey') {
             if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
-                Write-Verbose "[-] Export PublicKey .."
+                Write-Verbose "[-] Export NerdKey .."
                 $Obj.key.Export($KeyOutFile, $true)
             } else {
-                Write-Verbose "StringK3y:`n$([xconvert]::Tostring($Obj.key))"
+                Write-Verbose "Used NerdKey:`n$([xconvert]::Tostring($Obj.key))"
             }
         }
-        $_Br = $(if ($_Br.Equals($Obj.Object.Bytes)) { $null }else { $Obj.Object.Bytes })
+        $bytes = $(if ($bytes.Equals($Obj.Object.Bytes)) { $null }else { $Obj.Object.Bytes })
     }
 
     end {
         $ErrorActionPreference = $eap
-        return $_Br
+        return $bytes
     }
 }
 function Decrypt-Object {
@@ -2446,7 +2440,7 @@ function Decrypt-Object {
             }
         }
         $Obj = [nerdcrypt]::new($InputBytes, $PublicKey);
-        $_Br = $Obj.Object.Bytes
+        $bytes = $Obj.Object.Bytes
         $Obj.SetBytes($Obj.Decrypt($PsW, $Iterations));
         if ($PsCmdlet.ParameterSetName -ne 'WithKey' -and $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
             if (![string]::IsNullOrEmpty($KeyOutFile)) {
@@ -2454,12 +2448,12 @@ function Decrypt-Object {
                 $Obj.key.Export($KeyOutFile, $true)
             }
         }
-        $_Br = $(if ($_Br.Equals($Obj.Object.Bytes)) { $null }else { $Obj.Object.Bytes })
+        $bytes = $(if ($bytes.Equals($Obj.Object.Bytes)) { $null }else { $Obj.Object.Bytes })
     }
 
     end {
         $ErrorActionPreference = $eap
-        return $_Br
+        return $bytes
     }
 }
 function New-NerdKey {
