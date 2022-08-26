@@ -2022,6 +2022,7 @@ class K3Y {
         if (![string]::IsNullOrWhiteSpace([xconvert]::ToString($K3Y.User.Password))) {
             $this.User.PSObject.Properties.Add([psscriptproperty]::new('Password', [ScriptBlock]::Create({
                             $K3Y.User.Password
+                            # [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($K3Y.User.Password)).ToArray())))
                         }
                     )
                 )
