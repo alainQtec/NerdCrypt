@@ -260,22 +260,16 @@ class xgen {
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingInvokeExpression", '')]
 class XConvert {
     XConvert() {}
-    [PSObject[]]Static XmlToPSObject([xml]$XML) {
-        $Out = @(); foreach ($Object in @($XML.Objects.Object)) {
-            $PSObject = New-Object PSObject
-            foreach ($Property in @($Object.Property)) {
-                $PSObject | Add-Member NoteProperty $Property.Name $Property.InnerText
-            }
-            $Out += $PSObject
-        }
-        return $Out
-    }
     [string]static Tostring([k3Y]$K3Y) {
         if ($null -eq $K3Y) { return [string]::Empty };
         $NotNullProps = ('User', 'UID', 'Expirity');
         $K3Y | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; if ($null -eq $K3Y.$Prop -and $Prop -in $NotNullProps) { throw [System.ArgumentNullException]::new($Prop) } };
         $CustomObject = [xconvert]::ToPSObject($K3Y);
         return [string][xconvert]::ToCompressed([System.Convert]::ToBase64String([XConvert]::BytesFromObject($CustomObject)));
+    }
+    [string[]]static ToString([int[]]$CharCodes) {
+        $String = @(); foreach ($n in $CharCodes) { $String += [string][char]$n }
+        return $String
     }
     [string]static Tostring([Object]$Object) {
         $Bytes = [byte[]]::new(0);
@@ -285,13 +279,6 @@ class XConvert {
             $Bytes = [XConvert]::BytesFromObject($Object);
         }
         return [string][System.Convert]::ToBase64String($Bytes);
-    }
-    [string[]]static ToString([int[]]$CharCodes) {
-        $String = @(); foreach ($n in $CharCodes) { $String += [string][char]$n }
-        return $String
-    }
-    [string]static ToString([int[]]$CharCodes, [string]$separator) {
-        return [string]::Join($separator, [XConvert]::ToString($CharCodes));
     }
     [string]static ToString([System.Security.SecureString]$SecureString) {
         [string]$Pstr = [string]::Empty;
@@ -308,6 +295,9 @@ class XConvert {
             }
         }
         return $Pstr;
+    }
+    [string]static ToString([int[]]$CharCodes, [string]$separator) {
+        return [string]::Join($separator, [XConvert]::ToString($CharCodes));
     }
     [SecureString]static ToSecurestring([string]$String) {
         $SecureString = $null; Set-Variable -Name SecureString -Scope Local -Visibility Private -Option Private -Value ([System.Security.SecureString]::new());
@@ -491,6 +481,16 @@ class XConvert {
         $2753 = [BigInt]2753; # The Magic Number $2753 Came from:# {$Code_Phi = [System.Numerics.BigInteger]::Multiply([System.Numerics.BigInteger]::Subtract($p, 1), [System.Numerics.BigInteger]::Subtract($q, 1)); $t = $nt = $r = $nr = New-Object System.Numerics.BigInteger; $t = [System.Numerics.BigInteger]0; $nt = [System.Numerics.BigInteger]1; $r = [System.Numerics.BigInteger]$Code_Phi; $nr = [System.Numerics.BigInteger]$e; while ($nr -ne [System.Numerics.BigInteger]0) { $q = [System.Numerics.BigInteger]::Divide($r, $nr); $tmp = $nt; $nt = [System.Numerics.BigInteger]::Subtract($t, [System.Numerics.BigInteger]::Multiply($q, $nt)); $t = $tmp; $tmp = $nr; $nr = [System.Numerics.BigInteger]::Subtract($r, [System.Numerics.BigInteger]::Multiply($q, $nr)); $r = $tmp }; if ($r -gt 1) { return -1 }; if ($t -lt 0) { $t = [System.Numerics.BigInteger]::Add($t, $Code_Phi) }}
         $Text = [string]::Join('', $($(foreach ($Item in $_Arr) { [System.Numerics.BigInteger]::ModPow($Item, $2753, $_Mod) }) | ForEach-Object { [char][int]$_ }))
         return $Text
+    }
+    [PSCustomObject[]]Static ToPSObject([xml]$XML) {
+        $Out = @(); foreach ($Object in @($XML.Objects.Object)) {
+            $PSObject = [PSCustomObject]::new()
+            foreach ($Property in @($Object.Property)) {
+                $PSObject | Add-Member NoteProperty $Property.Name $Property.InnerText
+            }
+            $Out += $PSObject
+        }
+        return $Out
     }
     [PSCustomObject]Static ToPSObject([System.Object]$Obj) {
         $PSObj = [PSCustomObject]::new()
@@ -729,7 +729,7 @@ class XConvert {
             Write-Error $_
         }
     }
-    [Object[]]static ObjectToOrderedDict($InputObject) {
+    [Object[]]static ToOrdered($InputObject) {
         $obj = $InputObject
         $convert = [scriptBlock]::Create({
                 Param($obj)
