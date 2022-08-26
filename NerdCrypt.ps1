@@ -270,6 +270,13 @@ class XConvert {
         }
         return $Out
     }
+    [string]static Tostring([k3Y]$K3Y) {
+        if ($null -eq $K3Y) { return [string]::Empty };
+        $NotNullProps = ('User', 'UID', 'Expirity');
+        $K3Y | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; if ($null -eq $K3Y.$Prop -and $Prop -in $NotNullProps) { throw [System.ArgumentNullException]::new($Prop) } };
+        $CustomObject = [xconvert]::ToPSObject($K3Y);
+        return [string][xconvert]::ToCompressed([System.Convert]::ToBase64String([XConvert]::BytesFromObject($CustomObject)));
+    }
     [string]static Tostring([Object]$Object) {
         $Bytes = [byte[]]::new(0);
         if ($Object.GetType() -eq [String]) {
@@ -2001,19 +2008,12 @@ class K3Y {
         $K3Y = [K3Y][xconvert]::ToPSObject($Obj);
         return $K3Y
     }
-    [string]static ReadNerdKey([k3Y]$K3Y) {
-        if ($null -eq $K3Y) { return [string]::Empty };
-        $NotNullProps = ('User', 'UID', 'Expirity');
-        $K3Y | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; if ($null -eq $K3Y.$Prop -and $Prop -in $NotNullProps) { throw [System.ArgumentNullException]::new($Prop) } };
-        $CustomObject = [xconvert]::ToPSObject($K3Y);
-        return [string][xconvert]::ToCompressed([System.Convert]::ToBase64String([XConvert]::BytesFromObject($CustomObject))); #(PublicKey)
-    }
     [void]Export([string]$FilePath) {
         $this.Export($FilePath, $false);
     }
     [void]Export([string]$FilePath, [bool]$encrypt) {
         if (![IO.File]::Exists($FilePath)) { New-Item -Path $FilePath -ItemType File | Out-Null }
-        Set-Content -Path $FilePath -Value ([k3Y]::ReadNerdKey($this)) -Encoding UTF8 -NoNewline;
+        Set-Content -Path $FilePath -Value ([xconvert]::Tostring($this)) -Encoding UTF8 -NoNewline;
         if ($encrypt) { $(Get-Item $FilePath).Encrypt() }
     }
     [K3Y]Import([string]$StringK3y) {
@@ -2367,7 +2367,7 @@ function Encrypt-Object {
         } else {
             Write-Verbose "[+] Create NerdKey ...";
             $Obj.SetNerdKey($(New-PublicNerdKey -UserName $Obj.key.User.UserName -PrivateKey $PsW -Expirity $Obj.key.Expirity.date));
-            Write-Verbose "[-] Hash: $([xconvert]::ToString($Obj.key.User.Password))";
+            Write-Verbose "[-] Hash: $([xconvert]::Tostring($Obj.key.User.Password))";
         }
         $_Br = $Obj.Object.Bytes
         $Obj.SetBytes($Obj.Encrypt($PsW, $Iterations));
@@ -2376,7 +2376,7 @@ function Encrypt-Object {
                 Write-Verbose "[-] Export PublicKey .."
                 $Obj.key.Export($KeyOutFile, $true)
             } else {
-                Write-Verbose "StringK3y:`n$([k3Y]::ReadNerdKey($Obj.key))"
+                Write-Verbose "StringK3y:`n$([xconvert]::Tostring($Obj.key))"
             }
         }
         $_Br = $(if ($_Br.Equals($Obj.Object.Bytes)) { $null }else { $Obj.Object.Bytes })
@@ -2500,7 +2500,7 @@ function New-PublicNerdKey {
         $k = $null
         if ($PSCmdlet.ParameterSetName -eq 'Params') {
             Write-Verbose "[-] Create NerdKey ..."
-            $k = [string][K3Y]::ReadNerdKey([K3Y]::new($UserName, $PrivateKey, $Expirity));
+            $k = [string][xconvert]::Tostring([K3Y]::new($UserName, $PrivateKey, $Expirity));
         } elseif ($PSCmdlet.ParameterSetName -eq 'FromK3Y') {
             if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('UserName')) {
                 $K3YoBJ.User.UserName = $UserName;
@@ -2511,7 +2511,7 @@ function New-PublicNerdKey {
             if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Expirity')) {
                 $K3YoBJ.Expirity = [Expirity]::new($Expirity);
             }
-            $k = [K3Y]::ReadNerdKey($K3YoBJ);
+            $k = [xconvert]::Tostring($K3YoBJ);
         }
     }
 
