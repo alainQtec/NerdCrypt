@@ -1847,12 +1847,12 @@ class K3Y {
     [securestring]ResolvePassword([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         if (!$this.HasPasswd()) {
             Write-Verbose "[+] Set Password ..."
-            $this.User.PSObject.Properties.Add([psscriptproperty]::new('Password', [ScriptBlock]::Create({
-                            [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($Password)).ToArray())))
+            Invoke-Expression "`$this.User.PSObject.Properties.Add([psscriptproperty]::new('Password', [ScriptBlock]::Create({
+                            $([xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($Password)).ToArray()))))
                         }
                     )
                 )
-            )
+            )"
             $this.SetK3YUID($password, $Expirity, $Compression, $_PID);
         }
         # Write-Verbose "[+] Check Password Hash.."
