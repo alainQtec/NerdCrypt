@@ -73,111 +73,6 @@ if ($PSVersionTable.PSEdition -eq "Core" -or $PSVersionTable.PSVersion.Major -gt
 }
 # [xgen]::Enumerator('ExpType', ('Milliseconds', 'Years', 'Months', 'Days', 'Hours', 'Minutes', 'Seconds'))
 #endregion enums
-#region    ClassUtil
-Class ClassUtil {
-    ClassUtil() {}
-    [Array]static AddAccessor($Object, [scriptblock]$Scriptblock) {
-        # extract the property name
-        $propertyName = [ClassUtil]::GetAccessorProperty($MyInvocation.Line)
-        # Prepare the get and set functions that are invoked
-        # Inside the scriptblock passed to Accessor.
-        $functions = @{
-            getFunction = {
-                param (
-                    $Scriptblock = (
-                        Invoke-Expression "{`$this._$propertyName}"
-                    )
-                )
-                return New-Object psobject -Property @{
-                    Accessor = 'get'; Scriptblock = $Scriptblock
-                }
-            }
-            setFunction = [scriptblock]::Create({
-                    param (
-                        $Scriptblock = (
-                            Invoke-Expression "{param(`$p) `$this._$propertyName = `$p}"
-                        )
-                    )
-                    return New-Object psobject -Property @{
-                        Accessor = 'set'; Scriptblock = $Scriptblock
-                    }
-                }
-            )
-        }
-        # Prepare the variables that are available inside the
-        # scriptblock that is passed to the accessor.
-        Set-Variable -Name this -Scope Local -Value $Object
-        $__propertyName = $propertyName
-        $variables = Get-Variable 'this', '__propertyName'
-        # avoid a naming collision with the set and get aliases
-        Remove-Item alias:\set -ErrorAction Stop
-        Set-Alias set setFunction
-        Set-Alias get getFunction
-
-        # invoke the scriptblock
-        $items = $MyInvocation.MyCommand.Module.NewBoundScriptBlock(
-            $Scriptblock
-        ).InvokeWithContext($functions, $variables)
-
-        # This empty getter is invoked when no get statement is included in Accessor.
-        $setter = {}; $getter = {}; $initialValue = [System.Collections.ArrayList]::new()
-        foreach ( $item in $items ) {
-            # get the initializer values
-            if ( 'get', 'set' -notcontains $item.Accessor ) {
-                $initialValue.Add($item) | Out-Null
-            }
-            # extract the getter
-            if ( $item.Accessor -eq 'get' ) {
-                $getter = $item.Scriptblock
-            }
-            # extract the setter
-            if ( $item.Accessor -eq 'set' ) {
-                $setter = $item.Scriptblock
-            }
-        }
-        # If there is no getter or setter don't add a scriptproperty.
-        if ( !$getter -and !$setter ) { return $initialValue }
-        # Prepare to create the scriptproperty.
-        $splat = @{
-            MemberType = 'ScriptProperty'
-            Name       = $propertyName
-            Value      = $getter
-        }
-        # Omit the setter parameter if it is null.
-        if ( $setter ) { $splat.SecondValue = $setter }
-        # Add the accessors by creating a scriptproperty.
-        $Object | Add-Member @splat | Out-Null
-        # Return the initializers.
-        return $initialValue
-    }
-    [string]static GetAccessorProperty([string]$Name) {
-        $regex = [regex]'\$(?!_)(?<PropertyName>\w*)\s*=\s*'
-        $match = $regex.Match($Name)
-        if ( $match.Success ) {
-            throw [System.FormatException]::new("Missing underscore in property name at: $Name")
-        }
-        $regex = [regex]'\$_(?<PropertyName>\w*)\s*=\s*'
-        $match = $regex.Match($Name)
-        return (ConvertFrom-RegexNamedGroupCapture -Match $match -Regex $regex).PropertyName
-    }
-}
-# [classutil]::AddAccessor($this, {
-#         get {
-#             "getter $($this._p)"
-#         }
-#     }
-# )
-
-# {
-#     get {
-#         "getter $($this._p)"
-#     }
-#     Set {
-#         param ( $arg )
-#         $this._p = "setter $arg"
-#     }
-# }
-#endregion ClassUtil
 
 #region    Custom_Stuff_generators
 #!ALL methods shouldbe/are Static!
@@ -1969,10 +1864,13 @@ class K3Y {
     [securestring]ResolvePassword([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         if (!$this.HasPasswd()) {
             Write-Verbose "[+] Set Password ..."
-            $this.User.PSObject.Properties.Add([psscriptproperty]::new('Password', [ScriptBlock]::Create({
-                            [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($Password)).ToArray())))
-                        }
-                    )
+            Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                        $this.User | Add-Member -MemberType ScriptProperty -Name 'Password' -Force -Value $([ScriptBlock]::Create({
+                                    [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($Password)).ToArray())))
+                                }
+                            )
+                        )
+                    }
                 )
             )
             $this.SetK3YUID($password, $Expirity, $Compression, $_PID);
@@ -2262,7 +2160,6 @@ class NerdCrypt {
 }
 #endregion MainClass
 
-#:EOF
 #region    Usage_&&_Playground_Examples
 <#
 # Clean Vault:
@@ -2715,6 +2612,7 @@ function UnProtect-Data {
 #endregion DataProtection
 
 #endregion Functions
+
 # Credential Vault:
 # [Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
 # $vault = New-Object Windows.Security.Credentials.PasswordVault
