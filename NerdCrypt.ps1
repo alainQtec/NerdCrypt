@@ -1827,7 +1827,7 @@ class K3Y {
         $ThrowOnFailure = $true
         return [K3Y]::GetPassword($ThrowOnFailure);
     }
-    [securestring]hidden static GetPassword([bool]$ThrowOnFailure) {
+    [securestring]static GetPassword([bool]$ThrowOnFailure) {
         $Password = $null; Set-Variable -Name Password -Scope Local -Visibility Private -Option Private -Value ($(Get-Variable Host).value.UI.PromptForCredential('NerdCrypt', "Please Enter Your Password", $env:UserName, $env:COMPUTERNAME).Password);
         if ($ThrowOnFailure -and ($null -eq $Password -or $([string]::IsNullOrWhiteSpace([xconvert]::ToString($Password))))) {
             throw [System.InvalidOperationException]::new("Please Provide a valid Password. That is not Null Or WhiteSpace.", [System.ArgumentNullException]::new("Password"));
@@ -2004,7 +2004,7 @@ class K3Y {
     [string]static ReadNerdKey([k3Y]$K3Y) {
         if ($null -eq $K3Y) { return [string]::Empty };
         $NotNullProps = ('User', 'UID', 'Expirity');
-        $K3Y | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; if ($Prop -in $NotNullProps) { throw [System.ArgumentNullException]::new($Prop) } };
+        $K3Y | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; if ($null -eq $K3Y.$Prop -and $Prop -in $NotNullProps) { throw [System.ArgumentNullException]::new($Prop) } };
         $CustomObject = [xconvert]::ToPSObject($K3Y);
         return [string][xconvert]::ToCompressed([System.Convert]::ToBase64String([XConvert]::BytesFromObject($CustomObject))); #(PublicKey)
     }
@@ -2462,79 +2462,6 @@ function Decrypt-Object {
         return $_Br
     }
 }
-function Protect-Data {
-    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'Bytes', SupportsShouldProcess = $true)]
-    param (
-        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Bytes')]
-        [ValidateNotNullOrEmpty()]
-        [byte[]]$Bytes,
-
-        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Xml')]
-        [ValidateNotNullOrEmpty()]
-        [Alias('XmlDoc')]
-        [xml]$InputXml,
-
-        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = '__AllParameterSets')]
-        [ValidateSet('CurrentUser', 'LocalMachine')]
-        [ValidateNotNullOrEmpty()]
-        [string]$ProtectionScope
-    )
-
-    begin {
-        #Load The Assemblies
-        if (!("System.Security.Cryptography.ProtectedData" -is 'Type')) { Add-Type -AssemblyName System.Security }
-    }
-
-    process {
-        if ($PSCmdlet.ParameterSetName -eq 'Xml') {
-            $InputBytes = [xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))
-        }
-        if ($PSCmdlet.ShouldProcess("InputObj", "Protect")) {
-            $ProtectedD = [xconvert]::ToProtected([byte[]]$InputBytes, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope)
-        }
-    }
-
-    end {
-        return $ProtectedD
-    }
-}
-function UnProtect-Data {
-    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'Bytes', SupportsShouldProcess = $true)]
-    param (
-        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Bytes')]
-        [ValidateNotNullOrEmpty()]
-        [Alias('Bytes')]
-        [byte[]]$InputBytes,
-
-        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Xml')]
-        [ValidateNotNullOrEmpty()]
-        [Alias('XmlDoc')]
-        [xml]$InputXml,
-
-        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = '__AllParameterSets')]
-        [ValidateSet('CurrentUser', 'LocalMachine')]
-        [ValidateNotNullOrEmpty()]
-        [string]$ProtectionScope
-    )
-
-    begin {
-        #Load The Assemblies
-        if (!("System.Security.Cryptography.ProtectedData" -is 'Type')) { Add-Type -AssemblyName System.Security }
-    }
-
-    process {
-        if ($PSCmdlet.ParameterSetName -eq 'Xml') {
-            $InputBytes = [xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))
-        }
-        if ($PSCmdlet.ShouldProcess("InputBytes", "Unprotect")) {
-            $UnProtected = [xconvert]::ToUnProtected([byte[]]$InputBytes, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope)
-        }
-    }
-
-    end {
-        return $UnProtected
-    }
-}
 function New-PublicNerdKey {
     <#
     .SYNOPSIS
@@ -2593,12 +2520,89 @@ function New-PublicNerdKey {
         return $k
     }
 }
+#region    DataProtection
+function Protect-Data {
+    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'Bytes', SupportsShouldProcess = $true)]
+    [OutputType([byte[]])]
+    param (
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Bytes')]
+        [ValidateNotNullOrEmpty()]
+        [byte[]]$Bytes,
+
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Xml')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('XmlDoc')]
+        [xml]$InputXml,
+
+        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = '__AllParameterSets')]
+        [ValidateSet('CurrentUser', 'LocalMachine')]
+        [ValidateNotNullOrEmpty()]
+        [string]$ProtectionScope
+    )
+
+    begin {
+        #Load The Assemblies
+        if (!("System.Security.Cryptography.ProtectedData" -is 'Type')) { Add-Type -AssemblyName System.Security }
+    }
+
+    process {
+        if ($PSCmdlet.ParameterSetName -eq 'Xml') {
+            $InputBytes = [xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))
+        }
+        if ($PSCmdlet.ShouldProcess("InputObj", "Protect")) {
+            $ProtectedD = [xconvert]::ToProtected([byte[]]$InputBytes, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope)
+        }
+    }
+
+    end {
+        return $ProtectedD
+    }
+}
+function UnProtect-Data {
+    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'Bytes', SupportsShouldProcess = $true)]
+    [OutputType([byte[]])]
+    param (
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Bytes')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('Bytes')]
+        [byte[]]$InputBytes,
+
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Xml')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('XmlDoc')]
+        [xml]$InputXml,
+
+        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = '__AllParameterSets')]
+        [ValidateSet('CurrentUser', 'LocalMachine')]
+        [ValidateNotNullOrEmpty()]
+        [string]$ProtectionScope
+    )
+
+    begin {
+        #Load The Assemblies
+        if (!("System.Security.Cryptography.ProtectedData" -is 'Type')) { Add-Type -AssemblyName System.Security }
+    }
+
+    process {
+        if ($PSCmdlet.ParameterSetName -eq 'Xml') {
+            $InputBytes = [xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))
+        }
+        if ($PSCmdlet.ShouldProcess("InputBytes", "Unprotect")) {
+            $UnProtected = [xconvert]::ToUnProtected([byte[]]$InputBytes, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope)
+        }
+    }
+
+    end {
+        return $UnProtected
+    }
+}
+#endregion DataProtection
+
 #endregion Functions
 # Credential Vault:
 # [Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
 # $vault = New-Object Windows.Security.Credentials.PasswordVault
 # $vault.RetrieveAll() | ForEach-Object { $_.RetrievePassword(); $_ }
-
 $code = @"
 using System.Text;
 using System;
