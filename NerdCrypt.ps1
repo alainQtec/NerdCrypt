@@ -74,6 +74,17 @@ if ($PSVersionTable.PSEdition -eq "Core" -or $PSVersionTable.PSVersion.Major -gt
 # [xgen]::Enumerator('ExpType', ('Milliseconds', 'Years', 'Months', 'Days', 'Hours', 'Minutes', 'Seconds'))
 #endregion enums
 
+#region    ClassBuilder
+Class ClassUtil {
+    ClassUtil() {}
+
+    [System.Object]static AddGetter($Obj, [string]$PropName, $Value) {
+        Invoke-Command -InputObject $Obj -NoNewScope -ScriptBlock $([ScriptBlock]::Create({ $Obj | Add-Member -MemberType ScriptProperty -Name $PropName -Force -Value $([ScriptBlock]::Create({ $Value })) }))
+        return $Obj
+    }
+}
+#endregion ClassBuilder
+
 #region    Custom_Stuff_generators
 #!ALL methods shouldbe/are Static!
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingInvokeExpression", '')]
@@ -1864,15 +1875,7 @@ class K3Y {
     [securestring]ResolvePassword([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         if (!$this.HasPasswd()) {
             Write-Verbose "[+] Set Password ..."
-            Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-                        $this.User | Add-Member -MemberType ScriptProperty -Name 'Password' -Force -Value $([ScriptBlock]::Create({
-                                    [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($Password)).ToArray())))
-                                }
-                            )
-                        )
-                    }
-                )
-            )
+            [ClassUtil]::AddGetter($this.User, 'Password', [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($Password)).ToArray()))));
             $this.SetK3YUID($password, $Expirity, $Compression, $_PID);
         }
         # Write-Verbose "[+] Check Password Hash.."
