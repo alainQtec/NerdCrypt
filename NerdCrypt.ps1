@@ -2056,6 +2056,20 @@ class K3Y {
     [K3Y]Import([string]$StringK3y) {
         $K3Y = $null; Set-Variable -Name K3Y -Scope Local -Visibility Private -Option Private -Value ([K3Y]::Create($StringK3y));
         $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $K3Y.$Prop };
+        $CheckValidHex = [scriptblock]::Create({
+                param ([string]$InputSTR)
+                return $true
+            }
+        )
+        $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::ToString($this.User.Password));
+        $IsvalidHex = Invoke-Command -ScriptBlock $CheckValidHex -ArgumentList $hashSTR;
+        if ($IsvalidHex) {
+            Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                        Invoke-Expression "`$this.User.psobject.Properties.Add([psscriptproperty]::new('Password', { [xconvert]::ToSecurestring('$hashSTR') }))";
+                    }
+                )
+            )
+        }
         return $K3Y
     }
     [bool]IsValid() {
@@ -2478,7 +2492,7 @@ function Decrypt-Object {
         [void]$nc.Decrypt($PsW, $Iterations)
         if ($PsCmdlet.ParameterSetName -ne 'WithKey' -and $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
             if (![string]::IsNullOrEmpty($KeyOutFile)) {
-                Write-Verbose "[-] Export PublicKey .."
+                Write-Verbose "[-] Export PublicKey ..."
                 $nc.key.Export($KeyOutFile, $true)
             }
         }
