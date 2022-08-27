@@ -1802,30 +1802,7 @@ class K3Y {
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [Datetime]$Expirity) {
         return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $Expirity);
     }
-    [void]SetPassword([securestring]$password) {
-        Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-                    $getterScript = [ScriptBlock]::Create({
-                            return [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($password)).ToArray())))
-                        }
-                    )
-                    $this.User.psobject.Properties.Add([psscriptproperty]::new('Password', $getterScript))
-                    ####
-                    # $this.User | Add-Member -MemberType ScriptProperty -Name 'Password' -Force -Value $([ScriptBlock]::Create({
-                    #             [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($password)).ToArray())))
-                    #         }
-                    #     )
-                    # )
-                }
-            )
-        )
-    }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
-        if (!$this.HasPasswd()) {
-            # throw "Please Set Password first .."
-            Write-Verbose "Set Password first ..."
-            $this.SetPassword($password)
-        }
-        $this.SetK3YUID($password, $Expirity, $Compression, $this._PID)
         $Password = [securestring]$this.ResolvePassword($Password, $Expirity, $Compression, $this._PID);
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
@@ -1890,6 +1867,16 @@ class K3Y {
         return $this.ResolvePassword($Password, $this.User.Password, $this.Expirity.Date, 'Gzip', $this._PID);
     }
     [securestring]ResolvePassword([securestring]$Password, [securestring]$SecHash, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+        if (!$this.HasPasswd()) {
+            Write-Verbose "Set Password ..."
+            Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                        $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::BytesToHex(([PasswordHash]::new([xconvert]::ToString($password)).ToArray())))
+                        Invoke-Expression "`$this.User.psobject.Properties.Add([psscriptproperty]::new('Password', { [xconvert]::ToSecurestring('$hashSTR') }))";
+                    }
+                )
+            )
+            $this.SetK3YUID($password, $Expirity, $Compression, $this._PID)
+        }
         # Write-Verbose "[+] Check Password Hash ..."
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToString($Password));
         if (!$this.VerifyPassword($Passw0rd, $SecHash)) { Throw [System.UnauthorizedAccessException]::new('Wrong Password.') };
