@@ -2387,7 +2387,6 @@ function Encrypt-Object {
             $nc.SetNerdKey($(New-NerdKey -UserName $nc.key.User.UserName -Password $PsW -Expirity $nc.key.Expirity.date));
         }
         $bytes = $nc.Object.Bytes
-        Set-Variable -Name PsW -Scope Local -Visibility Private -Option Private -Value ($nc.key.ResolvePassword($PsW));
         Write-Verbose "[-] Hash: $([xconvert]::Tostring($nc.key.User.Password))";
         [void]$nc.Encrypt($PsW, $Iterations)
         if ($PsCmdlet.ParameterSetName -ne 'WithKey') {
