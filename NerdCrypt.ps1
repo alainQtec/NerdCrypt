@@ -1814,8 +1814,12 @@ class K3Y {
         return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $Expirity);
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
+        if (!$this.HasPasswd()) {
+            Write-Verbose "[+] Set Password ...";
+            [ClassUtil]::AddGetter($this.User, 'Password', [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($Password)).ToArray()))));
+            $this.SetK3YUID($password, $Expirity, $Compression, $this._PID)
+        }
         $Password = [securestring]$this.ResolvePassword($Password, $Expirity, $Compression, $this._PID);
-        $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID);
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
@@ -1873,16 +1877,11 @@ class K3Y {
         return $this.ResolvePassword($Password, $this.Expirity.Date, 'Gzip', $this._PID);
     }
     [securestring]ResolvePassword([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        if (!$this.HasPasswd()) {
-            Write-Verbose "[+] Set Password ..."
-            [ClassUtil]::AddGetter($this.User, 'Password', [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($Password)).ToArray()))));
-            $this.SetK3YUID($password, $Expirity, $Compression, $_PID);
-        }
         # Write-Verbose "[+] Check Password Hash.."
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToString($Password));
         if (!$this.VerifyPassword($Passw0rd)) { Throw [System.UnauthorizedAccessException]::new('Wrong Password.') };
-        $ResolvePassword = $null; Set-Variable -Name ResolvePassword -Option Private -Visibility Private -Value $([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
-        return $ResolvePassword;
+        $ResPassword = $null; Set-Variable -Name ResPassword -Option Private -Visibility Private -Value $([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
+        return $ResPassword;
     }
     [bool]HasPasswd() {
         return $this.HasPasswd($false);
@@ -1911,12 +1910,15 @@ class K3Y {
         return $HasPasswd
     }
     [bool]VerifyPassword([string]$Passw0rd) {
-        return $this.VerifyPassword($Passw0rd, $true);
+        return $this.VerifyPassword($Passw0rd, $this.User.Password, $true); # (ie: $this.User.Password is not the actual password its just a 'read-only hash' of the password used during Encryption.)
     }
-    [bool]hidden VerifyPassword([string]$Passw0rd, [bool]$ThrowOnFailure) {
+    [bool]hidden VerifyPassword([string]$Passw0rd, [securestring]$SecHash) {
+        return $this.VerifyPassword($Passw0rd, $SecHash, $true);
+    }
+    [bool]hidden VerifyPassword([string]$Passw0rd, [securestring]$SecHash, [bool]$ThrowOnFailure) {
         [bool]$IsValid = $false; $InnerException = [System.UnauthorizedAccessException]::new('Wrong Password.');
         try {
-            $hash = [PasswordHash]::new([byte[]][xconvert]::BytesFromHex([xconvert]::ToString($this.User.Password))); # (Remember: $this.User.Password is not the actual password its just a 'read-only hash' of the password used during Encryption.)
+            $hash = [PasswordHash]::new([byte[]][xconvert]::BytesFromHex([xconvert]::ToString($SecHash)));
             if ($hash.Verify([string]$Passw0rd)) { $IsValid = $true }else {
                 throw $InnerException
             }
@@ -1924,7 +1926,7 @@ class K3Y {
             $InnerException = $_.Exception
         } finally {
             if ($ThrowOnFailure -and !$IsValid) {
-                throw [System.Management.Automation.RuntimeException]::new('Error.', $InnerException)
+                throw [System.Management.Automation.RuntimeException]::new('Error. UnauthorizedAccess', $InnerException)
             }
         }
         return $IsValid
@@ -2355,7 +2357,7 @@ function Encrypt-Object {
     begin {
         $eap = $ErrorActionPreference; $ErrorActionPreference = "SilentlyContinue"
         $PsCmdlet.MyInvocation.BoundParameters.GetEnumerator() | ForEach-Object { New-Variable -Name $_.Key -Value $_.Value -ea 'SilentlyContinue' }
-        $PsW = $null; $Obj = $null;
+        $PsW = [securestring]::new(); $Obj = $null;
         $fxn = ('[' + $MyInvocation.MyCommand.Name + ']')
         # Write-Invocation $MyInvocation
     }
@@ -2383,7 +2385,12 @@ function Encrypt-Object {
             $Obj.SetNerdKey($(New-NerdKey -UserName $Obj.key.User.UserName -Password $PsW -Expirity $Obj.key.Expirity.date));
         }
         $bytes = $Obj.Object.Bytes
-        Set-Variable -Name PsW -Scope Local -Visibility Private -Option Private -Value ($Obj.key.ResolvePassword($Obj.key.User.Password));
+        if (!$Obj.key.HasPasswd()) {
+            Write-Verbose "[+] Set Password ...";
+            [ClassUtil]::AddGetter($Obj.key.User, 'Password', [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($PsW)).ToArray()))));
+            $Obj.key.SetK3YUID($PsW, $Expirity, $Compression, $Obj.key._PID)
+        }
+        # Set-Variable -Name PsW -Scope Local -Visibility Private -Option Private -Value ($Obj.key.ResolvePassword($PsW));
         Write-Verbose "[-] Hash: $([xconvert]::Tostring($Obj.key.User.Password))";
         $Obj.SetBytes($Obj.Encrypt($PsW, $Iterations));
         if ($PsCmdlet.ParameterSetName -ne 'WithKey') {
