@@ -1802,9 +1802,22 @@ class K3Y {
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [Datetime]$Expirity) {
         return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $Expirity);
     }
+    [void]SetPassword([securestring]$password) {
+        Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                    $this.User | Add-Member -MemberType ScriptProperty -Name 'Password' -Force -Value $([ScriptBlock]::Create({
+                                [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($password)).ToArray())))
+                            }
+                        )
+                    )
+                }
+            )
+        )
+    }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
         if (!$this.HasPasswd()) {
-            throw "Please Set Password first .."
+            # throw "Please Set Password first .."
+            Write-Verbose "Set Password first ..."
+            $this.SetPassword($password)
         }
         $this.SetK3YUID($password, $Expirity, $Compression, $this._PID)
         $Password = [securestring]$this.ResolvePassword($Password, $Expirity, $Compression, $this._PID);
@@ -1884,10 +1897,10 @@ class K3Y {
         $ThrowOnFailure = $false
         return [K3Y]::HasPasswd($k3y, $ThrowOnFailure);
     }
-    [bool]hidden HasPasswd([bool]$ThrowOnFailure) {
+    [bool]HasPasswd([bool]$ThrowOnFailure) {
         return [K3Y]::HasPasswd($this, $ThrowOnFailure);
     }
-    [bool]static hidden HasPasswd([K3Y]$k3y, [bool]$ThrowOnFailure) {
+    [bool]static HasPasswd([K3Y]$k3y, [bool]$ThrowOnFailure) {
         # Verifies if The password has already been set.
         [securestring]$p = $k3y.User.Password; [bool]$HasPasswd = $false;
         try {
@@ -2381,18 +2394,24 @@ function Encrypt-Object {
         $bytes = $Obj.Object.Bytes
         if (!$Obj.key.HasPasswd()) {
             Write-Verbose "[+] Create Hash ...";
-            Invoke-Command -InputObject $Obj.key.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-                        $Obj.key.User | Add-Member -MemberType ScriptProperty -Name 'Password' -Force -Value $([ScriptBlock]::Create({
-                                    [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($PsW)).ToArray())))
-                                }
-                            )
-                        )
+            $Obj.key.User | Add-Member -MemberType ScriptProperty -Name 'Password' -Force -Value $([ScriptBlock]::Create({
+                        [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($PsW)).ToArray())))
                     }
                 )
             )
+            # Invoke-Command -InputObject $Obj.key.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+            #             $Obj.key.User | Add-Member -MemberType ScriptProperty -Name 'Password' -Force -Value $([ScriptBlock]::Create({
+            #                         [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($PsW)).ToArray())))
+            #                     }
+            #                 )
+            #             )
+            #         }
+            #     )
+            # )
         }
-        # Set-Variable -Name PsW -Scope Local -Visibility Private -Option Private -Value ($Obj.key.ResolvePassword($PsW));
+        Set-Variable -Name PsW -Scope Local -Visibility Private -Option Private -Value ($Obj.key.ResolvePassword($PsW));
         Write-Verbose "[-] Hash: $([xconvert]::Tostring($Obj.key.User.Password))";
+        Pause
         $Obj.SetBytes($Obj.Encrypt($PsW, $Iterations));
         if ($PsCmdlet.ParameterSetName -ne 'WithKey') {
             if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
