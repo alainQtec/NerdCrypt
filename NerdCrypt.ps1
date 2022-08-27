@@ -2359,7 +2359,7 @@ function Encrypt-Object {
     begin {
         $eap = $ErrorActionPreference; $ErrorActionPreference = "SilentlyContinue"
         $PsCmdlet.MyInvocation.BoundParameters.GetEnumerator() | ForEach-Object { New-Variable -Name $_.Key -Value $_.Value -ea 'SilentlyContinue' }
-        $PsW = [securestring]::new(); $Obj = $null;
+        $PsW = [securestring]::new(); $nc = $null;
         $fxn = ('[' + $MyInvocation.MyCommand.Name + ']')
         # Write-Invocation $MyInvocation
     }
@@ -2376,29 +2376,29 @@ function Encrypt-Object {
                 }
             }
         );
-        Set-Variable -Name Obj -Scope Local -Visibility Private -Option Private -Value $([nerdcrypt]::new($Object));
+        Set-Variable -Name nc -Scope Local -Visibility Private -Option Private -Value $([nerdcrypt]::new($Object));
         if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('Expirity')) {
-            $Obj.key.Expirity = [Expirity]::new($Expirity);
+            $nc.key.Expirity = [Expirity]::new($Expirity);
         }
         if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('PublicKey')) {
-            $Obj.SetNerdKey($PublicKey);
+            $nc.SetNerdKey($PublicKey);
         } else {
             Write-Verbose "[+] Create NerdKey ...";
-            $Obj.SetNerdKey($(New-NerdKey -UserName $Obj.key.User.UserName -Password $PsW -Expirity $Obj.key.Expirity.date));
+            $nc.SetNerdKey($(New-NerdKey -UserName $nc.key.User.UserName -Password $PsW -Expirity $nc.key.Expirity.date));
         }
-        $bytes = $Obj.Object.Bytes
-        Set-Variable -Name PsW -Scope Local -Visibility Private -Option Private -Value ($Obj.key.ResolvePassword($PsW));
-        Write-Verbose "[-] Hash: $([xconvert]::Tostring($Obj.key.User.Password))";
-        $Obj.SetBytes($Obj.Encrypt($PsW, $Iterations));
+        $bytes = $nc.Object.Bytes
+        Set-Variable -Name PsW -Scope Local -Visibility Private -Option Private -Value ($nc.key.ResolvePassword($PsW));
+        Write-Verbose "[-] Hash: $([xconvert]::Tostring($nc.key.User.Password))";
+        [void]$nc.Encrypt($PsW, $Iterations)
         if ($PsCmdlet.ParameterSetName -ne 'WithKey') {
             if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
                 Write-Verbose "[-] Export NerdKey .."
-                $Obj.key.Export($KeyOutFile, $true);
+                $nc.key.Export($KeyOutFile, $true);
             } else {
-                Write-Verbose "Used NerdKey:`n$([xconvert]::Tostring($Obj.key))"
+                Write-Verbose "Used NerdKey:`n$([xconvert]::Tostring($nc.key))"
             }
         }
-        $bytes = $(if ($bytes.Equals($Obj.Object.Bytes)) { $null }else { $Obj.Object.Bytes })
+        $bytes = $(if ($bytes.Equals($nc.Object.Bytes)) { $null }else { $nc.Object.Bytes })
     }
 
     end {
