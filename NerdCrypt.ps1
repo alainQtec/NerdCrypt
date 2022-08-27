@@ -2058,6 +2058,7 @@ class K3Y {
         $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $K3Y.$Prop };
         $CheckValidHex = [scriptblock]::Create({
                 param ([string]$InputSTR)
+                #Todo: CheckValid hexstring using Regex
                 return $true
             }
         )
