@@ -1926,12 +1926,11 @@ class K3Y {
         return $this.VerifyPassword($Passw0rd, $SecHash, $true);
     }
     [bool]hidden VerifyPassword([string]$Passw0rd, [securestring]$SecHash, [bool]$ThrowOnFailure) {
-        [bool]$IsValid = $false; $InnerException = [System.UnauthorizedAccessException]::new('Wrong Password.');
+        [bool]$IsValid = $false; $Isvalid_Hex = $false; $_Hex = [string]::Empty ; $InnerException = [System.UnauthorizedAccessException]::new('Wrong Password.');
         try {
-            $_Hex = [xconvert]::ToString($SecHash);
-            if (!([regex]::IsMatch($_Hex, "^[A-Fa-f0-9]{72}$"))) {
-                Throw [System.FormatException]::new("Securestring Hash was in an invalid format.")
-            }
+            Set-Variable -Name _Hex -Scope Local -Visibility Private -Option Private -Value ([xconvert]::ToString($SecHash));
+            $Isvalid_Hex = [regex]::IsMatch($_Hex, "^[A-Fa-f0-9]{72}$")
+            if (!$Isvalid_Hex) { Throw [System.FormatException]::new("Securestring Hash was in an invalid format.") }
             $hash = [PasswordHash]::new([byte[]][xconvert]::BytesFromHex($_Hex));
             if ($hash.Verify([string]$Passw0rd)) { $IsValid = $true }else {
                 throw $InnerException
@@ -2060,9 +2059,7 @@ class K3Y {
         $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $K3Y.$Prop };
         $CheckValidHex = [scriptblock]::Create({
                 Param ([string]$InputSTR)
-                $IsValid = [bool][regex]::IsMatch($InputSTR, "^[A-Fa-f0-9]{72}$")
-                if (!$IsValid) { Write-Verbose "[!] System.FormatException: Securestring Hash has an invalid format." }
-                return $IsValid
+                return [bool][regex]::IsMatch($InputSTR, "^[A-Fa-f0-9]{72}$")
             }
         )
         $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::ToString($this.User.Password));
@@ -2198,8 +2195,10 @@ class NerdCrypt {
 #region    Usage_&&_Playground_Examples
 <#
 # Clean Vault:
+# [Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
 # $vault = [Windows.Security.Credentials.PasswordVault]::new()
 # $res = $vault.RetrieveAll().Resource; if ($res.count -gt 0) { $res | ForEach-Object { Write-Verbose "Removing $_" -Verbose; $vault.Remove($vault.Retrieve($_, $Env:USERNAME)) } }
+# $vault.RetrieveAll() | ForEach-Object { $_.RetrievePassword(); $_ }
 # More Examples will go here
 #>
 #endregion Usage_&&_Playground_Examples
@@ -2647,9 +2646,6 @@ function UnProtect-Data {
 #endregion Functions
 
 # Credential Vault:
-# [Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
-# $vault = New-Object Windows.Security.Credentials.PasswordVault
-# $vault.RetrieveAll() | ForEach-Object { $_.RetrievePassword(); $_ }
 $code = @"
 using System.Text;
 using System;
