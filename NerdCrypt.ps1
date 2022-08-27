@@ -1875,7 +1875,7 @@ class K3Y {
                     }
                 )
             )
-            $this.SetK3YUID($password, $Expirity, $Compression, $this._PID)
+            $SecHash = $this.User.Password; $this.SetK3YUID($password, $Expirity, $Compression, $this._PID)
         }
         # Write-Verbose "[+] Check Password Hash ..."
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToString($Password));
