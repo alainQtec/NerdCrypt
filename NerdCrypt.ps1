@@ -2464,16 +2464,16 @@ function Decrypt-Object {
                 throw 'Error!'
             }
         }
-        $Obj = [nerdcrypt]::new($InputBytes, $PublicKey);
-        $bytes = $Obj.Object.Bytes
-        $Obj.SetBytes($Obj.Decrypt($PsW, $Iterations));
+        $nc = [nerdcrypt]::new($InputBytes, $PublicKey);
+        $bytes = $nc.Object.Bytes
+        [void]$nc.Decrypt($PsW, $Iterations)
         if ($PsCmdlet.ParameterSetName -ne 'WithKey' -and $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
             if (![string]::IsNullOrEmpty($KeyOutFile)) {
                 Write-Verbose "[-] Export PublicKey .."
-                $Obj.key.Export($KeyOutFile, $true)
+                $nc.key.Export($KeyOutFile, $true)
             }
         }
-        $bytes = $(if ($bytes.Equals($Obj.Object.Bytes)) { $null }else { $Obj.Object.Bytes })
+        $bytes = $(if ($bytes.Equals($nc.Object.Bytes)) { $null }else { $nc.Object.Bytes })
     }
 
     end {
