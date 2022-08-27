@@ -1918,7 +1918,9 @@ class K3Y {
     [bool]hidden VerifyPassword([string]$Passw0rd, [securestring]$SecHash, [bool]$ThrowOnFailure) {
         [bool]$IsValid = $false; $InnerException = [System.UnauthorizedAccessException]::new('Wrong Password.');
         try {
-            $hash = [PasswordHash]::new([byte[]][xconvert]::BytesFromHex([xconvert]::ToString($SecHash)));
+            $_hex = [xconvert]::ToString($SecHash)
+            # [regex]::IsMatch($_hex, "^([a-fa-f0-9]{2}){72}$")
+            $hash = [PasswordHash]::new([byte[]][xconvert]::BytesFromHex($_hex));
             if ($hash.Verify([string]$Passw0rd)) { $IsValid = $true }else {
                 throw $InnerException
             }
@@ -2385,26 +2387,8 @@ function Encrypt-Object {
             $Obj.SetNerdKey($(New-NerdKey -UserName $Obj.key.User.UserName -Password $PsW -Expirity $Obj.key.Expirity.date));
         }
         $bytes = $Obj.Object.Bytes
-        if (!$Obj.key.HasPasswd()) {
-            Write-Verbose "[+] Create Hash ...";
-            $Obj.key.User | Add-Member -MemberType ScriptProperty -Name 'Password' -Force -Value $([ScriptBlock]::Create({
-                        [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($PsW)).ToArray())))
-                    }
-                )
-            )
-            # Invoke-Command -InputObject $Obj.key.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-            #             $Obj.key.User | Add-Member -MemberType ScriptProperty -Name 'Password' -Force -Value $([ScriptBlock]::Create({
-            #                         [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($PsW)).ToArray())))
-            #                     }
-            #                 )
-            #             )
-            #         }
-            #     )
-            # )
-        }
         Set-Variable -Name PsW -Scope Local -Visibility Private -Option Private -Value ($Obj.key.ResolvePassword($PsW));
         Write-Verbose "[-] Hash: $([xconvert]::Tostring($Obj.key.User.Password))";
-        Pause
         $Obj.SetBytes($Obj.Encrypt($PsW, $Iterations));
         if ($PsCmdlet.ParameterSetName -ne 'WithKey') {
             if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
