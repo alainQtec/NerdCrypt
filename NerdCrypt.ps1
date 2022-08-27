@@ -1804,11 +1804,17 @@ class K3Y {
     }
     [void]SetPassword([securestring]$password) {
         Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-                    $this.User | Add-Member -MemberType ScriptProperty -Name 'Password' -Force -Value $([ScriptBlock]::Create({
-                                [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($password)).ToArray())))
-                            }
-                        )
+                    $getterScript = [ScriptBlock]::Create({
+                            return [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($password)).ToArray())))
+                        }
                     )
+                    $this.User.psobject.Properties.Add([psscriptproperty]::new('Password', $getterScript))
+                    ####
+                    # $this.User | Add-Member -MemberType ScriptProperty -Name 'Password' -Force -Value $([ScriptBlock]::Create({
+                    #             [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($password)).ToArray())))
+                    #         }
+                    #     )
+                    # )
                 }
             )
         )
