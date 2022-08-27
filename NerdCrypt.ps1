@@ -74,17 +74,6 @@ if ($PSVersionTable.PSEdition -eq "Core" -or $PSVersionTable.PSVersion.Major -gt
 # [xgen]::Enumerator('ExpType', ('Milliseconds', 'Years', 'Months', 'Days', 'Hours', 'Minutes', 'Seconds'))
 #endregion enums
 
-#region    ClassBuilder
-Class ClassUtil {
-    ClassUtil() {}
-
-    [System.Object]static AddGetter($Obj, [string]$PropName, $Value) {
-        Invoke-Command -InputObject $Obj -NoNewScope -ScriptBlock $([ScriptBlock]::Create({ $Obj | Add-Member -MemberType ScriptProperty -Name $PropName -Force -Value $([ScriptBlock]::Create({ $Value })) }))
-        return $Obj
-    }
-}
-#endregion ClassBuilder
-
 #region    Custom_Stuff_generators
 #!ALL methods shouldbe/are Static!
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingInvokeExpression", '')]
@@ -1815,10 +1804,9 @@ class K3Y {
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
         if (!$this.HasPasswd()) {
-            Write-Verbose "[+] Set Password ...";
-            [ClassUtil]::AddGetter($this.User, 'Password', [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($Password)).ToArray()))));
-            $this.SetK3YUID($password, $Expirity, $Compression, $this._PID)
+            throw "Please Set Password first .."
         }
+        $this.SetK3YUID($password, $Expirity, $Compression, $this._PID)
         $Password = [securestring]$this.ResolvePassword($Password, $Expirity, $Compression, $this._PID);
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
@@ -2386,9 +2374,16 @@ function Encrypt-Object {
         }
         $bytes = $Obj.Object.Bytes
         if (!$Obj.key.HasPasswd()) {
-            Write-Verbose "[+] Set Password ...";
-            [ClassUtil]::AddGetter($Obj.key.User, 'Password', [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($PsW)).ToArray()))));
-            $Obj.key.SetK3YUID($PsW, $Expirity, $Compression, $Obj.key._PID)
+            Write-Verbose "[+] Create Hash ...";
+            Invoke-Command -InputObject $Obj.key.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                        $Obj.key.User | Add-Member -MemberType ScriptProperty -Name 'Password' -Force -Value $([ScriptBlock]::Create({
+                                    [xconvert]::ToSecurestring([xconvert]::BytesToHex($([PasswordHash]::new([xconvert]::ToString($PsW)).ToArray())))
+                                }
+                            )
+                        )
+                    }
+                )
+            )
         }
         # Set-Variable -Name PsW -Scope Local -Visibility Private -Option Private -Value ($Obj.key.ResolvePassword($PsW));
         Write-Verbose "[-] Hash: $([xconvert]::Tostring($Obj.key.User.Password))";
@@ -2396,7 +2391,7 @@ function Encrypt-Object {
         if ($PsCmdlet.ParameterSetName -ne 'WithKey') {
             if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
                 Write-Verbose "[-] Export NerdKey .."
-                $Obj.key.Export($KeyOutFile, $true)
+                $Obj.key.Export($KeyOutFile, $true);
             } else {
                 Write-Verbose "Used NerdKey:`n$([xconvert]::Tostring($Obj.key))"
             }
