@@ -888,8 +888,17 @@ class NcObject {
 
     NcObject() {}
     NcObject($Object) {
-        $this.OGType = $Object.GetType();
-        $this.SetBytes($Object);
+        $type = (($Object | Get-Member).Typename | Sort-Object -Unique)
+        if ($type.count -eq 1) {
+            $this.OGType = $type -as 'type'
+        } else {
+            $this.OGType = $Object.GetType();
+        }
+        if ($type.Equals("System.Byte")) {
+            $this.Bytes = [byte[]]$Object;
+        } else {
+            $this.SetBytes($Object);
+        }
     }
     [void]SetBytes() {
         if ([string]::IsNullOrEmpty($this.Object)) {
@@ -1868,7 +1877,7 @@ class K3Y {
     }
     [securestring]ResolvePassword([securestring]$Password, [securestring]$SecHash, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         if (!$this.HasPasswd()) {
-            Write-Verbose "Set Password ..."
+            Write-Verbose "[+] Set Password ..."
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
                         $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::BytesToHex(([PasswordHash]::new([xconvert]::ToString($password)).ToArray())))
                         Invoke-Expression "`$this.User.psobject.Properties.Add([psscriptproperty]::new('Password', { [xconvert]::ToSecurestring('$hashSTR') }))";
@@ -1877,9 +1886,10 @@ class K3Y {
             )
             $SecHash = $this.User.Password; $this.SetK3YUID($password, $Expirity, $Compression, $this._PID)
         }
-        # Write-Verbose "[+] Check Password Hash ..."
+        Write-Verbose "[+] Check Password Hash ..."
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToString($Password));
         if (!$this.VerifyPassword($Passw0rd, $SecHash)) { Throw [System.UnauthorizedAccessException]::new('Wrong Password.') };
+        Write-Verbose "[-] Hash: $([xconvert]::Tostring($this.User.Password))";
         $ResPassword = $null; Set-Variable -Name ResPassword -Option Private -Visibility Private -Value $([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
         return $ResPassword;
     }
@@ -2387,7 +2397,6 @@ function Encrypt-Object {
             $nc.SetNerdKey($(New-NerdKey -UserName $nc.key.User.UserName -Password $PsW -Expirity $nc.key.Expirity.date));
         }
         $bytes = $nc.Object.Bytes
-        Write-Verbose "[-] Hash: $([xconvert]::Tostring($nc.key.User.Password))";
         [void]$nc.Encrypt($PsW, $Iterations)
         if ($PsCmdlet.ParameterSetName -ne 'WithKey') {
             if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
