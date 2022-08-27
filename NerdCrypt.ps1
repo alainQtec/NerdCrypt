@@ -1926,12 +1926,12 @@ class K3Y {
         return $this.VerifyPassword($Passw0rd, $SecHash, $true);
     }
     [bool]hidden VerifyPassword([string]$Passw0rd, [securestring]$SecHash, [bool]$ThrowOnFailure) {
-        [bool]$IsValid = $false; $Isvalid_Hex = $false; $_Hex = [string]::Empty ; $InnerException = [System.UnauthorizedAccessException]::new('Wrong Password.');
+        $hash = $null; [bool]$IsValid = $false; $Isvalid_Hex = $false; $_Hex = [string]::Empty ; $InnerException = [System.UnauthorizedAccessException]::new('Wrong Password.');
         try {
             Set-Variable -Name _Hex -Scope Local -Visibility Private -Option Private -Value ([xconvert]::ToString($SecHash));
             $Isvalid_Hex = [regex]::IsMatch($_Hex, "^[A-Fa-f0-9]{72}$")
             if (!$Isvalid_Hex) { Throw [System.FormatException]::new("Securestring Hash was in an invalid format.") }
-            $hash = [PasswordHash]::new([byte[]][xconvert]::BytesFromHex($_Hex));
+            Set-Variable -Name hash -Scope Local -Visibility Private -Option Private -Value ([PasswordHash]::new([byte[]][xconvert]::BytesFromHex($_Hex)));
             if ($hash.Verify([string]$Passw0rd)) { $IsValid = $true }else {
                 throw $InnerException
             }
