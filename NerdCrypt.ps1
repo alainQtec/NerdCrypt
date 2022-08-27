@@ -2059,7 +2059,7 @@ class K3Y {
         $K3Y = $null; Set-Variable -Name K3Y -Scope Local -Visibility Private -Option Private -Value ([K3Y]::Create($StringK3y));
         $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $K3Y.$Prop };
         $CheckValidHex = [scriptblock]::Create({
-                param ([string]$InputSTR)
+                Param ([string]$InputSTR)
                 $IsValid = [bool][regex]::IsMatch($InputSTR, "^[A-Fa-f0-9]{72}$")
                 if (!$IsValid) { Write-Verbose "[!] System.FormatException: Securestring Hash has an invalid format." }
                 return $IsValid
