@@ -1889,7 +1889,7 @@ class K3Y {
         Write-Verbose "[+] Check Password Hash ..."
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToString($Password));
         if (!$this.VerifyPassword($Passw0rd, $SecHash)) { Throw [System.UnauthorizedAccessException]::new('Wrong Password.') };
-        Write-Verbose "[-] Hash: $([xconvert]::Tostring($this.User.Password))";
+        Write-Verbose "[-] Successfully checked Hash: $([xconvert]::Tostring($this.User.Password))";
         $ResPassword = $null; Set-Variable -Name ResPassword -Option Private -Visibility Private -Value $([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
         return $ResPassword;
     }
@@ -1928,9 +1928,11 @@ class K3Y {
     [bool]hidden VerifyPassword([string]$Passw0rd, [securestring]$SecHash, [bool]$ThrowOnFailure) {
         [bool]$IsValid = $false; $InnerException = [System.UnauthorizedAccessException]::new('Wrong Password.');
         try {
-            $_hex = [xconvert]::ToString($SecHash)
-            # [regex]::IsMatch($_hex, "^([a-fa-f0-9]{2}){72}$")
-            $hash = [PasswordHash]::new([byte[]][xconvert]::BytesFromHex($_hex));
+            $_Hex = [xconvert]::ToString($SecHash);
+            if (!([regex]::IsMatch($_Hex, "^[A-Fa-f0-9]{72}$"))) {
+                Throw [System.FormatException]::new("Securestring Hash was in an invalid format.")
+            }
+            $hash = [PasswordHash]::new([byte[]][xconvert]::BytesFromHex($_Hex));
             if ($hash.Verify([string]$Passw0rd)) { $IsValid = $true }else {
                 throw $InnerException
             }
@@ -2058,8 +2060,9 @@ class K3Y {
         $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $K3Y.$Prop };
         $CheckValidHex = [scriptblock]::Create({
                 param ([string]$InputSTR)
-                #Todo: CheckValid hexstring using Regex
-                return $true
+                $IsValid = [bool][regex]::IsMatch($InputSTR, "^[A-Fa-f0-9]{72}$")
+                if (!$IsValid) { Write-Verbose "[!] System.FormatException: Securestring Hash has an invalid format." }
+                return $IsValid
             }
         )
         $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::ToString($this.User.Password));
