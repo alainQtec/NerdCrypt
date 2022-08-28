@@ -1828,10 +1828,10 @@ class K3Y {
         $Compression = [k3Y]::AnalyseK3YUID($this, $Password)[2];
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
-    [string]CreateUID() {
-        return [K3Y]::CreateUID($this.User.Password, $this.Expirity.Date, $(Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID)
+    [string]GetDerivedID() {
+        return [K3Y]::GetDerivedID($this.User.Password, $this.Expirity.Date, $(Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID)
     }
-    [string]static CreateUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+    [string]static GetDerivedID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         return [string][xconvert]::BytesToHex([System.Text.Encoding]::UTF7.GetBytes([xconvert]::ToCompressed([xconvert]::StringToCustomCipher(
                         [string][K3Y]::CreateUIDstring([byte[]][XConvert]::BytesFromObject([PSCustomObject]@{
                                     KeyInfo = [xconvert]::BytesFromObject([PSCustomObject]@{
@@ -1851,12 +1851,12 @@ class K3Y {
         )
     }
     [void]hidden SetK3YUID() {
-        $this.UID = [securestring][xconvert]::ToSecurestring($this.CreateUID());
+        $this.UID = [securestring][xconvert]::ToSecurestring($this.GetDerivedID());
     }
     [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         # if ($null -ne $this.UID) { Write-Verbose "[+] Update UID ..." }
         # The K3Y 'UID' is a fancy way of storing the Key version, user, compressiontype and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
-        $this.UID = [securestring][xconvert]::ToSecurestring([string][K3Y]::CreateUID($Password, $Expirity, $Compression, $_PID));
+        $this.UID = [securestring][xconvert]::ToSecurestring([string][K3Y]::GetDerivedID($Password, $Expirity, $Compression, $_PID));
     }
     [securestring]static GetPassword() {
         $ThrowOnFailure = $true
