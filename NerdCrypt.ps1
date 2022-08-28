@@ -1823,6 +1823,7 @@ class K3Y {
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt, [securestring]$Password, [byte[]]$salt) {
         $Password = [securestring]$this.ResolvePassword($Password); # (Get The real Password)
+        # $Password = [securestring]$this.ResolvePassword($Password, $Expirity, $Compression, $this._PID);
         if (!$this.IsValid()) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") }
         $Compression = [k3Y]::AnalyseK3YUID($this, $Password)[2];
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
@@ -1830,19 +1831,18 @@ class K3Y {
     [void]hidden SetK3YUID() {
         $this.SetK3YUID($this.User.Password, $this.Expirity.Date, $(Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID);
     }
-    [securestring]hidden GetK3YUID([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        return [securestring][xconvert]::ToSecurestring([xconvert]::BytesToHex([System.Text.Encoding]::UTF7.GetBytes([xconvert]::ToCompressed([xconvert]::StringToCustomCipher(
-                            [string][K3Y]::CreateUIDstring([byte[]][XConvert]::BytesFromObject([PSCustomObject]@{
-                                        KeyInfo = [xconvert]::BytesFromObject([PSCustomObject]@{
-                                                Expirity = $Expirity
-                                                Version  = [version]::new("1.0.0.1")
-                                                User     = $env:USERNAME
-                                                PID      = $_PID
-                                            }
-                                        )
-                                        BytesCT = [AesLg]::Encrypt([System.Text.Encoding]::UTF7.GetBytes($Compression), $password)
-                                    }
-                                )
+    [string]hidden CreateK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+        return [string][xconvert]::BytesToHex([System.Text.Encoding]::UTF7.GetBytes([xconvert]::ToCompressed([xconvert]::StringToCustomCipher(
+                        [string][K3Y]::CreateUIDstring([byte[]][XConvert]::BytesFromObject([PSCustomObject]@{
+                                    KeyInfo = [xconvert]::BytesFromObject([PSCustomObject]@{
+                                            Expirity = $Expirity
+                                            Version  = [version]::new("1.0.0.1")
+                                            User     = $env:USERNAME
+                                            PID      = $_PID
+                                        }
+                                    )
+                                    BytesCT = [AesLg]::Encrypt([System.Text.Encoding]::UTF7.GetBytes($Compression), $Password)
+                                }
                             )
                         )
                     )
@@ -1850,10 +1850,10 @@ class K3Y {
             )
         )
     }
-    [void]hidden SetK3YUID([securestring]$password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+    [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         # if ($null -ne $this.UID) { Write-Verbose "[+] Update UID ..." }
         # The K3Y 'UID' is a fancy way of storing the Key version, user, compressiontype and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
-        $this.UID = $this.GetK3YUID($password, $Expirity, $Compression, $_PID);
+        $this.UID = [securestring][xconvert]::ToSecurestring($this.CreateK3YUID($Password, $Expirity, $Compression, $_PID));
     }
     [securestring]static GetPassword() {
         $ThrowOnFailure = $true
@@ -1876,21 +1876,27 @@ class K3Y {
         return $this.ResolvePassword($Password, $this.User.Password, $this.Expirity.Date, 'Gzip', $this._PID);
     }
     [securestring]ResolvePassword([securestring]$Password, [securestring]$SecHash, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+        $ShouldUpdateUID = $false
         if (!$this.HasPasswd()) {
-            Write-Verbose "[+] Set Password ..."
+            Write-Verbose "[+] Set Password ...";
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-                        $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::BytesToHex(([PasswordHash]::new([xconvert]::ToString($password)).ToArray())))
+                        $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::BytesToHex(([PasswordHash]::new([xconvert]::ToString($password)).ToArray())));
                         Invoke-Expression "`$this.User.psobject.Properties.Add([psscriptproperty]::new('Password', { [xconvert]::ToSecurestring('$hashSTR') }))";
                     }
                 )
             )
-            $SecHash = $this.User.Password; $this.SetK3YUID($password, $Expirity, $Compression, $this._PID)
+            $SecHash = $this.User.Password; $ShouldUpdateUID = $true;
         }
-        Write-Verbose "[+] Check Password Hash ..."
+        Write-Verbose "[+] Check Password Hash ...";
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToString($Password));
         if (!$this.VerifyPassword($Passw0rd, $SecHash)) { Throw [System.UnauthorizedAccessException]::new('Wrong Password.') };
         Write-Verbose "[-] Successfully checked Hash: $([xconvert]::Tostring($this.User.Password))";
         $ResPassword = $null; Set-Variable -Name ResPassword -Option Private -Visibility Private -Value $([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
+        Write-Verbose "[+] Password: $([xconvert]::Tostring($ResPassword))";
+        if ($ShouldUpdateUID) {
+            Write-Verbose "[-] UpdateUID ..."
+            $this.SetK3YUID($password, $Expirity, $Compression, $this._PID)
+        }
         return $ResPassword;
     }
     [bool]HasPasswd() {
