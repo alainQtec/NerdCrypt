@@ -1890,7 +1890,7 @@ class K3Y {
             )
             $SecHash = $this.User.Password; $ShouldUpdateUID = $true;
         }
-        Write-Verbose "[+] Check Password Hash ...";
+        Write-Verbose "[+] Get Password Hash ...";
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToString($Password));
         if (!$this.VerifyPassword($Passw0rd, $SecHash)) { Throw [System.UnauthorizedAccessException]::new('Wrong Password.') };
         Write-Verbose "[-] Successfully checked Hash: $([xconvert]::Tostring($this.User.Password))";
