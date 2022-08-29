@@ -499,16 +499,16 @@ class XConvert {
         }
         return $PSObj
     }
-    [string]static ToProtected([string]$string, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope) {
-        return [xconvert]::BytesToObject([xconvert]::ToProtected([xconvert]::BytesFromObject($string), $Entropy, $ProtectionScope))
+    [string]static ToProtected([string]$string, [byte[]]$Entropy, [ProtectionScope]$Scope) {
+        return [xconvert]::BytesToObject([xconvert]::ToProtected([xconvert]::BytesFromObject($string), $Entropy, $Scope))
     }
-    [byte[]]static ToProtected([byte[]]$bytes, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope) {
+    [byte[]]static ToProtected([byte[]]$bytes, [byte[]]$Entropy, [ProtectionScope]$Scope) {
         $encryptedData = $null; # https://docs.microsoft.com/en-us/dotnet/api/System.Security.Cryptography.ProtectedData.Protect?
         try {
             if (!("System.Security.Cryptography.ProtectedData" -is 'Type')) { Add-Type -AssemblyName System.Security }
             $bytes64str = $null; Set-Variable -Name bytes64str -Scope Local -Visibility Private -Option Private -Value ([convert]::ToBase64String($bytes))
             $Entropy64str = $null; Set-Variable -Name Entropy64str -Scope Local -Visibility Private -Option Private -Value ([convert]::ToBase64String($Entropy))
-            Set-Variable -Name encryptedData -Scope Local -Visibility Private -Option Private -Value $(Invoke-Expression "[System.Security.Cryptography.ProtectedData]::Protect([convert]::FromBase64String('$bytes64str'), [convert]::FromBase64String('$Entropy64str'), [System.Security.Cryptography.DataProtectionScope]::$($ProtectionScope.ToString()))");
+            Set-Variable -Name encryptedData -Scope Local -Visibility Private -Option Private -Value $(Invoke-Expression "[System.Security.Cryptography.ProtectedData]::Protect([convert]::FromBase64String('$bytes64str'), [convert]::FromBase64String('$Entropy64str'), [System.Security.Cryptography.DataProtectionScope]::$($Scope.ToString()))");
         } catch [System.Security.Cryptography.CryptographicException] {
             throw [System.Security.Cryptography.CryptographicException]::new("Data was not encrypted. An error occurred!`n $($_.Exception.Message)");
         } catch {
@@ -516,13 +516,13 @@ class XConvert {
         }
         return $encryptedData
     }
-    [byte[]]static ToUnProtected([byte[]]$bytes, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope) {
+    [byte[]]static ToUnProtected([byte[]]$bytes, [byte[]]$Entropy, [ProtectionScope]$Scope) {
         $decryptedData = $null;
         try {
             if (!("System.Security.Cryptography.ProtectedData" -is 'Type')) { Add-Type -AssemblyName System.Security }
             $bytes64str = $null; Set-Variable -Name bytes64str -Scope Local -Visibility Private -Option Private -Value ([convert]::ToBase64String($bytes))
             $Entropy64str = $null; Set-Variable -Name Entropy64str -Scope Local -Visibility Private -Option Private -Value ([convert]::ToBase64String($Entropy))
-            Set-Variable -Name decryptedData -Scope Local -Visibility Private -Option Private -Value $(Invoke-Expression "[System.Security.Cryptography.ProtectedData]::Unprotect([convert]::FromBase64String('$bytes64str'), [convert]::FromBase64String('$Entropy64str'), [System.Security.Cryptography.DataProtectionScope]::$($ProtectionScope.ToString()))");
+            Set-Variable -Name decryptedData -Scope Local -Visibility Private -Option Private -Value $(Invoke-Expression "[System.Security.Cryptography.ProtectedData]::Unprotect([convert]::FromBase64String('$bytes64str'), [convert]::FromBase64String('$Entropy64str'), [System.Security.Cryptography.DataProtectionScope]::$($Scope.ToString()))");
         } catch [System.Security.Cryptography.CryptographicException] {
             throw [System.Security.Cryptography.CryptographicException]::new("Data was not decrypted. An error occurred!`n $($_.Exception.Message)");
         } catch {
@@ -884,7 +884,7 @@ class NcObject {
     [byte[]]hidden $Bytes;
     [Object]hidden $Object;
     [SdCategory]hidden $Category;
-    [ProtectionScope]hidden $ProtectionScope = [ProtectionScope]::CurrentUser;
+    [ProtectionScope]hidden $Scope = [ProtectionScope]::CurrentUser;
 
     NcObject() {}
     NcObject($Object) {
@@ -953,7 +953,7 @@ class NcObject {
         $_bytes = $this.Bytes; $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15]
         for ($i = 1; $i -lt $iterations + 1; $i++) {
             Write-Verbose "[+] Protect Round [$i/$iterations]"
-            $_bytes = [xconvert]::ToProtected($_bytes, $Entropy, $this.ProtectionScope)
+            $_bytes = [xconvert]::ToProtected($_bytes, $Entropy, $this.Scope)
         }
         $this.SetBytes($_bytes)
     }
@@ -962,7 +962,7 @@ class NcObject {
         $_bytes = $this.Bytes; $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15]
         for ($i = 1; $i -lt $iterations + 1; $i++) {
             Write-Verbose "[+] UnProtect Round [$i/$iterations]"
-            $_bytes = [xconvert]::ToUnProtected($_bytes, $Entropy, $this.ProtectionScope)
+            $_bytes = [xconvert]::ToUnProtected($_bytes, $Entropy, $this.Scope)
         }
         $this.SetBytes($_bytes)
     }
@@ -974,34 +974,39 @@ class SecureCred {
     [ValidateNotNullOrEmpty()][string]$UserName = [Environment]::GetEnvironmentVariable('Username');
     [ValidateNotNullOrEmpty()][securestring]$Password = [securestring]::new();
     [ValidateNotNullOrEmpty()][string]hidden $Domain = [Environment]::GetEnvironmentVariable('USERDOMAIN');
-    [ValidateNotNullOrEmpty()][string]hidden $ProtectionScope = 'CurrentUser';
+    [ValidateSet('CurrentUser', 'LocalMachine')][ValidateNotNullOrEmpty()][string]hidden $Scope = 'CurrentUser';
 
     SecureCred() {}
     SecureCred([PSCredential]$PSCredential) {
         ($this.UserName, $this.Password) = ($PSCredential.UserName, $PSCredential.Password)
     }
     [void]Protect() {
-        $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15]; $Scope = [ProtectionScope]$this.ProtectionScope
-        foreach ($n in @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'Property' -and $_.Name -ne 'ProtectionScope' } | Select-Object -ExpandProperty Name)) {
+        $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15];
+        foreach ($n in @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'Property' -and $_.Name -ne 'Scope' } | Select-Object -ExpandProperty Name)) {
             Write-Verbose ". $n"
             $Obj = $this.$n;
             if ($n.Equals('Password')) {
                 $_b = [xconvert]::BytesFromObject([xconvert]::Tostring($Obj))
-                $this.$n = [XConvert]::ToSecurestring([convert]::ToBase64String(([xconvert]::ToProtected($_b, $Entropy, $scope))))
+                $this.$n = [XConvert]::ToSecurestring([convert]::ToBase64String(([xconvert]::ToProtected($_b, $Entropy, [ProtectionScope]$this.Scope))))
             } else {
                 $_b = [xconvert]::BytesFromObject($Obj)
-                $this.$n = [convert]::ToBase64String(([xconvert]::ToProtected($_b, $Entropy, $scope)))
+                $this.$n = [convert]::ToBase64String(([xconvert]::ToProtected($_b, $Entropy, [ProtectionScope]$this.Scope)))
             }
         }
+        Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                    Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('Scope', { return '$($this.Scope)' }))";
+                }
+            )
+        )
     }
     [void]UnProtect() {
-        $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15]; $Scope = [ProtectionScope]$this.ProtectionScope
-        foreach ($n in @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'Property' -and $_.Name -ne 'ProtectionScope' } | Select-Object -ExpandProperty Name)) {
+        $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15];
+        foreach ($n in @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'Property' -and $_.Name -ne 'Scope' } | Select-Object -ExpandProperty Name)) {
             $Obj = $this.$n;
             if ($n.Equals('Password')) {
-                $this.$n = [xconvert]::ToSecurestring([xconvert]::BytesToObject([xconvert]::ToUnProtected([convert]::FromBase64String([xconvert]::Tostring($Obj)), $Entropy, $Scope)))
+                $this.$n = [xconvert]::ToSecurestring([xconvert]::BytesToObject([xconvert]::ToUnProtected([convert]::FromBase64String([xconvert]::Tostring($Obj)), $Entropy, [ProtectionScope]$this.Scope)))
             } else {
-                $this.$n = [xconvert]::BytesToObject([xconvert]::ToUnProtected([convert]::FromBase64String($Obj), $Entropy, $Scope))
+                $this.$n = [xconvert]::BytesToObject([xconvert]::ToUnProtected([convert]::FromBase64String($Obj), $Entropy, [ProtectionScope]$this.Scope))
             }
         }
     }
@@ -2621,7 +2626,7 @@ function Protect-Data {
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = '__AllParameterSets')]
         [ValidateSet('CurrentUser', 'LocalMachine')]
         [ValidateNotNullOrEmpty()]
-        [string]$ProtectionScope
+        [string]$Scope
     )
 
     begin {
