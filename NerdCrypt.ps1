@@ -987,13 +987,22 @@ class SecureCred {
             $Obj = $this.$n;
             if ($n.Equals('Password')) {
                 $_b = [xconvert]::BytesFromObject([xconvert]::Tostring($Obj))
-                $this.$n = [XConvert]::ToSecurestring([convert]::ToBase64String(([xconvert]::ToProtected($_b, $Entropy, [ProtectionScope]$this.Scope))))
+                $_s = [string]::Empty; Set-Variable -Name _s -Scope Local -Visibility Private -Option Private -Value ([convert]::ToBase64String(([xconvert]::ToProtected($_b, $Entropy, [ProtectionScope]$this.Scope)))); $this.$n = [XConvert]::ToSecurestring($_s);
+                Invoke-Command -InputObject $this.$n -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                            Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('$n', { return [XConvert]::ToSecurestring('$_s') }))";
+                        }
+                    )
+                )
             } else {
-                $_b = [xconvert]::BytesFromObject($Obj)
-                $this.$n = [convert]::ToBase64String(([xconvert]::ToProtected($_b, $Entropy, [ProtectionScope]$this.Scope)))
+                $_b = [xconvert]::BytesFromObject($Obj); $this.$n = [convert]::ToBase64String(([xconvert]::ToProtected($_b, $Entropy, [ProtectionScope]$this.Scope)))
+                Invoke-Command -InputObject $this.$n -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                            Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('$n', { return '$($this.$n)' }))";
+                        }
+                    )
+                )
             }
         }
-        Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+        Invoke-Command -InputObject $this.Scope -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
                     Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('Scope', { return '$($this.Scope)' }))";
                 }
             )
