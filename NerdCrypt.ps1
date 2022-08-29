@@ -1880,7 +1880,7 @@ class K3Y {
     }
     [securestring]ResolvePassword([securestring]$Password, [securestring]$SecHash, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         $ShouldUpdateUID = $false
-        if (!$this.HasPasswd()) {
+        if (!$this.HasPasswordHash()) {
             Write-Verbose "[+] Set Password ...";
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
                         $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::BytesToHex(([PasswordHash]::new([xconvert]::ToString($password)).ToArray())));
@@ -1902,31 +1902,31 @@ class K3Y {
         }
         return $ResPassword;
     }
-    [bool]HasPasswd() {
-        return $this.HasPasswd($false);
+    [bool]HasPasswordHash() {
+        return $this.HasPasswordHash($false);
     }
-    [bool]static HasPasswd([K3Y]$k3y) {
+    [bool]static HasPasswordHash([K3Y]$k3y) {
         $ThrowOnFailure = $false
-        return [K3Y]::HasPasswd($k3y, $ThrowOnFailure);
+        return [K3Y]::HasPasswordHash($k3y, $ThrowOnFailure);
     }
-    [bool]HasPasswd([bool]$ThrowOnFailure) {
-        return [K3Y]::HasPasswd($this, $ThrowOnFailure);
+    [bool]HasPasswordHash([bool]$ThrowOnFailure) {
+        return [K3Y]::HasPasswordHash($this, $ThrowOnFailure);
     }
-    [bool]static HasPasswd([K3Y]$k3y, [bool]$ThrowOnFailure) {
+    [bool]static HasPasswordHash([K3Y]$k3y, [bool]$ThrowOnFailure) {
         # Verifies if The password has already been set.
-        [securestring]$p = $k3y.User.Password; [bool]$HasPasswd = $false;
+        [securestring]$p = $k3y.User.Password; [bool]$HasPasswordHash = $false;
         try {
             $k3y.User.Password = [securestring]::new()
         } catch [System.Management.Automation.SetValueException] {
-            $HasPasswd = $true
+            $HasPasswordHash = $true
         }
-        if (!$HasPasswd) {
+        if (!$HasPasswordHash) {
             $k3y.User.Password = $p
             if ($ThrowOnFailure) {
                 throw [System.ArgumentNullException]::new('Password Value cannot be null.', [System.ArgumentNullException]::new('Password'))
             }
         }
-        return $HasPasswd
+        return $HasPasswordHash
     }
     [bool]VerifyPassword([string]$Passw0rd) {
         return $this.VerifyPassword($Passw0rd, $this.User.Password, $true); # (ie: $this.User.Password is not the actual password its just a 'read-only hash' of the password used during Encryption.)
@@ -2034,7 +2034,7 @@ class K3Y {
         }
         if ($CreateReport) {
             $Report = [PSCustomObject]@{
-                Summary        = "K3Y $(if ([K3Y]::HasPasswd($K3Y)) { 'Last used' }else { 'created' }) on: $($Output[3]), PID: $($Output[1].PID) by $($Output[1].User)"
+                Summary        = "K3Y $(if ([K3Y]::HasPasswordHash($K3Y)) { 'Last used' }else { 'created' }) on: $($Output[3]), PID: $($Output[1].PID) by $($Output[1].User)"
                 Version        = $Output[1].Version
                 ExpirationDate = $Output[1].Expirity.date
                 Compression    = $Output[2]
