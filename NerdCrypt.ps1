@@ -984,9 +984,8 @@ class SecureCred {
         $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15];
         foreach ($n in @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'Property' -and $_.Name -ne 'Scope' } | Select-Object -ExpandProperty Name)) {
             Write-Verbose ". $n"
-            $Obj = $this.$n;
             if ($n.Equals('Password')) {
-                $_b = [xconvert]::BytesFromObject([xconvert]::Tostring($Obj))
+                $_b = [xconvert]::BytesFromObject([xconvert]::Tostring($this.$n))
                 $_s = [string]::Empty; Set-Variable -Name _s -Scope Local -Visibility Private -Option Private -Value ([convert]::ToBase64String(([xconvert]::ToProtected($_b, $Entropy, [ProtectionScope]$this.Scope)))); $this.$n = [XConvert]::ToSecurestring($_s);
                 Invoke-Command -InputObject $this.$n -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
                             Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('$n', { return [XConvert]::ToSecurestring('$_s') }))";
@@ -994,7 +993,7 @@ class SecureCred {
                     )
                 )
             } else {
-                $_b = [xconvert]::BytesFromObject($Obj); $this.$n = [convert]::ToBase64String(([xconvert]::ToProtected($_b, $Entropy, [ProtectionScope]$this.Scope)))
+                $_b = [xconvert]::BytesFromObject($this.$n); $this.$n = [convert]::ToBase64String(([xconvert]::ToProtected($_b, $Entropy, [ProtectionScope]$this.Scope)))
                 Invoke-Command -InputObject $this.$n -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
                             Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('$n', { return '$($this.$n)' }))";
                         }
@@ -1010,12 +1009,22 @@ class SecureCred {
     }
     [void]UnProtect() {
         $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15];
-        foreach ($n in @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'Property' -and $_.Name -ne 'Scope' } | Select-Object -ExpandProperty Name)) {
-            $Obj = $this.$n;
+        foreach ($n in @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'ScriptProperty' -and $_.Name -ne 'Scope' } | Select-Object -ExpandProperty Name)) {
             if ($n.Equals('Password')) {
-                $this.$n = [xconvert]::ToSecurestring([xconvert]::BytesToObject([xconvert]::ToUnProtected([convert]::FromBase64String([xconvert]::Tostring($Obj)), $Entropy, [ProtectionScope]$this.Scope)))
+                $_s = [string]::Empty; Set-Variable -Name _s -Scope Local -Visibility Private -Option Private -Value ([xconvert]::StringToCustomCipher([xconvert]::BytesToObject([xconvert]::ToUnProtected([convert]::FromBase64String([xconvert]::Tostring($this.$n)), $Entropy, [ProtectionScope]$this.Scope))));
+                Invoke-Command -InputObject $this.$n -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                            Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('$n', { return [XConvert]::ToSecurestring([xconvert]::StringFromCustomCipher('$_s')) }))";
+                        }
+                    )
+                )
+                # $this.$n = [xconvert]::ToSecurestring($_s)
             } else {
-                $this.$n = [xconvert]::BytesToObject([xconvert]::ToUnProtected([convert]::FromBase64String($Obj), $Entropy, [ProtectionScope]$this.Scope))
+                $this.$n = [xconvert]::BytesToObject([xconvert]::ToUnProtected([convert]::FromBase64String($this.$n), $Entropy, [ProtectionScope]$this.Scope))
+                Invoke-Command -InputObject $this.$n -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                            Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('$n', { return '$($this.$n)' }))";
+                        }
+                    )
+                )
             }
         }
     }
