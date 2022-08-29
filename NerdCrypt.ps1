@@ -970,17 +970,45 @@ class NcObject {
 #endregion Object
 
 #region    SecureCredential
-class SecureCred : NcObject {
-    [ValidateNotNullOrEmpty()][string]$UserName = $env:Username;
+class SecureCred {
+    [ValidateNotNullOrEmpty()][string]$UserName = [Environment]::GetEnvironmentVariable('Username');
     [ValidateNotNullOrEmpty()][securestring]$Password = [securestring]::new();
-    [string]hidden $PasswordHash;
-    [string]hidden $Domain;
+    [ValidateNotNullOrEmpty()][string]hidden $Domain = [Environment]::GetEnvironmentVariable('USERDOMAIN');
+    [ValidateNotNullOrEmpty()][string]hidden $ProtectionScope = 'CurrentUser';
+
     SecureCred() {}
     SecureCred([PSCredential]$PSCredential) {
         ($this.UserName, $this.Password) = ($PSCredential.UserName, $PSCredential.Password)
     }
-    [string]ToString() { return $this.UserName }
+    [void]Protect() {
+        $PropNames = $this | Get-Member -Force | Where-Object { $_.MemberType -eq 'Property' } | Select-Object Name
+        $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15]
+        foreach ($n in $PropNames) {
+            Write-Verbose ". $n"
+            $Obj = $this.$n;
+            if ($n.Equals('Password')) {
+                $_b = [xconvert]::BytesFromObject([xconvert]::Tostring($Obj))
+                $this.$n = [XConvert]::ToSecurestring([convert]::ToBase64String(([xconvert]::ToProtected($_b, $Entropy, [ProtectionScope]$this.ProtectionScope))))
+            } else {
+                $_b = [xconvert]::BytesFromObject($Obj)
+                $this.$n = [convert]::ToBase64String(([xconvert]::ToProtected($_b, $Entropy, [ProtectionScope]$this.ProtectionScope)))
+            }
+        }
+    }
+    [void]UnProtect() {
+        $PropNames = $this | Get-Member -Force | Where-Object { $_.MemberType -eq 'Property' } | Select-Object Name
+        $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15]
+        foreach ($Name in $PropNames) {
+            $Obj = $this.$Name; # $type = ($Obj | Get-Member).Typename | Sort-Object -Unique; $type.count -eq 1 -and $type.Equals('System.Security.SecureString')
+            if ($Name.Equals('Password')) {
+                $this.$Name = [XConvert]::ToSecurestring([convert]::ToUnProtected([xconvert]::ToProtected([xconvert]::BytesFromObject([xconvert]::Tostring($Obj)), $Entropy, [ProtectionScope]$this.ProtectionScope)))
+            } else {
+                $this.$Name = [convert]::ToBase64String([xconvert]::ToUnProtected([xconvert]::BytesFromObject($Obj), $Entropy, [ProtectionScope]$this.ProtectionScope))
+            }
+        }
+    }
     [void]SaveToVault() {}
+    [string]ToString() { return $this.UserName }
 }
 #endregion SecureCredential
 
@@ -1892,11 +1920,14 @@ class K3Y {
         }
         Write-Verbose "[+] Get Password Hash ...";
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToString($Password));
-        if (!$this.VerifyPassword($Passw0rd, $SecHash)) { Throw [System.UnauthorizedAccessException]::new('Wrong Password.') };
-        Write-Verbose "[-] Successfully checked Hash: $([xconvert]::Tostring($this.User.Password))";
+        if ($this.VerifyPassword($Passw0rd, $SecHash)) {
+            $Hash = [xconvert]::Tostring($this.User.Password)
+            Write-Verbose "[-] Successfully checked Hash: $Hash";
+        } else {
+            Throw [System.UnauthorizedAccessException]::new('Wrong Password.')
+        };
+        # Use a 'UTF7 Encoded Cryptography.PasswordDerivat~' instead of the real 'Input Password' (Just to be extra cautious.)
         $Password = $null; Set-Variable -Name Password -Option Private -Visibility Private -Value $([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
-        $rps = [xconvert]::Tostring($Password)
-        Write-Verbose $rps
         if ($ShouldUpdateUID) {
             Write-Verbose "[-] UpdateUID ..."
             $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
