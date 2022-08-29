@@ -1828,10 +1828,10 @@ class K3Y {
         $Compression = [k3Y]::AnalyseK3YUID($this, $Password)[2];
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
-    [string]GetK3YidSTR() {
-        return [K3Y]::GetK3YidSTR($this.User.Password, $this.Expirity.Date, $(Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID)
+    [string]GetK3YIdSTR() {
+        return [K3Y]::GetK3YIdSTR($this.User.Password, $this.Expirity.Date, $(Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID)
     }
-    [string]static GetK3YidSTR([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+    [string]static GetK3YIdSTR([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         return [string][xconvert]::BytesToHex([System.Text.Encoding]::UTF7.GetBytes([xconvert]::ToCompressed([xconvert]::StringToCustomCipher(
                         [string][K3Y]::CreateUIDstring([byte[]][XConvert]::BytesFromObject([PSCustomObject]@{
                                     KeyInfo = [xconvert]::BytesFromObject([PSCustomObject]@{
@@ -1851,12 +1851,12 @@ class K3Y {
         )
     }
     [void]hidden SetK3YUID() {
-        $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YidSTR());
+        $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         # if ($null -ne $this.UID) { Write-Verbose "[+] Update UID ..." }
         # The K3Y 'UID' is a fancy way of storing the Key version, user, compressiontype and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
-        $this.UID = [securestring][xconvert]::ToSecurestring([string][K3Y]::GetK3YidSTR($Password, $Expirity, $Compression, $_PID));
+        $this.UID = [securestring][xconvert]::ToSecurestring([string][K3Y]::GetK3YIdSTR($Password, $Expirity, $Compression, $_PID));
     }
     [securestring]static GetPassword() {
         $ThrowOnFailure = $true
@@ -1894,13 +1894,14 @@ class K3Y {
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToString($Password));
         if (!$this.VerifyPassword($Passw0rd, $SecHash)) { Throw [System.UnauthorizedAccessException]::new('Wrong Password.') };
         Write-Verbose "[-] Successfully checked Hash: $([xconvert]::Tostring($this.User.Password))";
-        $ResPassword = $null; Set-Variable -Name ResPassword -Option Private -Visibility Private -Value $([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
-        Write-Verbose "[+] Password: $([xconvert]::Tostring($ResPassword))";
+        $Password = $null; Set-Variable -Name Password -Option Private -Visibility Private -Value $([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
+        $rps = [xconvert]::Tostring($Password)
+        Write-Verbose $rps
         if ($ShouldUpdateUID) {
             Write-Verbose "[-] UpdateUID ..."
-            $this.SetK3YUID($password, $Expirity, $Compression, $this._PID)
+            $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
         }
-        return $ResPassword;
+        return $Password;
     }
     [bool]HasPasswordHash() {
         return $this.HasPasswordHash($false);
