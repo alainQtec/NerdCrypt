@@ -500,7 +500,7 @@ class XConvert {
         return $PSObj
     }
     [string]static ToProtected([string]$string, [byte[]]$Entropy, [ProtectionScope]$Scope) {
-        return [xconvert]::BytesToObject([xconvert]::ToProtected([xconvert]::BytesFromObject($string), $Entropy, $Scope))
+        return [convert]::ToBase64String([xconvert]::ToProtected([xconvert]::BytesFromObject($string), $Entropy, $Scope))
     }
     [byte[]]static ToProtected([byte[]]$bytes, [byte[]]$Entropy, [ProtectionScope]$Scope) {
         $encryptedData = $null; # https://docs.microsoft.com/en-us/dotnet/api/System.Security.Cryptography.ProtectedData.Protect?
@@ -515,6 +515,9 @@ class XConvert {
             throw $_
         }
         return $encryptedData
+    }
+    [string]static ToUnProtected([string]$string, [byte[]]$Entropy, [ProtectionScope]$Scope) {
+        return [xconvert]::BytesToObject([XConvert]::ToUnProtected([convert]::FromBase64String($string), $Entropy, $Scope))
     }
     [byte[]]static ToUnProtected([byte[]]$bytes, [byte[]]$Entropy, [ProtectionScope]$Scope) {
         $decryptedData = $null;
@@ -985,15 +988,16 @@ class SecureCred {
     }
     [void]Protect() {
         $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15];
-        $P_Scope = [ProtectionScope]$this.Scope
-        foreach ($n in @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'Property' -and $_.Name -ne 'Scope' } | Select-Object -ExpandProperty Name)) {
+        $_PScope = [ProtectionScope]$this.Scope
+        $_Props_ = @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'Property' -and $_.Name -ne 'Scope' } | Select-Object -ExpandProperty Name)
+        foreach ($n in $_Props_) {
             Write-Verbose "E~ $n"
             $OBJ = Invoke-Expression "`$this.$n"
             if ($n.Equals('Password')) {
-                [string]$_SecSTR_ = [xconvert]::StringToCustomCipher([xconvert]::ToProtected([xconvert]::Tostring($OBJ), $Entropy, $P_Scope))
-                Invoke-Expression "`$this.$n = [XConvert]::ToSecurestring('$_SecSTR_')"
+                [string]$_STR_ = [xconvert]::StringToCustomCipher([xconvert]::ToProtected([xconvert]::Tostring($OBJ), $Entropy, $_PScope))
+                Invoke-Expression "`$this.$n = [XConvert]::ToSecurestring('$_STR_')"
             } else {
-                [string]$_STR_ = [xconvert]::ToProtected($OBJ, $Entropy, $P_Scope)
+                [string]$_STR_ = [xconvert]::ToProtected($OBJ, $Entropy, $_PScope)
                 Invoke-Expression "`$this.$n = '$_STR_'"
             }
         }
