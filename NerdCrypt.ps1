@@ -985,12 +985,16 @@ class SecureCred {
     }
     [void]Protect() {
         $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15];
+        $P_Scope = [ProtectionScope]$this.Scope
         foreach ($n in @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'Property' -and $_.Name -ne 'Scope' } | Select-Object -ExpandProperty Name)) {
-            Write-Verbose ". $n"
+            Write-Verbose "E~ $n"
+            $OBJ = $this.$n
             if ($n.Equals('Password')) {
-                $this.$n = [XConvert]::ToSecurestring([xconvert]::StringToCustomCipher([xconvert]::ToProtected([xconvert]::Tostring($this.$n), $Entropy, [ProtectionScope]$this.Scope)))
+                [string]$_SecSTR_ = [xconvert]::StringToCustomCipher([xconvert]::ToProtected([xconvert]::Tostring($OBJ), $Entropy, $P_Scope))
+                Invoke-Expression "`$this.$n = [XConvert]::ToSecurestring('$_SecSTR_')"
             } else {
-                $this.$n = [xconvert]::ToProtected($this.$n, $Entropy, [ProtectionScope]$this.Scope)
+                [string]$_STR_ = [xconvert]::ToProtected($OBJ, $Entropy, $P_Scope)
+                Invoke-Expression "`$this.$n = '$_STR_'"
             }
         }
         Invoke-Command -InputObject $this.Scope -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
@@ -1001,11 +1005,14 @@ class SecureCred {
     }
     [void]UnProtect() {
         $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15];
+        $P_Scope = [ProtectionScope]$this.Scope
         foreach ($n in @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'ScriptProperty' -and $_.Name -ne 'Scope' } | Select-Object -ExpandProperty Name)) {
+            Write-Verbose "D~ $n"
+            $OBJ = $this.$n
             if ($n.Equals('Password')) {
-                $this.$n = [xconvert]::ToSecurestring([xconvert]::ToUnProtected([xconvert]::StringFromCustomCipher([xconvert]::Tostring($this.$n)), $Entropy, [ProtectionScope]$this.Scope))
+                $this.$n = [xconvert]::ToSecurestring([xconvert]::ToUnProtected([xconvert]::StringFromCustomCipher([xconvert]::Tostring($OBJ)), $Entropy, $P_Scope))
             } else {
-                $this.$n = [xconvert]::ToUnProtected($this.$n, $Entropy, [ProtectionScope]$this.Scope)
+                $this.$n = [xconvert]::ToUnProtected($OBJ, $Entropy, $P_Scope)
             }
         }
     }
