@@ -988,7 +988,7 @@ class SecureCred {
         $P_Scope = [ProtectionScope]$this.Scope
         foreach ($n in @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'Property' -and $_.Name -ne 'Scope' } | Select-Object -ExpandProperty Name)) {
             Write-Verbose "E~ $n"
-            $OBJ = $this.$n
+            $OBJ = Invoke-Expression "`$this.$n"
             if ($n.Equals('Password')) {
                 [string]$_SecSTR_ = [xconvert]::StringToCustomCipher([xconvert]::ToProtected([xconvert]::Tostring($OBJ), $Entropy, $P_Scope))
                 Invoke-Expression "`$this.$n = [XConvert]::ToSecurestring('$_SecSTR_')"
