@@ -593,6 +593,12 @@ class XConvert {
         }
         return $h
     }
+    [string]static ToCompressedHex([string]$tring) {
+        return ''
+    }
+    [string]static ToDeCompressedHex([string]$tring) {
+        return ''
+    }
     [string]static BytesToHex([byte[]]$bytes) {
         #OneLiner: [string][System.Runtime.Remoting.Metadata.W3cXsd2001.SoapHexBinary]::new($bytes).ToString().ToLowerInvariant();
         #TODO: fInd the dll Containg W3cXsd2001
@@ -665,7 +671,6 @@ class XConvert {
         foreach ($ch In $string.ToCharArray()) {
             $BinStR += [Convert]::ToString([int]$ch, 2).PadLeft(8, '0');
         }
-        Write-Verbose "$BinStR"
         return [xconvert]::BinaryFromBinStR($BinStR)
     }
     [string]static BinaryToString([System.Collections.BitArray]$BitArray) {
