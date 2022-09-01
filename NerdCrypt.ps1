@@ -299,6 +299,22 @@ class XConvert {
     [string]static ToString([int[]]$CharCodes, [string]$separator) {
         return [string]::Join($separator, [XConvert]::ToString($CharCodes));
     }
+    [string]static ToString([int]$value, [int]$toBase) {
+        [char[]]$baseChars = switch ($toBase) {
+            # Binary
+            2 { @('0', '1') }
+            # Hexadecimal
+            16 { @('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f') }
+            # Hexavigesimal
+            26 { @('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p') }
+            # Sexagesimal
+            60 { @('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x') }
+            Default {
+                throw [System.ArgumentException]::new("Invalid Base.")
+            }
+        }
+        return [xconvert]::IntToString($value, $baseChars);
+    }
     [SecureString]static ToSecurestring([string]$String) {
         $SecureString = $null; Set-Variable -Name SecureString -Scope Local -Visibility Private -Option Private -Value ([System.Security.SecureString]::new());
         if (![string]::IsNullOrEmpty($String)) {
@@ -593,11 +609,17 @@ class XConvert {
         }
         return $h
     }
-    [string]static ToCompressedHex([string]$tring) {
-        return ''
-    }
-    [string]static ToDeCompressedHex([string]$tring) {
-        return ''
+    [string]static hidden IntToString([Int]$value, [char[]]$baseChars) {
+        [int]$i = 32;
+        [char[]]$buffer = [Char[]]::new($i);
+        [int]$targetBase = $baseChars.Length;
+        do {
+            $buffer[--$i] = $baseChars[$value % $targetBase];
+            $value = $value / $targetBase;
+        } while ($value -gt 0);
+        [char[]]$result = [Char[]]::new(32 - $i);
+        [Array]::Copy($buffer, $i, $result, 0, 32 - $i);
+        return [string]::new($result)
     }
     [string]static BytesToHex([byte[]]$bytes) {
         #OneLiner: [string][System.Runtime.Remoting.Metadata.W3cXsd2001.SoapHexBinary]::new($bytes).ToString().ToLowerInvariant();
