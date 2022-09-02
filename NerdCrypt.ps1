@@ -1035,31 +1035,40 @@ class SecureCred {
     [ValidateNotNullOrEmpty()][string]$UserName = [Environment]::GetEnvironmentVariable('Username');
     [ValidateNotNullOrEmpty()][securestring]$Password = [securestring]::new();
     [ValidateNotNullOrEmpty()][string]hidden $Domain = [Environment]::GetEnvironmentVariable('USERDOMAIN');
+    [ValidateSet('CurrentUser', 'LocalMachine')][ValidateNotNullOrEmpty()][string]hidden $Scope = 'CurrentUser';
 
     SecureCred() {}
     SecureCred([PSCredential]$PSCredential) {
         ($this.UserName, $this.Password) = ($PSCredential.UserName, $PSCredential.Password)
     }
     [void]Protect() {
+        $_scope_ = [ProtectionScope]$this.Scope
         $_Props_ = @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'Property' -and $_.Name -ne 'Scope' } | Select-Object -ExpandProperty Name)
         foreach ($n in $_Props_) {
             Write-Verbose "E~ $n"
             $OBJ = $this.$n
             if ($n.Equals('Password')) {
-                $this.$n = [XConvert]::ToSecurestring([xconvert]::StringToCustomCipher([xconvert]::ToProtected([xconvert]::Tostring($OBJ))))
+                $this.$n = [XConvert]::ToSecurestring([xconvert]::StringToCustomCipher([xconvert]::ToProtected([xconvert]::Tostring($OBJ), $_scope_)))
             } else {
-                $this.$n = [xconvert]::ToProtected($OBJ)
+                $this.$n = [xconvert]::ToProtected($OBJ, $_scope_)
             }
         }
+        Invoke-Command -InputObject $this.Scope -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                    Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('Scope', { return '$($this.Scope)' }))";
+                }
+            )
+        )
     }
     [void]UnProtect() {
-        foreach ($n in @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'ScriptProperty' -and $_.Name -ne 'Scope' } | Select-Object -ExpandProperty Name)) {
+        $_scope_ = [ProtectionScope]$this.Scope
+        $_Props_ = @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'Property' -and $_.Name -ne 'Scope' } | Select-Object -ExpandProperty Name)
+        foreach ($n in $_Props_) {
             Write-Verbose "D~ $n"
-            $OBJ = Invoke-Expression "`$this.$n"
+            $OBJ = $this.$n
             if ($n.Equals('Password')) {
-                $this.$n = [xconvert]::ToSecurestring([xconvert]::ToUnProtected([xconvert]::StringFromCustomCipher([xconvert]::Tostring($OBJ))));
+                $this.$n = [xconvert]::ToSecurestring([xconvert]::ToUnProtected([xconvert]::StringFromCustomCipher([xconvert]::Tostring($OBJ)), $_scope_));
             } else {
-                $this.$n = [xconvert]::ToUnProtected($OBJ);
+                $this.$n = [xconvert]::ToUnProtected($OBJ, $_scope_);
             }
         }
     }
