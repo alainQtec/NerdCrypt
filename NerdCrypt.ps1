@@ -644,7 +644,9 @@ class XConvert {
     }
     [byte[]]static BytesFromObject([object]$obj, [bool]$protect) {
         if ($null -eq $obj) { return $null }; $bytes = $null;
-        if ($obj.GetType() -eq [byte[]]) {
+        if ($obj.GetType() -eq [string] -and [regex]::IsMatch([string]$obj, '^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$')) {
+            $bytes = [convert]::FromBase64String($obj);
+        } elseif ($obj.GetType() -eq [byte[]]) {
             $bytes = [byte[]]$obj
         } else {
             # Serialize the Object:
