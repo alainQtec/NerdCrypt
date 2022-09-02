@@ -644,24 +644,29 @@ class XConvert {
     }
     [byte[]]static BytesFromObject([object]$obj, [bool]$protect) {
         if ($null -eq $obj) { return $null }; $bytes = $null;
-        try {
-            #Use BinaryFormatter: https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter?
-            $bf = [System.Runtime.Serialization.Formatters.Binary.BinaryFormatter]::new()
-            $ss = [System.IO.MemoryStream]::new() # SerializationStream
-            [void]$bf.Serialize($ss, $obj); # Serialise the graph
-            $bytes = $ss.ToArray()
-            [void]$ss.Dispose(); [void]$ss.Close()
-        } catch [System.Management.Automation.MethodInvocationException], [System.Runtime.Serialization.SerializationException] {
-            #Use Marshalling: https://docs.microsoft.com/en-us/dotnet/api/System.Runtime.InteropServices.Marshal?
-            Write-Verbose "Object can't be serialized, Lets try Marshalling ..."; $TypeName = $obj.GetType().Name; $obj = $obj -as $TypeName
-            if ($TypeName -in ("securestring", "Pscredential", "SecureCred")) { throw [System.Management.Automation.MethodInvocationException]::new("Cannot marshal an unmanaged structure") }
-            [int]$size = [System.Runtime.InteropServices.Marshal]::SizeOf($obj); $bytes = [byte[]]::new($size);
-            [IntPtr]$ptr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($size);
-            [void][System.Runtime.InteropServices.Marshal]::StructureToPtr($obj, $ptr, $false);
-            [void][System.Runtime.InteropServices.Marshal]::Copy($ptr, $bytes, 0, $size);
-            [void][System.Runtime.InteropServices.Marshal]::FreeHGlobal($ptr);
-        } catch {
-            throw $_.Exception
+        if ($obj.GetType() -eq [byte[]]) {
+            $bytes = [byte[]]$obj
+        } else {
+            # Serialize the Object:
+            try {
+                #Use BinaryFormatter: https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter?
+                $bf = [System.Runtime.Serialization.Formatters.Binary.BinaryFormatter]::new()
+                $ss = [System.IO.MemoryStream]::new() # SerializationStream
+                [void]$bf.Serialize($ss, $obj); # Serialise the graph
+                $bytes = $ss.ToArray()
+                [void]$ss.Dispose(); [void]$ss.Close()
+            } catch [System.Management.Automation.MethodInvocationException], [System.Runtime.Serialization.SerializationException] {
+                #Use Marshalling: https://docs.microsoft.com/en-us/dotnet/api/System.Runtime.InteropServices.Marshal?
+                Write-Verbose "Object can't be serialized, Lets try Marshalling ..."; $TypeName = $obj.GetType().Name; $obj = $obj -as $TypeName
+                if ($TypeName -in ("securestring", "Pscredential", "SecureCred")) { throw [System.Management.Automation.MethodInvocationException]::new("Cannot marshal an unmanaged structure") }
+                [int]$size = [System.Runtime.InteropServices.Marshal]::SizeOf($obj); $bytes = [byte[]]::new($size);
+                [IntPtr]$ptr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($size);
+                [void][System.Runtime.InteropServices.Marshal]::StructureToPtr($obj, $ptr, $false);
+                [void][System.Runtime.InteropServices.Marshal]::Copy($ptr, $bytes, 0, $size);
+                [void][System.Runtime.InteropServices.Marshal]::FreeHGlobal($ptr);
+            } catch {
+                throw $_.Exception
+            }
         }
         if ($protect) {
             # Protecteddata: https://docs.microsoft.com/en-us/dotnet/api/system.security.cryptography.protecteddata.unprotect?
@@ -686,8 +691,10 @@ class XConvert {
         return $Obj
     }
     [object[]]static BytesToObject([byte[]]$Bytes, [bool]$Unprotect) {
-        $UnprotectedBytes = [byte[]][xconvert]::ToUnProtected($Bytes)
-        return [XConvert]::BytesToObject($UnprotectedBytes);
+        if ($Unprotect) {
+            $Bytes = [byte[]][xconvert]::ToUnProtected($Bytes)
+        }
+        return [XConvert]::BytesToObject($Bytes);
     }
     [System.Collections.BitArray]static BinaryFromString([string]$string) {
         [string]$BinStR = [string]::Empty;
