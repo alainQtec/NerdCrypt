@@ -275,6 +275,8 @@ class XConvert {
         $Bytes = [byte[]]::new(0);
         if ($Object.GetType() -eq [String]) {
             return $Object
+        } elseif ($Object.GetType() -eq [byte[]]) {
+            $Bytes = [byte[]]$Object
         } else {
             $Bytes = [XConvert]::BytesFromObject($Object);
         }
@@ -636,20 +638,6 @@ class XConvert {
             $output[$i] = [Convert]::ToByte([string]::new($numeral), 16);
         }
         return $output;
-    }
-    [byte[]]static ToSerialized ([byte[]]$Bytes) {
-        $Set = [System.Data.DataSet]::new(); $res = $Null
-        $formatter = [System.Runtime.Serialization.Formatters.Binary.BinaryFormatter]::new();
-        $ms = [System.IO.MemoryStream]::new($Bytes);
-        $ss = [System.IO.Stream][System.IO.Compression.DeflateStream]::new($ms, [System.IO.Compression.CompressionMode]::Compress, $true);
-        try {
-            $Set = [System.Data.DataSet]$formatter.Serialize($ss, $Set);
-            $ms.Position = 0;
-            $res = $ms.GetBuffer();
-        } catch [System.Runtime.Serialization.SerializationException] {
-            Write-Verbose 'Byte[] is already Serialized..'
-        }
-        return $res
     }
     [byte[]]static BytesFromObject([object]$obj) {
         return [xconvert]::BytesFromObject($obj, $false);
@@ -1032,13 +1020,11 @@ class SecureCred {
         $_Props_ = @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'Property' -and $_.Name -ne 'Scope' } | Select-Object -ExpandProperty Name)
         foreach ($n in $_Props_) {
             Write-Verbose "E~ $n"
-            $OBJ = Invoke-Expression "`$this.$n"
+            $OBJ = $this.$n
             if ($n.Equals('Password')) {
-                [string]$_STR_ = [xconvert]::StringToCustomCipher([xconvert]::ToProtected([xconvert]::Tostring($OBJ), $Entropy, $_PScope))
-                Invoke-Expression "`$this.$n = [XConvert]::ToSecurestring('$_STR_')"
+                $this.$n = [XConvert]::ToSecurestring([xconvert]::StringToCustomCipher([xconvert]::ToProtected([xconvert]::Tostring($OBJ), $Entropy, $_PScope)))
             } else {
-                [string]$_STR_ = [xconvert]::ToProtected($OBJ, $Entropy, $_PScope)
-                Invoke-Expression "`$this.$n = '$_STR_'"
+                $this.$n = [xconvert]::ToProtected($OBJ, $Entropy, $_PScope)
             }
         }
         Invoke-Command -InputObject $this.Scope -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
