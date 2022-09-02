@@ -518,7 +518,7 @@ class XConvert {
         return $PSObj
     }
     [string]static ToProtected([string]$string, [byte[]]$Entropy, [ProtectionScope]$Scope) {
-        return [convert]::ToBase64String([xconvert]::ToProtected([xconvert]::BytesFromObject($string), $Entropy, $Scope))
+        return [xconvert]::Tostring([xconvert]::ToProtected([xconvert]::BytesFromObject($string), $Entropy, $Scope))
     }
     [byte[]]static ToProtected([byte[]]$bytes, [byte[]]$Entropy, [ProtectionScope]$Scope) {
         $encryptedData = $null; # https://docs.microsoft.com/en-us/dotnet/api/System.Security.Cryptography.ProtectedData.Protect?
