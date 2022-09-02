@@ -637,7 +637,20 @@ class XConvert {
         }
         return $output;
     }
-
+    [byte[]]static ToSerialized ([byte[]]$Bytes) {
+        $Set = [System.Data.DataSet]::new(); $res = $Null
+        $formatter = [System.Runtime.Serialization.Formatters.Binary.BinaryFormatter]::new();
+        $ms = [System.IO.MemoryStream]::new($Bytes);
+        $ss = [System.IO.Stream][System.IO.Compression.DeflateStream]::new($ms, [System.IO.Compression.CompressionMode]::Compress, $true);
+        try {
+            $Set = [System.Data.DataSet]$formatter.Serialize($ss, $Set);
+            $ms.Position = 0;
+            $res = $ms.GetBuffer();
+        } catch [System.Runtime.Serialization.SerializationException] {
+            Write-Verbose 'Byte[] is already Serialized..'
+        }
+        return $res
+    }
     [byte[]]static BytesFromObject([object]$obj) {
         return [xconvert]::BytesFromObject($obj, $false);
     }
