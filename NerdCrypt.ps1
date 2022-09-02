@@ -657,11 +657,11 @@ class XConvert {
             # Serialize the Object:
             try {
                 #Use BinaryFormatter: https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter?
-                $bf = [System.Runtime.Serialization.Formatters.Binary.BinaryFormatter]::new()
-                $ss = [System.IO.MemoryStream]::new() # SerializationStream
+                $bf = [System.Runtime.Serialization.Formatters.Binary.BinaryFormatter]::new();
+                $ss = [System.IO.MemoryStream]::new(); # SerializationStream
                 [void]$bf.Serialize($ss, $obj); # Serialise the graph
-                $bytes = $ss.ToArray()
-                [void]$ss.Dispose(); [void]$ss.Close()
+                $bytes = $ss.ToArray();
+                [void]$ss.Dispose(); [void]$ss.Close();
             } catch [System.Management.Automation.MethodInvocationException], [System.Runtime.Serialization.SerializationException] {
                 #Use Marshalling: https://docs.microsoft.com/en-us/dotnet/api/System.Runtime.InteropServices.Marshal?
                 Write-Verbose "Object can't be serialized, Lets try Marshalling ..."; $TypeName = $obj.GetType().Name; $obj = $obj -as $TypeName
