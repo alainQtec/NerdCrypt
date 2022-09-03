@@ -1037,14 +1037,26 @@ class NcObject {
 
 #region    SecureCredential
 class SecureCred {
+    [bool]$IsProtected = $false;
     [ValidateNotNullOrEmpty()][string]$UserName = [Environment]::GetEnvironmentVariable('Username');
     [ValidateNotNullOrEmpty()][securestring]$Password = [securestring]::new();
     [ValidateNotNullOrEmpty()][string]hidden $Domain = [Environment]::GetEnvironmentVariable('USERDOMAIN');
     [ValidateSet('CurrentUser', 'LocalMachine')][ValidateNotNullOrEmpty()][string]hidden $Scope = 'CurrentUser';
 
-    SecureCred() {}
+    SecureCred() {
+        Invoke-Command -InputObject $this.IsProtected -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                    $this.psobject.Properties.Add([psscriptproperty]::new('IsProtected', { return $false }))
+                }
+            )
+        )
+    }
     SecureCred([PSCredential]$PSCredential) {
         ($this.UserName, $this.Password) = ($PSCredential.UserName, $PSCredential.Password)
+        Invoke-Command -InputObject $this.IsProtected -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                    $this.psobject.Properties.Add([psscriptproperty]::new('IsProtected', { return $false }))
+                }
+            )
+        )
     }
     [void]Protect() {
         $_scope_ = [ProtectionScope]$this.Scope
@@ -1057,8 +1069,8 @@ class SecureCred {
                 $this.$n = [xconvert]::ToProtected($OBJ, $_scope_)
             }
         }
-        Invoke-Command -InputObject $this.Scope -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-                    Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('Scope', { return '$($this.Scope)' }))";
+        Invoke-Command -InputObject $this.IsProtected -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                    $this.psobject.Properties.Add([psscriptproperty]::new('IsProtected', { return $true }))
                 }
             )
         )
@@ -1074,30 +1086,11 @@ class SecureCred {
                 $this.$n = [xconvert]::ToUnProtected($OBJ, $_scope_);
             }
         }
-        $setterScript = {
-            param($value)
-            $this.Scope = $value
-        }
-        $getterScript = {
-            return $this.Scope
-        }
-        Invoke-Command -InputObject $this.Scope -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-                    Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('Scope', { $getterScript }, { $setterScript }))";
+        Invoke-Command -InputObject $this.IsProtected -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                    $this.psobject.Properties.Add([psscriptproperty]::new('IsProtected', { return $false }))
                 }
             )
         )
-    }
-    [bool]IsProtected() {
-        [string]$_scope_ = $this.Scope; [bool]$IsProtected = $false;
-        try {
-            $this.Scope = 'CurrentUser'
-        } catch [System.Management.Automation.SetValueException] {
-            $IsProtected = $true
-        }
-        if (!$IsProtected) {
-            $this.Scope = $_scope_
-        }
-        return $IsProtected
     }
     [void]SaveToVault() {}
     [string]ToString() { return $this.UserName }
