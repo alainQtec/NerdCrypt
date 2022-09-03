@@ -186,8 +186,8 @@ class xgen {
         if ($iterations -le 0) { Write-Warning 'Negative and Zero Iterations are NOT Possible!'; return [string]::Empty }
         [char[]]$chars = [char[]]::new($InputSample.Length);
         $chars = $InputSample.ToCharArray();
-        $Keys = [System.Collections.Generic.List[string]]::new()
-        $rand = [Random]::new()
+        $Keys = [System.Collections.Generic.List[string]]::new();
+        $rand = [Random]::new();
         [int]$size = $rand.Next([int]$minLength, [int]$maxLength);
         for ($i = 0; $i -lt $iterations; $i++) {
             [byte[]] $data = [Byte[]]::new(1);
@@ -1050,7 +1050,6 @@ class SecureCred {
         $_scope_ = [ProtectionScope]$this.Scope
         $_Props_ = @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'Property' -and $_.Name -ne 'Scope' } | Select-Object -ExpandProperty Name)
         foreach ($n in $_Props_) {
-            Write-Verbose "E~ $n"
             $OBJ = $this.$n
             if ($n.Equals('Password')) {
                 $this.$n = [XConvert]::ToSecurestring([xconvert]::StringToCustomCipher([xconvert]::ToProtected([xconvert]::Tostring($OBJ), $_scope_)))
@@ -1068,7 +1067,6 @@ class SecureCred {
         $_scope_ = [ProtectionScope]$this.Scope
         $_Props_ = @($this | Get-Member -Force | Where-Object { $_.MemberType -eq 'Property' -and $_.Name -ne 'Scope' } | Select-Object -ExpandProperty Name)
         foreach ($n in $_Props_) {
-            Write-Verbose "D~ $n"
             $OBJ = $this.$n
             if ($n.Equals('Password')) {
                 $this.$n = [xconvert]::ToSecurestring([xconvert]::ToUnProtected([xconvert]::StringFromCustomCipher([xconvert]::Tostring($OBJ)), $_scope_));
@@ -1076,6 +1074,18 @@ class SecureCred {
                 $this.$n = [xconvert]::ToUnProtected($OBJ, $_scope_);
             }
         }
+    }
+    [bool]IsProtected() {
+        [string]$_scope_ = $this.Scope; [bool]$IsProtected = $false;
+        try {
+            $this.Scope = 'CurrentUser'
+        } catch [System.Management.Automation.SetValueException] {
+            $IsProtected = $true
+        }
+        if (!$IsProtected) {
+            $this.Scope = $_scope_
+        }
+        return $IsProtected
     }
     [void]SaveToVault() {}
     [string]ToString() { return $this.UserName }
@@ -2181,6 +2191,10 @@ class K3Y {
                     }
                 )
             )
+        }
+        # Check If User is Protected.
+        if ($K3Y.User.IsProtected()) {
+            # Try Unprotecting ...
         }
         return $K3Y
     }
