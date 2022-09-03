@@ -1918,7 +1918,7 @@ class K3Y {
         return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $Expirity);
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
-        $Password = [securestring]$this.ResolvePassword($Password, $Expirity, $Compression, $this._PID);
+        $Password = [securestring]$this.ResolvePassword($Password, $Expirity, $Compression, $this._PID); $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID);
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
@@ -1971,7 +1971,7 @@ class K3Y {
     [securestring]static GetPassword([bool]$ThrowOnFailure) {
         $Password = $null; Set-Variable -Name Password -Scope Local -Visibility Private -Option Private -Value ($(Get-Variable Host).value.UI.PromptForCredential('NerdCrypt', "Please Enter Your Password", $env:UserName, $env:COMPUTERNAME).Password);
         if ($ThrowOnFailure -and ($null -eq $Password -or $([string]::IsNullOrWhiteSpace([xconvert]::ToString($Password))))) {
-            throw [System.InvalidOperationException]::new("Please Provide a valid Password. That is not Null Or WhiteSpace.", [System.ArgumentNullException]::new("Password"));
+            throw [System.InvalidOperationException]::new("Please Provide a Password that is not Null Or WhiteSpace.", [System.ArgumentNullException]::new("Password"));
         }
         return $Password
     }
@@ -2001,17 +2001,17 @@ class K3Y {
         if ($this.VerifyPassword($Passw0rd, $SecHash)) {
             $Hash = [xconvert]::Tostring($this.User.Password)
             Write-Verbose "[-] Successfully checked Hash: $Hash";
+            # Use a 'UTF7 Encoded Cryptography.PasswordDerivat~' instead of the real 'Input Password' (Just to be extra cautious.)
+            $Password = $null; Set-Variable -Name Password -Option Private -Visibility Private -Value $([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
+            if ($ShouldUpdateUID) {
+                Write-Verbose "[--] ShouldUpdateUID ...";
+                $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
+            }
+            return $Password;
         } else {
             Write-Verbose "[x] Wrong Password!";
             Throw [System.UnauthorizedAccessException]::new('Wrong Password.')
-        };
-        # Use a 'UTF7 Encoded Cryptography.PasswordDerivat~' instead of the real 'Input Password' (Just to be extra cautious.)
-        $Password = $null; Set-Variable -Name Password -Option Private -Visibility Private -Value $([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
-        if ($ShouldUpdateUID) {
-            Write-Verbose "[-] UpdateUID ..."
-            $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
         }
-        return $Password;
     }
     [bool]HasPasswordHash() {
         return $this.HasPasswordHash($false);
@@ -2198,7 +2198,12 @@ class K3Y {
         return $IsStillValid
     }
     [void]SaveToVault() {
-        #TODO: Add save $k3y.tostring() to vault
+        if (-not [bool]("Windows.Security.Credentials.PasswordVault" -as 'Type')) {
+            [Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
+        }
+        $_ResN = 'NerdK3y'
+        $vault = New-Object Windows.Security.Credentials.PasswordVault
+        $vault.Add((New-Object Windows.Security.Credentials.PasswordCredential -ArgumentList ($_ResN, $this.User.UserName, [xconvert]::Tostring($this))))
     }
 }
 #endregion Custom_Cryptography_Wrapper
@@ -2314,12 +2319,13 @@ class NerdCrypt {
 
 #region    Usage_&&_Playground_Examples
 <#
-# Clean Vault:
-# [Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
+# if (-not [bool]("Windows.Security.Credentials.PasswordVault" -as 'Type')) {
+#     [Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
+# }
 # $vault = [Windows.Security.Credentials.PasswordVault]::new()
 # $res = $vault.RetrieveAll().Resource; if ($res.count -gt 0) { $res | ForEach-Object { Write-Verbose "Removing $_" -Verbose; $vault.Remove($vault.Retrieve($_, $Env:USERNAME)) } }
 # $vault.RetrieveAll() | ForEach-Object { $_.RetrievePassword(); $_ }
-# More Examples will go here
+# # More Examples will go here
 #>
 #endregion Usage_&&_Playground_Examples
 
@@ -2350,6 +2356,9 @@ function Encrypt-Object {
             https://www.hackingarticles.in/credential-dumping-windows-credential-manager/
             So If you feel unsafe Retrieve Your stuff (Store them on a Goober or somethin).
             Then Remove them, Example:
+            if (-not [bool]("Windows.Security.Credentials.PasswordVault" -as 'Type')) {
+                [Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
+            }
             $vault = [Windows.Security.Credentials.PasswordVault]::new()
             $vault.Remove($vault.Retrieve("ResourceName", "NameOtheKey"))
             # ie:
