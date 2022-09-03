@@ -1093,7 +1093,11 @@ class SecureCred {
         )
     }
     [void]SaveToVault() {}
-    [string]ToString() { return $this.UserName }
+    [string]ToString() {
+        $str = $this.UserName
+        if ($str.Length -gt 9) { $str = $str.Substring(0, 6) + '...' }
+        return $str
+    }
 }
 #endregion SecureCredential
 
@@ -2532,7 +2536,7 @@ function Encrypt-Object {
             $nc.SetNerdKey($PublicKey);
         } else {
             Write-Verbose "[+] Create NerdKey ...";
-            $nc.SetNerdKey($(New-NerdKey -UserName $nc.key.User.UserName -Password $PsW -Expirity $nc.key.Expirity.date));
+            $nc.SetNerdKey($(New-NerdKey -UserName $nc.key.User.UserName -Password $PsW -Expirity $nc.key.Expirity.date -Protect));
         }
         $bytes = $nc.Object.Bytes
         [void]$nc.Encrypt($PsW, $Iterations)
@@ -2659,13 +2663,18 @@ function New-NerdKey {
 
         [Parameter(Mandatory = $false, Position = 3, ParameterSetName = 'FromK3Y')]
         [Parameter(Mandatory = $false, Position = 2, ParameterSetName = 'Params')]
-        [ValidateNotNullOrEmpty()][datetime]$Expirity = ([Datetime]::Now + [TimeSpan]::new(30, 0, 0, 0)) # One month
+        [ValidateNotNullOrEmpty()][datetime]$Expirity = ([Datetime]::Now + [TimeSpan]::new(30, 0, 0, 0)), # One month
+
+        [Parameter(Mandatory = $false, ParameterSetName = 'Params')]
+        [switch]$Protect = $false
     )
 
     process {
         $k = $null
         if ($PSCmdlet.ParameterSetName -eq 'Params') {
-            $k = [string][xconvert]::Tostring([K3Y]::new($UserName, $PrivateKey, $Expirity));
+            $k = [K3Y]::new($UserName, $PrivateKey, $Expirity);
+            if ($Protect) { $KoBJ.User.Protect() };
+            $k = [string][xconvert]::Tostring($k);
         } elseif ($PSCmdlet.ParameterSetName -eq 'FromK3Y') {
             if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('UserName')) {
                 $K3YoBJ.User.UserName = $UserName;
