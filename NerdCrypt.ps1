@@ -1074,6 +1074,18 @@ class SecureCred {
                 $this.$n = [xconvert]::ToUnProtected($OBJ, $_scope_);
             }
         }
+        $setterScript = {
+            param($value)
+            $this.Scope = $value
+        }
+        $getterScript = {
+            return $this.Scope
+        }
+        Invoke-Command -InputObject $this.Scope -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                    Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('Scope', { $getterScript }, { $setterScript }))";
+                }
+            )
+        )
     }
     [bool]IsProtected() {
         [string]$_scope_ = $this.Scope; [bool]$IsProtected = $false;
