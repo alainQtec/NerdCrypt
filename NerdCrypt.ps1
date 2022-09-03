@@ -2651,7 +2651,7 @@ function New-NerdKey {
     [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'Params')]
     [OutputType([string])]
     param (
-        [Parameter(Mandatory = $false, Position = 0, ParameterSetName = 'FromK3Y')]
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'FromK3Y')]
         [ValidateNotNullOrEmpty()][K3Y]$K3YoBJ,
 
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'FromK3Y')]
