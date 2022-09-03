@@ -1918,7 +1918,7 @@ class K3Y {
         return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $Expirity);
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
-        $Password = [securestring]$this.ResolvePassword($Password, $Expirity, $Compression, $this._PID); $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID);
+        $Password = [securestring]$this.ResolvePassword($Password, $Expirity, $Compression, $this._PID);
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
@@ -1929,7 +1929,6 @@ class K3Y {
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt, [securestring]$Password, [byte[]]$salt) {
         $Password = [securestring]$this.ResolvePassword($Password); # (Get The real Password)
-        # $Password = [securestring]$this.ResolvePassword($Password, $Expirity, $Compression, $this._PID);
         if (!$this.IsValid()) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") }
         $Compression = [k3Y]::AnalyseK3YUID($this, $Password)[2];
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
