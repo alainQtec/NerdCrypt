@@ -2164,7 +2164,7 @@ class K3Y {
         $Obj = $null; Set-Variable -Name Obj -Scope Local -Visibility Private -Option Private -Value ([xconvert]::BytesToObject([convert]::FromBase64String([xconvert]::ToDeCompressed($K3yString))));
         $K3Y = [K3Y][xconvert]::ToPSObject($Obj);
         Invoke-Command -InputObject $K3Y.User.IsProtected -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-                    $K3Y.User.psobject.Properties.Add([psscriptproperty]::new('IsProtected', { return $K3Y.User.IsProtected }))
+                    Invoke-Expression "`$K3Y.User.psobject.Properties.Add([psscriptproperty]::new('IsProtected', { return `$$($K3Y.User.IsProtected) }))";
                 }
             )
         )
