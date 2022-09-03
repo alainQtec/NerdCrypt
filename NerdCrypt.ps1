@@ -2183,24 +2183,15 @@ class K3Y {
     [K3Y]Import([string]$StringK3y) {
         $K3Y = $null; Set-Variable -Name K3Y -Scope Local -Visibility Private -Option Private -Value ([K3Y]::Create($StringK3y));
         $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $K3Y.$Prop };
-        $CheckValidHex = [scriptblock]::Create({
-                Param ([string]$InputSTR)
-                return [bool][regex]::IsMatch($InputSTR, "^[A-Fa-f0-9]{72}$")
-            }
-        )
         $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::ToString($this.User.Password));
-        $IsvalidHex = Invoke-Command -ScriptBlock $CheckValidHex -ArgumentList $hashSTR;
-        if ($IsvalidHex) {
+        if ([regex]::IsMatch($hashSTR, "^[A-Fa-f0-9]{72}$")) {
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
                         Invoke-Expression "`$this.User.psobject.Properties.Add([psscriptproperty]::new('Password', { [xconvert]::ToSecurestring('$hashSTR') }))";
                     }
                 )
             )
         }
-        # Check If User is Protected.
-        if ($K3Y.User.IsProtected()) {
-            # Try Unprotecting ...
-        }
+        if ([bool]$K3Y.User.IsProtected) { $K3Y.User.UnProtect() }
         return $K3Y
     }
     [bool]IsValid() {
