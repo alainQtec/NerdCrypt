@@ -2672,8 +2672,7 @@ function New-NerdKey {
     process {
         $k = $null
         if ($PSCmdlet.ParameterSetName -eq 'Params') {
-            $k = [K3Y]::new($UserName, $PrivateKey, $Expirity);
-            if ($Protect) { $KoBJ.User.Protect() };
+            $k = [K3Y]::new($UserName, $PrivateKey, $Expirity); if ($Protect) { $k.User.Protect() };
             $k = [string][xconvert]::Tostring($k);
         } elseif ($PSCmdlet.ParameterSetName -eq 'FromK3Y') {
             if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('UserName')) {
