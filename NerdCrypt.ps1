@@ -1037,26 +1037,15 @@ class NcObject {
 
 #region    SecureCredential
 class SecureCred {
-    [bool]$IsProtected = $false;
+    [bool]hidden $IsProtected = $false;
     [ValidateNotNullOrEmpty()][string]$UserName = [Environment]::GetEnvironmentVariable('Username');
     [ValidateNotNullOrEmpty()][securestring]$Password = [securestring]::new();
     [ValidateNotNullOrEmpty()][string]hidden $Domain = [Environment]::GetEnvironmentVariable('USERDOMAIN');
     [ValidateSet('CurrentUser', 'LocalMachine')][ValidateNotNullOrEmpty()][string]hidden $Scope = 'CurrentUser';
 
-    SecureCred() {
-        Invoke-Command -InputObject $this.IsProtected -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-                    $this.psobject.Properties.Add([psscriptproperty]::new('IsProtected', { return $false }))
-                }
-            )
-        )
-    }
+    SecureCred() {}
     SecureCred([PSCredential]$PSCredential) {
         ($this.UserName, $this.Password) = ($PSCredential.UserName, $PSCredential.Password)
-        Invoke-Command -InputObject $this.IsProtected -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-                    $this.psobject.Properties.Add([psscriptproperty]::new('IsProtected', { return $false }))
-                }
-            )
-        )
     }
     [void]Protect() {
         $_scope_ = [ProtectionScope]$this.Scope
@@ -2174,6 +2163,11 @@ class K3Y {
     [K3Y]static Create([string]$K3yString) {
         $Obj = $null; Set-Variable -Name Obj -Scope Local -Visibility Private -Option Private -Value ([xconvert]::BytesToObject([convert]::FromBase64String([xconvert]::ToDeCompressed($K3yString))));
         $K3Y = [K3Y][xconvert]::ToPSObject($Obj);
+        Invoke-Command -InputObject $K3Y.User.IsProtected -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                    $K3Y.User.psobject.Properties.Add([psscriptproperty]::new('IsProtected', { return $K3Y.User.IsProtected }))
+                }
+            )
+        )
         return $K3Y
     }
     [void]Export([string]$FilePath) {
