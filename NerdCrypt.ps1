@@ -2368,8 +2368,6 @@ function Encrypt-Object {
     .EXAMPLE
         $enc = Encrypt-Object -Object "Hello World!" -Password $(Read-Host -AsSecureString -Prompt 'Password') -KeyOutFile .\Kee.txt
 
-        Encrypting your Password By inputing as plainText
-
         $dec = Decrypt-Object -InputBytes $enc -Password $(Read-Host -AsSecureString -Prompt 'Password') -PublicKey $(cat .\Kee.txt)
 
     .EXAMPLE
@@ -2542,7 +2540,7 @@ function Encrypt-Object {
                 Write-Verbose "[-] Export NerdKey .."
                 $nc.key.Export($KeyOutFile, $true);
             } else {
-                Write-Verbose "Used NerdKey:`n$([xconvert]::Tostring($nc.key))"
+                Write-Verbose "[i] Used NerdKey:`n$([xconvert]::Tostring($nc.key))"
             }
         }
         $bytes = $(if ($bytes.Equals($nc.Object.Bytes)) { $null }else { $nc.Object.Bytes })
