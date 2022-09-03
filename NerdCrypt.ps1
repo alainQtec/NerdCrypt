@@ -174,7 +174,12 @@ class xgen {
         return $entropy
     }
     [string]static UniqueMachineId() {
-        return [string]::Join(':', $([string]::Join(':', $([wmisearcher]::new("SELECT * FROM Win32_BIOS").Get() | ForEach-Object { ([string]$_.Manufacturer, [string]$_.SerialNumber) })), $([System.Management.ManagementObjectCollection][wmiclass]::new("win32_processor").GetInstances() | Select-Object -ExpandProperty ProcessorId), $([wmisearcher]::new("SELECT * FROM Win32_LogicalDisk").Get() | Where-Object { $_.DeviceID -eq "C:" } | Select-Object -ExpandProperty VolumeSerialNumber)))
+        $Id = [string](Get-Variable -Name MachineId -Scope global -ErrorAction SilentlyContinue).Value
+        if ([string]::IsNullOrWhiteSpace($Id)) {
+            Set-Variable -Name MachineId -Visibility Public -Scope Global -Value $([string]::Join(':', $([string]::Join(':', $([wmisearcher]::new("SELECT * FROM Win32_BIOS").Get() | ForEach-Object { ([string]$_.Manufacturer, [string]$_.SerialNumber) })), $([System.Management.ManagementObjectCollection][wmiclass]::new("win32_processor").GetInstances() | Select-Object -ExpandProperty ProcessorId), $([wmisearcher]::new("SELECT * FROM Win32_LogicalDisk").Get() | Where-Object { $_.DeviceID -eq "C:" } | Select-Object -ExpandProperty VolumeSerialNumber))));
+            $Id = [string](Get-Variable -Name MachineId -Scope global -ErrorAction SilentlyContinue).Value
+        }
+        return $Id
     }
     [string]static hidden RandomSTR([string]$InputSample, [int]$iterations, [int]$minLength, [int]$maxLength) {
         if ($maxLength -lt $minLength) { throw [System.ArgumentOutOfRangeException]::new('MinLength', "'MaxLength' cannot be less than 'MinLength'") }
