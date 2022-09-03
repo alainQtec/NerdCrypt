@@ -1987,7 +1987,7 @@ class K3Y {
     [securestring]ResolvePassword([securestring]$Password, [securestring]$SecHash, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         $ShouldUpdateUID = $false
         if (!$this.HasPasswordHash()) {
-            Write-Verbose "[+] Set Password ...";
+            # Set Password:
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
                         $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::BytesToHex(([PasswordHash]::new([xconvert]::ToString($password)).ToArray())));
                         Invoke-Expression "`$this.User.psobject.Properties.Add([psscriptproperty]::new('Password', { [xconvert]::ToSecurestring('$hashSTR') }))";
@@ -2002,6 +2002,7 @@ class K3Y {
             $Hash = [xconvert]::Tostring($this.User.Password)
             Write-Verbose "[-] Successfully checked Hash: $Hash";
         } else {
+            Write-Verbose "[x] Wrong Password!";
             Throw [System.UnauthorizedAccessException]::new('Wrong Password.')
         };
         # Use a 'UTF7 Encoded Cryptography.PasswordDerivat~' instead of the real 'Input Password' (Just to be extra cautious.)
@@ -2365,9 +2366,11 @@ function Encrypt-Object {
     .LINK
         Decrypt-Object
     .EXAMPLE
-        $Encrypted = Encrypt-Object -Object "Hello World! #O101O#" -KeyOutFile .\Kee.txt
+        $enc = Encrypt-Object -Object "Hello World!" -Password $(Read-Host -AsSecureString -Prompt 'Password') -KeyOutFile .\Kee.txt
 
         Encrypting your Password By inputing as plainText
+
+        $dec = Decrypt-Object -InputBytes $enc -Password $(Read-Host -AsSecureString -Prompt 'Password') -PublicKey $(cat .\Kee.txt)
 
     .EXAMPLE
         Encrypt-Object "This is my email, don't show it to anyone. alain.1337dev@outlook.com"
@@ -2556,7 +2559,6 @@ function Decrypt-Object {
     [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'WithSecureKey')]
     [OutputType([byte[]])]
     param (
-        # The Object you want to encrypt
         [Parameter(Mandatory = $true, Position = 0, ParameterSetName = '__AllParameterSets')]
         [ValidateNotNullOrEmpty()]
         [Alias('Bytes')]
@@ -2564,7 +2566,7 @@ function Decrypt-Object {
 
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithSecureKey')]
         [ValidateNotNullOrEmpty()]
-        [Alias('SecurePassword')]
+        [Alias('Password')]
         [SecureString]$PrivateKey = [K3Y]::GetPassword(),
 
         [Parameter(Mandatory = $true, Position = 2, ParameterSetName = '__AllParameterSets')]
