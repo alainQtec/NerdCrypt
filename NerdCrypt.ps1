@@ -1918,7 +1918,10 @@ class K3Y {
         return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $Expirity);
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
-        $Password = [securestring]$this.ResolvePassword($Password, $Expirity, $Compression, $this._PID);
+        $Password = [securestring]$this.ResolvePassword($Password);
+        if (!$this.HasPasswordHash()) {
+            $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
+        }
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
@@ -1959,8 +1962,8 @@ class K3Y {
         $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        # if ($null -ne $this.UID) { Write-Verbose "[+] Update UID ..." }
-        # The K3Y 'UID' is a fancy way of storing the Key version, user, compressiontype and Other information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
+        # If ($null -ne $this.UID) { Write-Verbose "[+] Update UID ..." }
+        # The K3Y 'UID' is a fancy way of storing the Key version, user, Compressiontype and Other Information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
         $this.UID = [securestring][xconvert]::ToSecurestring([string][K3Y]::GetK3YIdSTR($Password, $Expirity, $Compression, $_PID));
     }
     [securestring]static GetPassword() {
@@ -1975,37 +1978,25 @@ class K3Y {
         return $Password
     }
     [securestring]ResolvePassword([securestring]$Password) {
-        return $this.ResolvePassword($Password, $this.User.Password, $this.Expirity.Date, 'Gzip', $this._PID);
+        return $this.ResolvePassword($Password, $this.User.Password);
     }
     [securestring]ResolvePassword([securestring]$Password, [securestring]$SecHash) {
-        return $this.ResolvePassword($Password, $SecHash, $this.Expirity.Date, 'Gzip', $this._PID);
-    }
-    [securestring]ResolvePassword([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        return $this.ResolvePassword($Password, $this.User.Password, $this.Expirity.Date, 'Gzip', $this._PID);
-    }
-    [securestring]ResolvePassword([securestring]$Password, [securestring]$SecHash, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        $ShouldUpdateUID = $false
         if (!$this.HasPasswordHash()) {
-            # Set Password:
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
                         $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::BytesToHex(([PasswordHash]::new([xconvert]::ToString($password)).ToArray())));
-                        Invoke-Expression "`$this.User.psobject.Properties.Add([psscriptproperty]::new('Password', { [xconvert]::ToSecurestring('$hashSTR') }))";
+                        Invoke-Expression "`$this.User.psobject.Properties.Add([psscriptproperty]::new('Password', { ConvertTo-SecureString -AsPlainText -String '$hashSTR' -Force }))";
                     }
                 )
             )
-            $SecHash = $this.User.Password; $ShouldUpdateUID = $true;
+            $SecHash = $this.User.Password;
         }
         Write-Verbose "[+] Get Password Hash ...";
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToString($Password));
         if ($this.VerifyPassword($Passw0rd, $SecHash)) {
             $Hash = [xconvert]::Tostring($this.User.Password)
-            Write-Verbose "[-] Successfully checked Hash: $Hash";
+            Write-Verbose "[-] Successfully Checked Hash: $Hash";
             # Use a 'UTF7 Encoded Cryptography.PasswordDerivat~' instead of the real 'Input Password' (Just to be extra cautious.)
             $Password = $null; Set-Variable -Name Password -Option Private -Visibility Private -Value $([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
-            if ($ShouldUpdateUID) {
-                Write-Verbose "[-] ShouldUpdateUID ...";
-                $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
-            }
             return $Password;
         } else {
             Write-Verbose "[x] Wrong Password!";
@@ -2185,7 +2176,7 @@ class K3Y {
         $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::ToString($this.User.Password));
         if ([regex]::IsMatch($hashSTR, "^[A-Fa-f0-9]{72}$")) {
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-                        Invoke-Expression "`$this.User.psobject.Properties.Add([psscriptproperty]::new('Password', { [xconvert]::ToSecurestring('$hashSTR') }))";
+                        Invoke-Expression "`$this.User.psobject.Properties.Add([psscriptproperty]::new('Password', { ConvertTo-SecureString -AsPlainText -String '$hashSTR' -Force }))";
                     }
                 )
             )
