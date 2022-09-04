@@ -477,11 +477,11 @@ class XConvert {
     }
     [string]static BytesToRnStr([byte[]]$Inpbytes) {
         $rn = [System.Random]::new(); # Hides Byte Array in a random String
-        $St = [System.string]::Join('', $($Inpbytes | ForEach-Object { [string][char]$rn.Next(97, 122) + $_ }))
+        $St = [System.string]::Join('', $($Inpbytes | ForEach-Object { [string][char]$rn.Next(97, 122) + $_ }));
         return $St
     }
     [byte[]]static BytesFromRnStr ([string]$rnString) {
-        $az = [int[]](97..122) | ForEach-Object { [string][char]$_ }
+        $az = [int[]](97..122) | ForEach-Object { [string][char]$_ };
         $by = [byte[]][string]::Concat($(($rnString.ToCharArray() | ForEach-Object { if ($_ -in $az) { [string][char]32 } else { [string]$_ } }) | ForEach-Object { $_ })).Trim().split([string][char]32);
         return $by
     }
@@ -1931,8 +1931,9 @@ class K3Y {
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt, [securestring]$Password, [byte[]]$salt) {
         $Password = [securestring]$this.ResolvePassword($Password); # (Get The real Password)
-        if (!$this.IsValid()) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") }
-        $Compression = [k3Y]::AnalyseK3YUID($this, $Password)[2];
+        ($IsValid, $Compression) = [k3Y]::AnalyseK3YUID($this, $Password, $false)[0,2]
+        if (-not $IsValid) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") }
+        if ($Compression.Equals('')) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Invalid Compression.") }
         Write-Host $([xconvert]::Tostring($Password))
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
