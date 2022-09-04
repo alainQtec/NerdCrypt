@@ -2003,7 +2003,7 @@ class K3Y {
             # Use a 'UTF7 Encoded Cryptography.PasswordDerivat~' instead of the real 'Input Password' (Just to be extra cautious.)
             $Password = $null; Set-Variable -Name Password -Option Private -Visibility Private -Value $([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
             if ($ShouldUpdateUID) {
-                Write-Verbose "[--] ShouldUpdateUID ...";
+                Write-Verbose "[-] ShouldUpdateUID ...";
                 $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
             }
             return $Password;
@@ -2180,6 +2180,7 @@ class K3Y {
     }
     [K3Y]Import([string]$StringK3y) {
         $K3Y = $null; Set-Variable -Name K3Y -Scope Local -Visibility Private -Option Private -Value ([K3Y]::Create($StringK3y));
+        if ([bool]$K3Y.User.IsProtected) { $K3Y.User.UnProtect() }
         $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $K3Y.$Prop };
         $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::ToString($this.User.Password));
         if ([regex]::IsMatch($hashSTR, "^[A-Fa-f0-9]{72}$")) {
@@ -2189,7 +2190,6 @@ class K3Y {
                 )
             )
         }
-        if ([bool]$K3Y.User.IsProtected) { $K3Y.User.UnProtect() }
         return $K3Y
     }
     [bool]IsValid() {
@@ -2374,9 +2374,9 @@ function Encrypt-Object {
     .LINK
         Decrypt-Object
     .EXAMPLE
-        $enc = Encrypt-Object -Object "Hello World!" -Password $(Read-Host -AsSecureString -Prompt 'Password') -KeyOutFile .\Kee.txt
+        $enc = Encrypt-Object -Object "Hello World!" -Password $(Read-Host -AsSecureString -Prompt 'Password') -KeyOutFile .\PublicKee.txt
 
-        $dec = Decrypt-Object -InputBytes $enc -Password $(Read-Host -AsSecureString -Prompt 'Password') -PublicKey $(cat .\Kee.txt)
+        $dec = Decrypt-Object -InputBytes $enc -Password $(Read-Host -AsSecureString -Prompt 'Password') -PublicKey $(cat .\PublicKee.txt)
 
     .EXAMPLE
         Encrypt-Object "This is my email, don't show it to anyone. alain.1337dev@outlook.com"
