@@ -1918,10 +1918,10 @@ class K3Y {
         return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $Expirity);
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$Password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
-        $Password = [securestring]$this.ResolvePassword($Password);
-        if (!$this.HasPasswordHash()) { $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID) }
-        Write-Host $([xconvert]::Tostring($Password))
-        return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
+        $P4SSW0rd = [securestring]$this.ResolvePassword($Password);
+        if (!$this.HasPasswordHash()) { $this.SetK3YUID($P4SSW0rd, $Expirity, $Compression, $this._PID) }
+        Write-Host $([xconvert]::Tostring($P4SSW0rd))
+        return [AesLg]::Encrypt($bytesToEncrypt, $P4SSW0rd, $salt);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
         return $this.Decrypt($bytesToDecrypt, [K3Y]::GetPassword());
@@ -1937,11 +1937,19 @@ class K3Y {
         Write-Host $([xconvert]::Tostring($Password))
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
+    [void]hidden SetK3YUID() {
+        $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
+    }
+    [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+        # If ($null -ne $this.UID) { Write-Verbose "[+] Update UID ..." }
+        # The K3Y 'UID' is a fancy way of storing the Key version, user, Compressiontype and Other Information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
+        $this.UID = [securestring][xconvert]::ToSecurestring([string][K3Y]::GetK3YIdSTR($Password, $Expirity, $Compression, $_PID));
+    }
     [string]GetK3YIdSTR() {
         return [K3Y]::GetK3YIdSTR($this.User.Password, $this.Expirity.Date, $(Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID)
     }
     [string]static GetK3YIdSTR([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        Write-Host 'SetK3YUID -> GetK3YIdSTR PASSWD: ' -NoNewline
+        Write-Host 'SetK3YUID -> GetK3YIdSTR PASSWD: '
         Write-Host $([xconvert]::Tostring($Password))
         if ($null -eq $Password -or $([string]::IsNullOrWhiteSpace([xconvert]::ToString($Password)))) {
             throw [System.InvalidOperationException]::new("Please Provide a Password that isn't Null and not a WhiteSpace.", [System.ArgumentNullException]::new("Password"));
@@ -1955,7 +1963,7 @@ class K3Y {
                                             PID      = $_PID
                                         }
                                     )
-                                    BytesCT = [AesLg]::Encrypt([System.Text.Encoding]::UTF7.GetBytes($Compression), $Password)
+                                    BytesCT = [AesLg]::Encrypt([System.Text.Encoding]::UTF7.GetBytes($Compression), $Password);
                                 }
                             )
                         )
@@ -1963,14 +1971,6 @@ class K3Y {
                 )
             )
         )
-    }
-    [void]hidden SetK3YUID() {
-        $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
-    }
-    [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        # If ($null -ne $this.UID) { Write-Verbose "[+] Update UID ..." }
-        # The K3Y 'UID' is a fancy way of storing the Key version, user, Compressiontype and Other Information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
-        $this.UID = [securestring][xconvert]::ToSecurestring([string][K3Y]::GetK3YIdSTR($Password, $Expirity, $Compression, $_PID));
     }
     [securestring]static GetPassword() {
         $ThrowOnFailure = $true
@@ -2266,6 +2266,7 @@ class NerdCrypt {
         return $this.Encrypt($bytes, $Password, 1);
     }
     [byte[]]Encrypt([securestring]$Password, [int]$Iterations) {
+        if ($null -eq $this.Object.Bytes) { [System.ArgumentNullException]::New('Bytes') };
         $this.SetBytes($this.Encrypt($this.Object.Bytes, $Password, $iterations));
         return $this.Object.Bytes
     }
@@ -2289,6 +2290,7 @@ class NerdCrypt {
         return $this.Decrypt($bytes, $Password, 1);
     }
     [byte[]]Decrypt([securestring]$Password, [int]$Iterations) {
+        if ($null -eq $this.Object.Bytes) { [System.ArgumentNullException]::New('Bytes') };
         $this.SetBytes($this.Decrypt($this.Object.Bytes, $Password, $Iterations));
         return $this.Object.Bytes
     }
