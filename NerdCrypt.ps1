@@ -1919,9 +1919,8 @@ class K3Y {
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
         $Password = [securestring]$this.ResolvePassword($Password);
-        if (!$this.HasPasswordHash()) {
-            $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
-        }
+        if (!$this.HasPasswordHash()) { $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID) }
+        Write-Host $([xconvert]::Tostring($Password))
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
@@ -1934,6 +1933,7 @@ class K3Y {
         $Password = [securestring]$this.ResolvePassword($Password); # (Get The real Password)
         if (!$this.IsValid()) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") }
         $Compression = [k3Y]::AnalyseK3YUID($this, $Password)[2];
+        Write-Host $([xconvert]::Tostring($Password))
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
     [string]GetK3YIdSTR() {
@@ -1978,9 +1978,7 @@ class K3Y {
         return $Password
     }
     [securestring]ResolvePassword([securestring]$Password) {
-        return $this.ResolvePassword($Password, $this.User.Password);
-    }
-    [securestring]ResolvePassword([securestring]$Password, [securestring]$SecHash) {
+        $SecHash = $this.User.Password;
         if (!$this.HasPasswordHash()) {
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
                         $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::BytesToHex(([PasswordHash]::new([xconvert]::ToString($password)).ToArray())));
@@ -1990,14 +1988,16 @@ class K3Y {
             )
             $SecHash = $this.User.Password;
         }
+        return $this.ResolvePassword($Password, $SecHash);
+    }
+    [securestring]ResolvePassword([securestring]$Password, [securestring]$SecHash) {
         Write-Verbose "[+] Get Password Hash ...";
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToString($Password));
         if ($this.VerifyPassword($Passw0rd, $SecHash)) {
-            $Hash = [xconvert]::Tostring($this.User.Password)
+            $Hash = [xconvert]::Tostring($this.User.Password);
             Write-Verbose "[-] Successfully Checked Hash: $Hash";
-            # Use a 'UTF7 Encoded Cryptography.PasswordDerivat~' instead of the real 'Input Password' (Just to be extra cautious.)
-            $Password = $null; Set-Variable -Name Password -Option Private -Visibility Private -Value $([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
-            return $Password;
+            # Use a 'UTF7 PasswordDerivation' instead of the real 'Password' (Just to be extra cautious.)
+            return [xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8)));
         } else {
             Write-Verbose "[x] Wrong Password!";
             Throw [System.UnauthorizedAccessException]::new('Wrong Password.')
@@ -2032,10 +2032,10 @@ class K3Y {
     [bool]VerifyPassword([string]$Passw0rd) {
         return $this.VerifyPassword($Passw0rd, $this.User.Password, $true); # (ie: $this.User.Password is not the actual password its just a 'read-only hash' of the password used during Encryption.)
     }
-    [bool]hidden VerifyPassword([string]$Passw0rd, [securestring]$SecHash) {
+    [bool]VerifyPassword([string]$Passw0rd, [securestring]$SecHash) {
         return $this.VerifyPassword($Passw0rd, $SecHash, $true);
     }
-    [bool]hidden VerifyPassword([string]$Passw0rd, [securestring]$SecHash, [bool]$ThrowOnFailure) {
+    [bool]VerifyPassword([string]$Passw0rd, [securestring]$SecHash, [bool]$ThrowOnFailure) {
         $hash = $null; [bool]$IsValid = $false; $Isvalid_Hex = $false; $_Hex = [string]::Empty ; $InnerException = [System.UnauthorizedAccessException]::new('Wrong Password.');
         try {
             Set-Variable -Name _Hex -Scope Local -Visibility Private -Option Private -Value ([xconvert]::ToString($SecHash));
@@ -2134,8 +2134,8 @@ class K3Y {
             if ($ThrowOnFailure) { throw $_.Exception }
         }
         if ($CreateReport) {
-            $Report = [PSCustomObject]@{
-                Summary        = "K3Y $(if ([K3Y]::HasPasswordHash($K3Y)) { 'Last used' }else { 'created' }) on: $($Output[3]), PID: $($Output[1].PID) by $($Output[1].User)"
+            return [PSCustomObject]@{
+                Summary        = "K3Y $(if ([K3Y]::HasPasswordHash($K3Y)) { 'Last used' }else { 'created' }) on: $($Output[3]), PID: $($Output[1].PID), by: $($Output[1].User)."
                 Version        = $Output[1].Version
                 ExpirationDate = $Output[1].Expirity.date
                 Compression    = $Output[2]
@@ -2143,7 +2143,6 @@ class K3Y {
                 UserName       = $Output[1].User
                 IsValid        = $Output[0]
             }
-            return $Report
         } else {
             return $Output
         }
