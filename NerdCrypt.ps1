@@ -2538,17 +2538,17 @@ function Encrypt-Object {
         if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('PublicKey')) {
             $nc.SetNerdKey($PublicKey);
         } else {
-            Write-Verbose "[+] Create NerdKey ...";
+            Write-Verbose "[+] Create PublicKey ...";
             $nc.SetNerdKey($(New-NerdKey -UserName $nc.key.User.UserName -Password $PsW -Expirity $nc.key.Expirity.date -Protect));
         }
         $bytes = $nc.Object.Bytes
         [void]$nc.Encrypt($PsW, $Iterations)
         if ($PsCmdlet.ParameterSetName -ne 'WithKey') {
             if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
-                Write-Verbose "[-] Export NerdKey .."
+                Write-Verbose "[i] Export PublicKey ..."
                 $nc.key.Export($KeyOutFile, $true);
             } else {
-                Write-Verbose "[i] Used NerdKey:`n$([xconvert]::Tostring($nc.key))"
+                Write-Verbose "[i] Used PublicKey:`n$([xconvert]::Tostring($nc.key))"
             }
         }
         $bytes = $(if ($bytes.Equals($nc.Object.Bytes)) { $null }else { $nc.Object.Bytes })
