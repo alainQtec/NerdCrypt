@@ -2219,8 +2219,13 @@ class K3Y {
         } catch [System.Management.Automation.SetValueException] {
             throw [System.InvalidOperationException]::New('You can only Import One Key.')
         }
-        Invoke-Command -InputObject $this.UID -NoNewScope -ScriptBlock $([ScriptBlock]::Create({ $this.psobject.Properties.Add([psscriptproperty]::new('UID', { $this.UID })) }))
+        $Key_UID = [string]::Empty; Set-Variable -Name Key_UID -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::Tostring($K3Y.UID))
         $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::ToString($this.User.Password));
+        Invoke-Command -InputObject $this -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                    Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('UID', { ConvertTo-SecureString -AsPlainText -String '$Key_UID' -Force }))";
+                }
+            )
+        )
         if ([regex]::IsMatch($hashSTR, "^[A-Fa-f0-9]{72}$")) {
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
                         Invoke-Expression "`$this.User.psobject.Properties.Add([psscriptproperty]::new('Password', { ConvertTo-SecureString -AsPlainText -String '$hashSTR' -Force }))";
