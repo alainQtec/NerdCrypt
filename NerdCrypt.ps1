@@ -1919,10 +1919,10 @@ class K3Y {
         return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $Expirity);
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$Password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
-        $P4SSW0rd = [securestring]$this.ResolvePassword($Password);
-        $this.SetK3YUID($P4SSW0rd, $Expirity, $Compression, $this._PID)
-        Write-Host $([xconvert]::Tostring($P4SSW0rd))
-        return [AesLg]::Encrypt($bytesToEncrypt, $P4SSW0rd, $salt);
+        $Password = [securestring]$this.ResolvePassword($Password);
+        $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
+        Write-Host $([xconvert]::Tostring($Password))
+        return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
         return $this.Decrypt($bytesToDecrypt, [K3Y]::GetPassword());
