@@ -2235,12 +2235,17 @@ class K3Y {
         return $IsStillValid
     }
     [void]SaveToVault() {
+        $ThrowOnFailure = $true; [void]$this.HasHashedPassword($ThrowOnFailure)
+        # [void]$this.HasUID($ThrowOnFailure)
         if (-not [bool]("Windows.Security.Credentials.PasswordVault" -as 'Type')) {
             [Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
         }
-        $_ResN = 'NerdK3y'
+        $_Hash = [xconvert]::ToString($this.User.Password)
+        $RName = 'NerdKey' + $_Hash
         $vault = New-Object Windows.Security.Credentials.PasswordVault
-        $vault.Add((New-Object Windows.Security.Credentials.PasswordCredential -ArgumentList ($_ResN, $this.User.UserName, [xconvert]::Tostring($this))))
+        $_Cred = New-Object Windows.Security.Credentials.PasswordCredential -ArgumentList ($RName, $this.User.UserName, [xconvert]::Tostring($this))
+        Write-Verbose "[i] SaveToVault $RName"
+        $vault.Add($_Cred);
     }
 }
 #endregion Custom_Cryptography_Wrapper
