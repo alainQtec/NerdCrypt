@@ -1938,10 +1938,10 @@ class K3Y {
         Write-Host $([xconvert]::Tostring($Password))
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
-    [bool]static hidden HasUID([K3Y]$k3y) {
+    [bool]static HasUID([K3Y]$k3y) {
         return [K3Y]::HasUID($k3y, $false);
     }
-    [bool]static hidden HasUID([K3Y]$k3y, [bool]$ThrowOnFailure) {
+    [bool]static HasUID([K3Y]$k3y, [bool]$ThrowOnFailure) {
         # Verifies if The password has already been set.
         $HasUID = $false; [bool]$SetValu3Exception = $false; [securestring]$kUID = $k3y.UID; $InnerException = [System.Exception]::new()
         try {
