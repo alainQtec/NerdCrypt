@@ -2441,7 +2441,7 @@ function Encrypt-Object {
         # With a locked local Password vault it will require much more than just guessing The password, or any BruteForce tool.
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithSecureKey')]
         [Alias('Password', 'Securestring')]
-        [SecureString]$PrivateKey = ([K3Y]::GetPassword()),
+        [SecureString]$PrivateKey = [K3Y]::GetPassword(),
 
         [Parameter(Mandatory = $false, Position = 2, ParameterSetName = '__AllParameterSets')]
         [ValidateNotNullOrEmpty()]
