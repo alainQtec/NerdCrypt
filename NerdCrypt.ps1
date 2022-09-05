@@ -1919,12 +1919,7 @@ class K3Y {
         return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $Expirity);
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$Password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
-        $Password = [securestring]$this.ResolvePassword($Password);
-        try {
-            $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
-        } catch [System.Management.Automation.RuntimeException], [System.Management.Automation.SetValueException] {
-            throw [System.InvalidOperationException]::new('The Key Has already been used, Please Create a new one.')
-        }
+        $Password = [securestring]$this.ResolvePassword($Password); $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
         Write-Host $([xconvert]::Tostring($Password))
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
@@ -1970,6 +1965,9 @@ class K3Y {
         return $HasUID
     }
     [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+        $this.SetK3YUID($Password, $Expirity, $Compression, $_PID, $false);
+    }
+    [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID, [bool]$ThrowOnFailure) {
         # If ($null -ne $this.UID) { Write-Verbose "[+] Update UID ..." }
         # The K3Y 'UID' is a fancy way of storing the Key version, user, Compressiontype and Other Information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
         if (!$this.HasUID()) {
@@ -1980,7 +1978,7 @@ class K3Y {
                 )
             )
         } else {
-            throw [System.Management.Automation.SetValueException]::new('The Key already Has a UID.')
+            if ($ThrowOnFailure) { throw [System.Management.Automation.SetValueException]::new('The Key already Has a UID.') }
         }
     }
     [string]GetK3YIdSTR() {
