@@ -1919,7 +1919,7 @@ class K3Y {
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$Password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
         $P4SSW0rd = [securestring]$this.ResolvePassword($Password);
-        if (!$this.HasPasswordHash()) { $this.SetK3YUID($P4SSW0rd, $Expirity, $Compression, $this._PID) }
+        if (!$this.HasHashedPassword()) { $this.SetK3YUID($P4SSW0rd, $Expirity, $Compression, $this._PID) }
         Write-Host $([xconvert]::Tostring($P4SSW0rd))
         return [AesLg]::Encrypt($bytesToEncrypt, $P4SSW0rd, $salt);
     }
@@ -2010,7 +2010,7 @@ class K3Y {
         return $IsValid
     }
     [securestring]ResolvePassword([securestring]$Password) {
-        if (!$this.HasPasswordHash()) {
+        if (!$this.HasHashedPassword()) {
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
                         $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::BytesToHex(([PasswordHash]::new([xconvert]::ToString($password)).ToArray())));
                         Invoke-Expression "`$this.User.psobject.Properties.Add([psscriptproperty]::new('Password', { ConvertTo-SecureString -AsPlainText -String '$hashSTR' -Force }))";
@@ -2033,31 +2033,36 @@ class K3Y {
             Throw [System.UnauthorizedAccessException]::new('Wrong Password.')
         }
     }
-    [bool]HasPasswordHash() {
-        return $this.HasPasswordHash($false);
+    [bool]HasHashedPassword() {
+        return $this.HasHashedPassword($false);
     }
-    [bool]static HasPasswordHash([K3Y]$k3y) {
+    [bool]static HasHashedPassword([K3Y]$k3y) {
         $ThrowOnFailure = $false
-        return [K3Y]::HasPasswordHash($k3y, $ThrowOnFailure);
+        return [K3Y]::HasHashedPassword($k3y, $ThrowOnFailure);
     }
-    [bool]HasPasswordHash([bool]$ThrowOnFailure) {
-        return [K3Y]::HasPasswordHash($this, $ThrowOnFailure);
+    [bool]HasHashedPassword([bool]$ThrowOnFailure) {
+        return [K3Y]::HasHashedPassword($this, $ThrowOnFailure);
     }
-    [bool]static HasPasswordHash([K3Y]$k3y, [bool]$ThrowOnFailure) {
+    [bool]static HasHashedPassword([K3Y]$k3y, [bool]$ThrowOnFailure) {
         # Verifies if The password has already been set.
-        [securestring]$p = $k3y.User.Password; [bool]$HasPasswordHash = $false;
+        [bool]$SetValu3Exception = $false; [securestring]$p = $k3y.User.Password; $InnerException = [System.Exception]::new()
+        [bool]$HasHashedPassword = [regex]::IsMatch([string][xconvert]::ToString($k3y.User.Password), "^[A-Fa-f0-9]{72}$");
         try {
             $k3y.User.Password = [securestring]::new()
         } catch [System.Management.Automation.SetValueException] {
-            $HasPasswordHash = $true
+            $SetValu3Exception = $true
+        } catch {
+            $InnerException = $_.Exception
+        } finally {
+            $HasHashedPassword = $HasHashedPassword -and $SetValu3Exception
         }
-        if (!$HasPasswordHash) {
+        if (!$SetValu3Exception) {
             $k3y.User.Password = $p
-            if ($ThrowOnFailure) {
-                throw [System.ArgumentNullException]::new('Password Value cannot be null.', [System.ArgumentNullException]::new('Password'))
-            }
         }
-        return $HasPasswordHash
+        if ($ThrowOnFailure -and !$HasHashedPassword) {
+            throw [System.InvalidOperationException]::new('Operation is not valid due to the current state of the object. No password Hash found.', $InnerException)
+        }
+        return $HasHashedPassword
     }
     [string]hidden static CreateUIDstring([byte[]]$bytes) {
         # 'UIDstring' containing the timestamp, expiry, Compression, rgbSalt, and other information for later analysis.
@@ -2143,7 +2148,7 @@ class K3Y {
         }
         if ($CreateReport) {
             return [PSCustomObject]@{
-                Summary        = "K3Y $(if ([K3Y]::HasPasswordHash($K3Y)) { 'Last used' }else { 'created' }) on: $($Output[3]), PID: $($Output[1].PID), by: $($Output[1].User)."
+                Summary        = "K3Y $(if ([K3Y]::HasHashedPassword($K3Y)) { 'Last used' }else { 'created' }) on: $($Output[3]), PID: $($Output[1].PID), by: $($Output[1].User)."
                 Version        = $Output[1].Version
                 ExpirationDate = $Output[1].Expirity.date
                 Compression    = $Output[2]
