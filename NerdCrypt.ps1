@@ -1893,20 +1893,21 @@ class K3Y {
     [ValidateNotNullOrEmpty()][byte[]]hidden $rgbSalt = [System.Text.Encoding]::UTF7.GetBytes('hR#ho"rK6FMu mdZFXp}JMY\?NC]9(.:6;>oB5U>.GkYC-JD;@;XRgXBgsEi|%MqU>_+w/RpUJ}Kt.>vWr[WZ;[e8GM@P@YKuT947Z-]ho>E2"c6H%_L2A:O5:E)6Fv^uVE; aN\4t\|(*;rPRndSOS(7& xXLRKX)VL\/+ZB4q.iY { %Ko^<!sW9n@r8ihj*=T $+Cca-Nvv#JnaZh');
 
     K3Y() {
-        $this.User = [SecureCred]::new([pscredential]::new($env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password()))); $this.SetK3YUID();
+        $this.User = [SecureCred]::new([pscredential]::new($env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password())));
+        $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([Datetime]$Expirity) {
         $this.User = [SecureCred]::new([pscredential]::new($env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password())));
-        $this.Expirity = [Expirity]::new($Expirity); $this.SetK3YUID();
+        $this.Expirity = [Expirity]::new($Expirity); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([pscredential]$User, [Datetime]$Expirity) {
-        ($this.User, $this.Expirity) = ([SecureCred]::new($User), [Expirity]::new($Expirity)); $this.SetK3YUID();
+        ($this.User, $this.Expirity) = ([SecureCred]::new($User), [Expirity]::new($Expirity)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([string]$UserName, [securestring]$Password) {
-        $this.User = [SecureCred]::new([pscredential]::new($UserName, $Password)); $this.SetK3YUID();
+        $this.User = [SecureCred]::new([pscredential]::new($UserName, $Password)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([string]$UserName, [securestring]$Password, [Datetime]$Expirity) {
-        ($this.User, $this.Expirity) = ([SecureCred]::new([pscredential]::new($UserName, $Password)), [Expirity]::new($Expirity)); $this.SetK3YUID();
+        ($this.User, $this.Expirity) = ([SecureCred]::new([pscredential]::new($UserName, $Password)), [Expirity]::new($Expirity)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt) {
         return $this.Encrypt($bytesToEncrypt, [K3Y]::GetPassword());
@@ -1919,7 +1920,7 @@ class K3Y {
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$Password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
         $P4SSW0rd = [securestring]$this.ResolvePassword($Password);
-        if (!$this.HasHashedPassword()) { $this.SetK3YUID($P4SSW0rd, $Expirity, $Compression, $this._PID) }
+        $this.SetK3YUID($P4SSW0rd, $Expirity, $Compression, $this._PID)
         Write-Host $([xconvert]::Tostring($P4SSW0rd))
         return [AesLg]::Encrypt($bytesToEncrypt, $P4SSW0rd, $salt);
     }
@@ -1937,13 +1938,55 @@ class K3Y {
         Write-Host $([xconvert]::Tostring($Password))
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
+    [bool]static hidden HasUID([K3Y]$k3y) {
+        return [K3Y]::HasUID($k3y, $false);
+    }
+    [bool]static hidden HasUID([K3Y]$k3y, [bool]$ThrowOnFailure) {
+        # Verifies if The password has already been set.
+        $HasUID = $false; [bool]$SetValu3Exception = $false; [securestring]$kUID = $k3y.UID; $InnerException = [System.Exception]::new()
+        try {
+            $k3y.UID = [securestring]::new()
+        } catch [System.Management.Automation.SetValueException] {
+            $SetValu3Exception = $true
+        } catch {
+            $InnerException = $_.Exception
+        } finally {
+            if ($SetValu3Exception) {
+                $HasUID = $true
+            } else {
+                $k3y.UID = $kUID
+            }
+        }
+        if ($ThrowOnFailure -and !$HasUID) {
+            throw [System.InvalidOperationException]::new('Operation is not valid, The key Has No UID.', $InnerException)
+        }
+        return $HasUID
+    }
     [void]hidden SetK3YUID() {
-        $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
+        if (![K3Y]::HasUID($this)) {
+            Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                        $K3YIdSTR = [string]::Empty; Set-Variable -Name K3YIdSTR -Scope local -Visibility Private -Option Private -Value $($this.GetK3YIdSTR());
+                        Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('UID', { ConvertTo-SecureString -AsPlainText -String '$K3YIdSTR' -Force }))";
+                    }
+                )
+            )
+        } else {
+            throw [System.Management.Automation.SetValueException]::new('The Key already Has a UID.')
+        }
     }
     [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         # If ($null -ne $this.UID) { Write-Verbose "[+] Update UID ..." }
         # The K3Y 'UID' is a fancy way of storing the Key version, user, Compressiontype and Other Information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
-        $this.UID = [securestring][xconvert]::ToSecurestring([string][K3Y]::GetK3YIdSTR($Password, $Expirity, $Compression, $_PID));
+        if (![K3Y]::HasUID($this)) {
+            Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                        $K3YIdSTR = [string]::Empty; Set-Variable -Name K3YIdSTR -Scope local -Visibility Private -Option Private -Value $([string][K3Y]::GetK3YIdSTR($Password, $Expirity, $Compression, $_PID));
+                        Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('UID', { ConvertTo-SecureString -AsPlainText -String '$K3YIdSTR' -Force }))";
+                    }
+                )
+            )
+        } else {
+            throw [System.Management.Automation.SetValueException]::new('The Key already Has a UID.')
+        }
     }
     [string]GetK3YIdSTR() {
         return [K3Y]::GetK3YIdSTR($this.User.Password, $this.Expirity.Date, $(Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID)
