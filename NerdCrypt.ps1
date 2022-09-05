@@ -1920,7 +1920,11 @@ class K3Y {
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$Password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
         $Password = [securestring]$this.ResolvePassword($Password);
-        $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
+        try {
+            $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
+        } catch [System.Management.Automation.RuntimeException], [System.Management.Automation.SetValueException] {
+            throw [System.InvalidOperationException]::new('The Key Has already been used, Please Create a new one.')
+        }
         Write-Host $([xconvert]::Tostring($Password))
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
@@ -1964,19 +1968,6 @@ class K3Y {
             throw [System.InvalidOperationException]::new('Operation is not valid, The key Has No UID.', $InnerException)
         }
         return $HasUID
-    }
-    # // Not Usefull yet:
-    [void]hidden SetK3YUID() {
-        if (!$this.HasUID()) {
-            Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-                        $K3YIdSTR = [string]::Empty; Set-Variable -Name K3YIdSTR -Scope local -Visibility Private -Option Private -Value $($this.GetK3YIdSTR());
-                        Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('UID', { ConvertTo-SecureString -AsPlainText -String '$K3YIdSTR' -Force }))";
-                    }
-                )
-            )
-        } else {
-            throw [System.Management.Automation.SetValueException]::new('The Key already Has a UID.')
-        }
     }
     [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         # If ($null -ne $this.UID) { Write-Verbose "[+] Update UID ..." }
