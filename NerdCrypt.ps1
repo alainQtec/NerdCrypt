@@ -1955,7 +1955,7 @@ class K3Y {
             }
         }
         if ($ThrowOnFailure -and !$HasUID) {
-            throw [System.InvalidOperationException]::new("The key Has No UID.`nUse it to encrypt Something at least once or Manually Call SetK3YUID method.", $InnerException)
+            throw [System.InvalidOperationException]::new("The key Has No UID.`nEncrypt Something with this key at least once or Manually Call SetK3YUID method.", $InnerException)
         }
         return $HasUID
     }
@@ -1965,7 +1965,7 @@ class K3Y {
     [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID, [bool]$ThrowOnFailure) {
         # The K3Y 'UID' is a fancy way of storing the Key version, user, Compressiontype and Other Information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
         if (!$this.HasUID()) {
-            Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+            Invoke-Command -InputObject $this.UID -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
                         $K3YIdSTR = [string]::Empty; Set-Variable -Name K3YIdSTR -Scope local -Visibility Private -Option Private -Value $([string][K3Y]::GetK3YIdSTR($Password, $Expirity, $Compression, $_PID));
                         Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('UID', { ConvertTo-SecureString -AsPlainText -String '$K3YIdSTR' -Force }))";
                     }
@@ -2216,8 +2216,7 @@ class K3Y {
         if ([bool]$K3Y.User.IsProtected) { $K3Y.User.UnProtect() }
         try {
             $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $K3Y.$Prop };
-        }
-        catch [System.Management.Automation.SetValueException] {
+        } catch [System.Management.Automation.SetValueException] {
             throw [System.InvalidOperationException]::New('You can only Import One Key.')
         }
         Invoke-Command -InputObject $this.UID -NoNewScope -ScriptBlock $([ScriptBlock]::Create({ $this.psobject.Properties.Add([psscriptproperty]::new('UID', { $this.UID })) }))
@@ -2563,9 +2562,8 @@ function Encrypt-Object {
             }
         );
         Set-Variable -Name nc -Scope Local -Visibility Private -Option Private -Value $([nerdcrypt]::new($Object));
-        if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('Expirity')) {
-            $nc.key.Expirity = [Expirity]::new($Expirity);
-        }
+        if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('Expirity')) { $nc.key.Expirity = [Expirity]::new($Expirity) }
+
         if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('PublicKey')) {
             $nc.SetNerdKey($PublicKey);
         } else {
