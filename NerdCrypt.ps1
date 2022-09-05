@@ -1935,12 +1935,9 @@ class K3Y {
         if ($Compression.Equals('')) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Invalid Compression.", [System.ArgumentNullException]::new('Compression')) };
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
-    [bool]HasUID() {
-        return [K3Y]::HasUID($this, $false);
-    }
-    [bool]static HasUID([K3Y]$k3y) {
-        return [K3Y]::HasUID($k3y, $false);
-    }
+    [bool]HasUID() { return [K3Y]::HasUID($this, $false) }
+    [bool]HasUID([bool]$ThrowOnFailure) { return [K3Y]::HasUID($this, $ThrowOnFailure) }
+    [bool]static HasUID([K3Y]$k3y) { return [K3Y]::HasUID($k3y, $false) }
     [bool]static HasUID([K3Y]$k3y, [bool]$ThrowOnFailure) {
         # Verifies if The password has already been set.
         $HasUID = $false; [bool]$SetValu3Exception = $false; [securestring]$kUID = $k3y.UID; $InnerException = [System.Exception]::new()
@@ -1958,7 +1955,7 @@ class K3Y {
             }
         }
         if ($ThrowOnFailure -and !$HasUID) {
-            throw [System.InvalidOperationException]::new('Operation is not valid, The key Has No UID.', $InnerException)
+            throw [System.InvalidOperationException]::new("The key Has No UID.`nUse it to encrypt Something at least once or Manually Call SetK3YUID method.", $InnerException)
         }
         return $HasUID
     }
@@ -2136,6 +2133,7 @@ class K3Y {
     }
     [Object[]]static AnalyseK3YUID([K3Y]$K3Y, [securestring]$Password, [bool]$ThrowOnFailure, [bool]$CreateReport) {
         $KIDstring = [string]::Empty; $Output = @(); $eap = $ErrorActionPreference;
+        if ($null -eq $K3Y) { [System.ArgumentNullException]::New('$K3Y') };
         try {
             Set-Variable -Name KIDstring -Scope Local -Visibility Private -Option Private -Value $([xconvert]::StringFromCustomCipher([xconvert]::ToDeCompressed([System.Text.Encoding]::UTF7.GetString([xconvert]::BytesFromHex([xconvert]::ToString($K3Y.UID))))));
         } catch { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation Failed due to invalid K3Y.", $_.Exception) };
@@ -2208,6 +2206,7 @@ class K3Y {
         $this.Export($FilePath, $false);
     }
     [void]Export([string]$FilePath, [bool]$encrypt) {
+        $ThrowOnFailure = $true; [void]$this.HasUID($ThrowOnFailure)
         if (![IO.File]::Exists($FilePath)) { New-Item -Path $FilePath -ItemType File | Out-Null }
         Set-Content -Path $FilePath -Value ([xconvert]::Tostring($this)) -Encoding UTF8 -NoNewline;
         if ($encrypt) { $(Get-Item $FilePath).Encrypt() }
@@ -2215,7 +2214,13 @@ class K3Y {
     [K3Y]Import([string]$StringK3y) {
         $K3Y = $null; Set-Variable -Name K3Y -Scope Local -Visibility Private -Option Private -Value ([K3Y]::Create($StringK3y));
         if ([bool]$K3Y.User.IsProtected) { $K3Y.User.UnProtect() }
-        $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $K3Y.$Prop };
+        try {
+            $this | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; $this.$Prop = $K3Y.$Prop };
+        }
+        catch [System.Management.Automation.SetValueException] {
+            throw [System.InvalidOperationException]::New('You can only Import One Key.')
+        }
+        Invoke-Command -InputObject $this.UID -NoNewScope -ScriptBlock $([ScriptBlock]::Create({ $this.psobject.Properties.Add([psscriptproperty]::new('UID', { $this.UID })) }))
         $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::ToString($this.User.Password));
         if ([regex]::IsMatch($hashSTR, "^[A-Fa-f0-9]{72}$")) {
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
@@ -2351,18 +2356,6 @@ class NerdCrypt {
     }
 }
 #endregion MainClass
-
-#region    Usage_&&_Playground_Examples
-<#
-# if (-not [bool]("Windows.Security.Credentials.PasswordVault" -as 'Type')) {
-#     [Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
-# }
-# $vault = [Windows.Security.Credentials.PasswordVault]::new()
-# $res = $vault.RetrieveAll().Resource; if ($res.count -gt 0) { $res | ForEach-Object { Write-Verbose "Removing $_" -Verbose; $vault.Remove($vault.Retrieve($_, $Env:USERNAME)) } }
-# $vault.RetrieveAll() | ForEach-Object { $_.RetrievePassword(); $_ }
-# # More Examples will go here
-#>
-#endregion Usage_&&_Playground_Examples
 
 #region    Functions
 #The funtions I really use (Exported During Build)
