@@ -1893,11 +1893,11 @@ class K3Y {
     [ValidateNotNullOrEmpty()][byte[]]hidden $rgbSalt = [System.Text.Encoding]::UTF7.GetBytes('hR#ho"rK6FMu mdZFXp}JMY\?NC]9(.:6;>oB5U>.GkYC-JD;@;XRgXBgsEi|%MqU>_+w/RpUJ}Kt.>vWr[WZ;[e8GM@P@YKuT947Z-]ho>E2"c6H%_L2A:O5:E)6Fv^uVE; aN\4t\|(*;rPRndSOS(7& xXLRKX)VL\/+ZB4q.iY { %Ko^<!sW9n@r8ihj*=T $+Cca-Nvv#JnaZh');
 
     K3Y() {
-        $this.User = [SecureCred]::new([pscredential]::new($env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password())));
+        $this.User = [SecureCred]::new([pscredential]::new($env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
         $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([Datetime]$Expirity) {
-        $this.User = [SecureCred]::new([pscredential]::new($env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password())));
+        $this.User = [SecureCred]::new([pscredential]::new($env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
         $this.Expirity = [Expirity]::new($Expirity); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([pscredential]$User, [Datetime]$Expirity) {
@@ -1965,6 +1965,7 @@ class K3Y {
         }
         return $HasUID
     }
+    # // Not Usefull yet:
     [void]hidden SetK3YUID() {
         if (!$this.HasUID()) {
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
