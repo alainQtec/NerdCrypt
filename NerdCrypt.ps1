@@ -2236,15 +2236,14 @@ class K3Y {
     }
     [void]SaveToVault() {
         $ThrowOnFailure = $true; [void]$this.HasHashedPassword($ThrowOnFailure)
-        # [void]$this.HasUID($ThrowOnFailure)
         if (-not [bool]("Windows.Security.Credentials.PasswordVault" -as 'Type')) {
             [Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
         }
-        $_Hash = [xconvert]::ToString($this.User.Password)
-        $RName = 'NerdKey' + $_Hash
+        $_Hash = [xconvert]::ToString($this.User.Password); $RName = 'NerdKey' + $_Hash
         $vault = New-Object Windows.Security.Credentials.PasswordVault
         $_Cred = New-Object Windows.Security.Credentials.PasswordCredential -ArgumentList ($RName, $this.User.UserName, [xconvert]::Tostring($this))
-        Write-Verbose "[i] SaveToVault $RName"
+        Write-Verbose "[i] Saving $RName To Vault .."
+        # Note: Make sure file size does not exceed the limit allowed and cannot be saved.
         $vault.Add($_Cred);
     }
 }
