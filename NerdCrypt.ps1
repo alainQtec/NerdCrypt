@@ -1938,6 +1938,9 @@ class K3Y {
         Write-Host $([xconvert]::Tostring($Password))
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
+    [bool]HasUID() {
+        return [K3Y]::HasUID($this, $false);
+    }
     [bool]static HasUID([K3Y]$k3y) {
         return [K3Y]::HasUID($k3y, $false);
     }
@@ -1963,7 +1966,7 @@ class K3Y {
         return $HasUID
     }
     [void]hidden SetK3YUID() {
-        if (![K3Y]::HasUID($this)) {
+        if (!$this.HasUID()) {
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
                         $K3YIdSTR = [string]::Empty; Set-Variable -Name K3YIdSTR -Scope local -Visibility Private -Option Private -Value $($this.GetK3YIdSTR());
                         Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('UID', { ConvertTo-SecureString -AsPlainText -String '$K3YIdSTR' -Force }))";
@@ -1977,7 +1980,7 @@ class K3Y {
     [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         # If ($null -ne $this.UID) { Write-Verbose "[+] Update UID ..." }
         # The K3Y 'UID' is a fancy way of storing the Key version, user, Compressiontype and Other Information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
-        if (![K3Y]::HasUID($this)) {
+        if (!$this.HasUID()) {
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
                         $K3YIdSTR = [string]::Empty; Set-Variable -Name K3YIdSTR -Scope local -Visibility Private -Option Private -Value $([string][K3Y]::GetK3YIdSTR($Password, $Expirity, $Compression, $_PID));
                         Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('UID', { ConvertTo-SecureString -AsPlainText -String '$K3YIdSTR' -Force }))";
