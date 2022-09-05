@@ -6,7 +6,7 @@
     Great way of Learning Encryption/decryption methods using PowerShell classes
 .NOTES
     [+] Most of the methods work. (Most).
-    [+] This file is over a 1000 lines (All in One), so use regions code folding if your editor supports it.
+    [+] This file is over 2000 lines of code (All in One), so use regions code folding if your editor supports it.
 .LINK
     https://gist.github.com/alainQtec/217860de99e8ddb89a8820add6f6980f
 .EXAMPLE
@@ -1920,7 +1920,6 @@ class K3Y {
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$Password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
         $Password = [securestring]$this.ResolvePassword($Password); $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
-        Write-Host $([xconvert]::Tostring($Password))
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
@@ -1934,7 +1933,6 @@ class K3Y {
         ($IsValid, $Compression) = [k3Y]::AnalyseK3YUID($this, $Password, $false)[0, 2];
         if (-not $IsValid) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") };
         if ($Compression.Equals('')) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Invalid Compression.", [System.ArgumentNullException]::new('Compression')) };
-        Write-Host $([xconvert]::Tostring($Password))
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
     [bool]HasUID() {
@@ -1968,7 +1966,6 @@ class K3Y {
         $this.SetK3YUID($Password, $Expirity, $Compression, $_PID, $false);
     }
     [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID, [bool]$ThrowOnFailure) {
-        # If ($null -ne $this.UID) { Write-Verbose "[+] Update UID ..." }
         # The K3Y 'UID' is a fancy way of storing the Key version, user, Compressiontype and Other Information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
         if (!$this.HasUID()) {
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
@@ -1985,8 +1982,6 @@ class K3Y {
         return [K3Y]::GetK3YIdSTR($this.User.Password, $this.Expirity.Date, $(Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID)
     }
     [string]static GetK3YIdSTR([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        Write-Host 'SetK3YUID -> GetK3YIdSTR PASSWD: '
-        Write-Host $([xconvert]::Tostring($Password))
         if ($null -eq $Password -or $([string]::IsNullOrWhiteSpace([xconvert]::ToString($Password)))) {
             throw [System.InvalidOperationException]::new("Please Provide a Password that isn't Null and not a WhiteSpace.", [System.ArgumentNullException]::new("Password"));
         }
@@ -2061,7 +2056,7 @@ class K3Y {
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToString($Password));
         if ([K3Y]::VerifyPassword($Passw0rd, $SecHash)) {
             $Hash = [xconvert]::Tostring($SecHash);
-            Write-Verbose "[i] Correct Password, With Hash: $Hash";
+            Write-Verbose "[i] Using Password, With Hash: $Hash";
             # Use a 'UTF7 PasswordDerivation' instead of the real 'Password' (Just to be extra cautious.)
             return [xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8)));
         } else {
@@ -2376,40 +2371,42 @@ function Encrypt-Object {
     .SYNOPSIS
         A nerdy function for perform paranoid encryption.
     .DESCRIPTION
-        Perform multiple encryptions to an Object.
-        Any object that can be transformed to byte array can be enrypted, decrpted and transformed(serialized) back to that object.
-        Currently this functions can encrypt Objects (I mean [System.Object]$Object) and files.
-        The function uses Rijndael AES-256, Rivest-Shamir-Adleman encryption (RSA) algorithms combined with MD5 Tripledes and other Stuff.
+        Applies several paranoid encryptions to an Object or a file.
+        Encryption can be applied to any item that can be converted to a byte array.
+        This function may currently encrypt Objects (i.e. "System.Object") and files.
+        The function employs Rijndael AES-256, Rivest-Shamir-Adleman encryption (RSA), MD5 Triple D.E.S, and other algorithms.
         Yeah, It gets Pretty paranoid!
 
-        Its dangerous to Print/send sensitive info to the terminal/console or via RMM,
-        better to use nerdy non-standard (That you only know how to decrypt) encrypted String.
-        The encryption Key(s) are stored in windows Password vault so that
-        The Decryptor Function (Decrypt-Object) Uses them to decrypt without need of The user entering them again.
+        There is an option to store your encryption key(s) in Windows Password vault so that the
+        Decryptor Function (Decrypt-Object) can use them without need of your input again.
     .NOTES
-        1. Obviusly the biggest weakness of this script is that its a script (Non-Obfuscated, cleartext script!),
+        # Some Points to Consider When Using This Script:
+
+        1. If you're like me and don't feel safe when typing or sending sensitive info to the terminal/console or via RMM,
+            Then its better to use some nerdy, non-standard (That only you know how it Encrypts-decrypts stuff) tool.
+            This was the sole reason I created this script.
+
+        2. One of this script's flaws is that it is a script (a non-obfuscated, cleartext script!).
             If you or some hacker can't get the password but have the source code you can reverse engineer to findout why you are not getting clear output.
-            Thus allowing to bruteforce untill you get cleartext. Even if that scenario is almost imposssible, In production make sure its a compiled binary.
-            Ex: Using tools like PS2Exe
+            Thus allowing to bruteforce untill you get cleartext. Although I doubt that AES-256 can be brute forced.
+            Even though that eventuality is unlikely, ensure that the source code (Modified Version of this Script or anything...) is never leaked in production.
+            Perhaps compile it to a binary. Using tools such as PS2Exe, for example.
 
-        2. Sometimes even your local password vault is not secure enough!
+        3. Sometimes even your local password vault is not secure enough!
             https://www.hackingarticles.in/credential-dumping-windows-credential-manager/
-            So If you feel unsafe Retrieve Your stuff (Store them on a Goober or somethin).
-            Then Remove them, Example:
-            if (-not [bool]("Windows.Security.Credentials.PasswordVault" -as 'Type')) {
-                [Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
-            }
+            So If you feel unsafe Retrieve your stuff from WindowsCredentialManager, Store them on a Goober or somethin
+            Then clean your local vault, ie:
+            if (-not [bool]("Windows.Security.Credentials.PasswordVault" -as 'Type')) { [Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime] }
+
             $vault = [Windows.Security.Credentials.PasswordVault]::new()
-            $vault.Remove($vault.Retrieve("ResourceName", "NameOtheKey"))
-            # ie:
-            PS\> $vault.Remove
+            # Suppose you have stuff in your vault. ex:
+            # $vault.Add([Windows.Security.Credentials.PasswordCredential]::new('MySecretPlan', $env:USERNAME, "#Test`nThis is my secret Plan written in MarkDown..."))
 
-            OverloadDefinitions
-            -------------------
-            void Remove(Windows.Security.Credentials.PasswordCredential credential)
+            $VaultContent = $vault.RetrieveAll() | select resource, userName | % {$vault.Retrieve($_.Resource, $_.UserName)} | select UserName, Resource, @{l='Content'; e={$_.Password}};
+            $VaultContent | ConvertTo-Json | Set-Content -Path $PathtoMyGoober\MyLocalVault_Export.json -Encoding UTF8
+            $(Get-Item $PathtoMyGoober\MyLocalVault_Export.json).Encrypt();
+            $vault.RetrieveAll() | % { $vault.Remove($vault.Retrieve($_.Resource, $_.UserName)); Write-verbose "[i] Removed $($_.Resource)" }
 
-        3. Storing Keys in windows PasswordVault Is not Yet Supported in PS 7
-        # On `ResourceName` I usually use it as description.
     .LINK
         https://github.com/alainQtec/.files/blob/main/src/scripts/Security/NerdCrypt/NerdCrypt.ps1
     .LINK
@@ -2601,6 +2598,19 @@ function Encrypt-Object {
     }
 }
 function Decrypt-Object {
+    <#
+    .SYNOPSIS
+        A short one-line action-based description, e.g. 'Tests if a function is valid'
+    .DESCRIPTION
+        Decryts Objects or files.
+    .NOTES
+        Information or caveats about the function e.g. 'This function is not supported in Linux'
+    .LINK
+        Specify a URI to a help page, this will show when Get-Help -Online is used.
+    .EXAMPLE
+        Test-MyTestFunction -Verbose
+        Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines
+    #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '', Justification = 'Prefer verb usage')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingConvertSecurestringWithPlainText", '')]
     [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'WithSecureKey')]
