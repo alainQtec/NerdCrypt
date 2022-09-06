@@ -2791,7 +2791,8 @@ function Protect-Data {
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = '__AllParameterSets')]
         [ValidateSet('CurrentUser', 'LocalMachine')]
         [ValidateNotNullOrEmpty()]
-        [string]$Scope,
+        [Alias('ProtectionScope')]
+        [string]$Scope = 'CurrentUser',
 
         [Parameter(Mandatory = $false, Position = 2, ParameterSetName = '__AllParameterSets')]
         [ValidateNotNullOrEmpty()]
@@ -2809,9 +2810,9 @@ function Protect-Data {
             'Xml' {
                 if ($PSCmdlet.ShouldProcess("Xml", "Protect")) {
                     if ($UseCustomEntropy) {
-                        [xconvert]::ToProtected($([xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))), $Entropy, [ProtectionScope]$ProtectionScope)
+                        [xconvert]::ToProtected($([xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))), $Entropy, [ProtectionScope]$Scope)
                     } else {
-                        [xconvert]::ToProtected($([xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))), [ProtectionScope]$ProtectionScope)
+                        [xconvert]::ToProtected($([xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))), [ProtectionScope]$Scope)
                     }
                 }
             }
