@@ -18,6 +18,7 @@
     <File Build="2" Shared="True" ReferenceFunction="Invoke-New-PNKey_ps1" ExportFunctions="False">Public\New-PNKey.ps1</File>
     <File Build="2" Shared="True" ReferenceFunction="Invoke-Protect-Data_ps1" ExportFunctions="False">Public\Protect-Data.ps1</File>
     <File Build="2" Shared="True" ReferenceFunction="Invoke-UnProtect-Data_ps1" ExportFunctions="False">Public\UnProtect-Data.ps1</File>
+    <File Build="2" Shared="True" ReferenceFunction="Invoke-Test-Module_ps1" ExportFunctions="False">Test-Module.ps1</File>
   </Files>
   <StartupScript>E:\_UserProfile_\Documents\SAPIEN\PowerShell Studio\Projects\NerdCrypt\Test-Module.ps1</StartupScript>
 </Project>
