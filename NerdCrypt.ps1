@@ -2061,8 +2061,7 @@ class K3Y {
     [securestring]ResolvePassword([securestring]$Password, [securestring]$SecHash) {
         $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToString($Password));
         if ([K3Y]::VerifyPassword($Passw0rd, $SecHash)) {
-            $Hash = [xconvert]::Tostring($SecHash);
-            Write-Verbose "[i] Using Password, With Hash: $Hash";
+            # $Hash = [xconvert]::Tostring($SecHash); Write-Verbose "[i] Using Password, With Hash: $Hash";
             # Use a 'UTF7 PasswordDerivation' instead of the real 'Password' (Just to be extra cautious.)
             return [xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8)));
         } else {
@@ -2216,6 +2215,7 @@ class K3Y {
     }
     [void]Export([string]$FilePath, [bool]$encrypt) {
         $ThrowOnFailure = $true; [void]$this.HasUID($ThrowOnFailure)
+        $FilePath = [xgen]::ResolvedPath($FilePath)
         if (![IO.File]::Exists($FilePath)) { New-Item -Path $FilePath -ItemType File | Out-Null }
         Set-Content -Path $FilePath -Value ([xconvert]::Tostring($this)) -Encoding UTF8 -NoNewline;
         if ($encrypt) { $(Get-Item $FilePath).Encrypt() }
@@ -2447,11 +2447,6 @@ function Encrypt-Object {
         [ValidateNotNullOrEmpty()]
         [string]$PublicKey,
 
-        # So not worth it! Unless youre too lazy to create a SecureString, Or your Password is temporal (Ex: Gets changed by your Password Generator, every 60 seconds).
-        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithPlainKey')]
-        [Alias('PlainPassword')]
-        [string]$PlainPass,
-
         # Source or the Encryption Key. Full/Path of the keyfile you already have. It will be used to lock your keys. (ConvertTo-SecureString -String "Message" -Key [Byte[]])
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithKey')]
         [ValidateNotNullOrEmpty()]
@@ -2464,6 +2459,7 @@ function Encrypt-Object {
 
         # FilePath to store your keys. Saves keys as base64 in an enrypted file. Ex: some_random_Name.key (Not recomended)
         [Parameter(Mandatory = $false, Position = 3, ParameterSetName = '__AllParameterSets')]
+        [ValidateNotNullOrEmpty()]
         [Alias('ExportFile')]
         [string]$KeyOutFile,
 
@@ -2555,6 +2551,10 @@ function Encrypt-Object {
         $PsCmdlet.MyInvocation.BoundParameters.GetEnumerator() | ForEach-Object { New-Variable -Name $_.Key -Value $_.Value -ea 'SilentlyContinue' }
         $PsW = [securestring]::new(); $nc = $null;
         $fxn = ('[' + $MyInvocation.MyCommand.Name + ']')
+        $ExportsPNK = $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile') -and ![string]::IsNullOrEmpty($KeyOutFile)
+        if ($PsCmdlet.ParameterSetName -ne 'WithKey' -and !$ExportsPNK) {
+            throw 'Plese specify PublicKey "ExportFile/Outfile" Parameter.'
+        }
         # Write-Invocation $MyInvocation
     }
 
@@ -2563,7 +2563,6 @@ function Encrypt-Object {
         Set-Variable -Name PsW -Scope Local -Visibility Private -Option Private -Value $(switch ($PsCmdlet.ParameterSetName) {
                 'WithKey' {  }
                 'WithVault' {  }
-                'WithPlainKey' { [xconvert]::ToSecurestring($PlainPass) }
                 'WithSecureKey' { $PrivateKey }
                 Default {
                     throw 'Error!'
@@ -2572,7 +2571,6 @@ function Encrypt-Object {
         );
         Set-Variable -Name nc -Scope Local -Visibility Private -Option Private -Value $([nerdcrypt]::new($Object));
         if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('Expirity')) { $nc.key.Expirity = [Expirity]::new($Expirity) }
-
         if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('PublicKey')) {
             $nc.SetPNKey($PublicKey);
         } else {
@@ -2582,13 +2580,9 @@ function Encrypt-Object {
         }
         $bytes = $nc.Object.Bytes
         [void]$nc.Encrypt($PsW, $Iterations)
-        if ($PsCmdlet.ParameterSetName -ne 'WithKey') {
-            if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
-                Write-Verbose "[i] Export PublicKey (PNK) ..."
-                $nc.key.Export($KeyOutFile, $true);
-            } else {
-                Write-Verbose "[i] Used PublicKey (PNK):`n$([xconvert]::Tostring($nc.key))"
-            }
+        if ($ExportsPNK) {
+            Write-Verbose "[i] Export PublicKey (PNK) to $KeyOutFile ..."
+            $nc.key.Export($KeyOutFile, $true);
         }
         $bytes = $(if ($bytes.Equals($nc.Object.Bytes)) { $null }else { $nc.Object.Bytes })
     }
@@ -2617,8 +2611,6 @@ function Decrypt-Object {
         $enc = Encrypt-Object $msg -Password $([K3Y]::GetPassword()) -KeyOutFile .\PublicKee.txt
 
         $dec = Decrypt-Object $enc -Password $([K3Y]::GetPassword()) -PublicKey $(cat .\PublicKee.txt)
-
-        $OGmsg = [xconvert]::BytesToObject($dec)
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '', Justification = 'Prefer verb usage')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingConvertSecurestringWithPlainText", '')]
@@ -2675,7 +2667,7 @@ function Decrypt-Object {
         [void]$nc.Decrypt($PsW, $Iterations)
         if ($PsCmdlet.ParameterSetName -ne 'WithKey' -and $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
             if (![string]::IsNullOrEmpty($KeyOutFile)) {
-                Write-Verbose "[-] Export PublicKey ..."
+                Write-Verbose "[i] Export PublicKey (PNK) to $KeyOutFile ..."
                 $nc.key.Export($KeyOutFile, $true)
             }
         }
