@@ -1,0 +1,1612 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<helpItems xmlns="http://msh" schema="maml">
+	<command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10">
+		<command:details>
+			<command:name>Encrypt-Object</command:name>
+			<maml:description>
+				<maml:para>A nerdy function for perform paranoid encryption.</maml:para>
+
+			</maml:description>
+			<maml:copyright>
+				<maml:para></maml:para>
+			</maml:copyright>
+			<command:verb>Encrypt</command:verb>
+			<command:noun>Object</command:noun>
+			<dev:version/>
+		</command:details>
+		<maml:description>
+				<maml:para>Applies&#160;several paranoid encryptions to an Object or a file.
+Encryption can be applied to any item that can be converted to a byte array.
+This function may currently encrypt Objects (i.e. &quot;System.Object&quot;) and files.
+The function employs Rijndael AES-256, Rivest-Shamir-Adleman encryption (RSA), MD5 Triple D.E.S, and other algorithms.
+Yeah, It gets Pretty paranoid!
+
+There is an option to store your encryption key(s) in Windows Password vault so that the
+Decryptor Function (Decrypt-Object) can use them without need of your input again.</maml:para>
+
+		</maml:description>
+		<command:syntax>
+			<command:syntaxItem parametersetname="WithSecureKey">
+				<maml:name>Encrypt-Object</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>Object</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false"></command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+					<maml:name>PrivateKey</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">SecureString</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>PublicKey</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
+					<maml:name>KeyOutFile</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
+					<maml:name>Expirity</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">datetime</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="4">
+					<maml:name>Iterations</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">int</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="__AllParameterSets">
+				<maml:name>Encrypt-Object</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>Object</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false"></command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>PublicKey</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
+					<maml:name>KeyOutFile</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>PrivateKey</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">SecureString</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>Key</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">Byte[]</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>KeyFile</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>Expirity</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">datetime</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>Iterations</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">int</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="WithKey">
+				<maml:name>Encrypt-Object</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>Object</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false"></command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+					<maml:name>Key</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">Byte[]</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>PublicKey</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
+					<maml:name>KeyOutFile</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="4">
+					<maml:name>Expirity</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">datetime</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="5">
+					<maml:name>Iterations</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">int</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="WithKeyFile">
+				<maml:name>Encrypt-Object</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>Object</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false"></command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+					<maml:name>KeyFile</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>PublicKey</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
+					<maml:name>KeyOutFile</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="WithPlainKey">
+				<maml:name>Encrypt-Object</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>Object</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false"></command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>PublicKey</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
+					<maml:name>KeyOutFile</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
+					<maml:name>Expirity</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">datetime</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="4">
+					<maml:name>Iterations</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">int</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="WithVault">
+				<maml:name>Encrypt-Object</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>Object</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false"></command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+					<maml:name>Expirity</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">datetime</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>PublicKey</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
+					<maml:name>KeyOutFile</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="4">
+					<maml:name>Iterations</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">int</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+		</command:syntax>
+		<command:parameters>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+				<maml:name>Object</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false"></command:parameterValue>
+				<dev:type>
+					<maml:name></maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+				<maml:name>InputObj</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false"></command:parameterValue>
+				<dev:type>
+					<maml:name></maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+				<maml:name>PrivateKey</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">SecureString</command:parameterValue>
+				<dev:type>
+					<maml:name>SecureString</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+				<maml:name>Password</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">SecureString</command:parameterValue>
+				<dev:type>
+					<maml:name>SecureString</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+				<maml:name>Securestring</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">SecureString</command:parameterValue>
+				<dev:type>
+					<maml:name>SecureString</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+				<maml:name>PublicKey</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				<dev:type>
+					<maml:name>string</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+				<maml:name>Key</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">Byte[]</command:parameterValue>
+				<dev:type>
+					<maml:name>Byte[]</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+				<maml:name>KeyFile</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				<dev:type>
+					<maml:name>string</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
+				<maml:name>KeyOutFile</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				<dev:type>
+					<maml:name>string</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
+				<maml:name>ExportFile</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				<dev:type>
+					<maml:name>string</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
+				<maml:name>Expirity</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">datetime</command:parameterValue>
+				<dev:type>
+					<maml:name>datetime</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
+				<maml:name>KeyExpirity</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">datetime</command:parameterValue>
+				<dev:type>
+					<maml:name>datetime</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="5">
+				<maml:name>Iterations</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">int</command:parameterValue>
+				<dev:type>
+					<maml:name>int</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+		</command:parameters>
+		<command:returnValues>
+			<command:returnValue>
+				<dev:type>
+<maml:name>System.Byte[]</maml:name>
+				<maml:uri/>
+				</dev:type>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+			</command:returnValue>
+		</command:returnValues>
+		<maml:alertSet>
+			<maml:title></maml:title>
+			<maml:alert>
+				<maml:para># Some Points to Consider When Using This Script:
+
+1. If you&#39;re like me and don&#39;t feel safe when typing or sending sensitive info to the terminal/console or via RMM,
+Then its better to use some nerdy, non-standard (That only you know how it Encrypts-decrypts stuff) tool.
+This was the sole reason I created this script.
+
+2. One of this script&#39;s flaws is that it is a script (a non-obfuscated, cleartext script!).
+If you or some hacker can&#39;t get the password but have the source code you can reverse engineer to findout why you are not getting clear output.
+Thus allowing to bruteforce untill you get cleartext. Although I doubt that AES-256 can be brute forced.
+Even though that eventuality is unlikely, ensure that the source code (Modified Version of this Script or anything...) is never leaked in production.
+Perhaps compile it to a binary. Using tools such as PS2Exe, for example.
+
+3. Sometimes even your local password vault is not secure enough!
+https://www.hackingarticles.in/credential-dumping-windows-credential-manager/
+So If you feel unsafe Retrieve your stuff from WindowsCredentialManager, Store them on a Goober or somethin
+Then clean your local vault, ie:
+if (-not [bool](&quot;Windows.Security.Credentials.PasswordVault&quot; -as &#39;Type&#39;)) { [Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime] }
+
+$vault = [Windows.Security.Credentials.PasswordVault]::new()
+# Suppose you have stuff in your vault. ex:
+# $vault.Add([Windows.Security.Credentials.PasswordCredential]::new(&#39;MySecretPlan&#39;, $env:USERNAME, &quot;#Test`nThis is my secret Plan written in MarkDown...&quot;))
+
+$VaultContent = $vault.RetrieveAll() | select resource, userName | % {$vault.Retrieve($_.Resource, $_.UserName)} | select UserName, Resource, @{l=&#39;Content&#39;; e={$_.Password}};
+$VaultContent | ConvertTo-Json | Set-Content -Path $PathtoMyGoober\MyLocalVault_Export.json -Encoding UTF8
+$(Get-Item $PathtoMyGoober\MyLocalVault_Export.json).Encrypt();
+$vault.RetrieveAll() | % { $vault.Remove($vault.Retrieve($_.Resource, $_.UserName)); Write-verbose &quot;[i] Removed $($_.Resource)&quot; }</maml:para>
+			</maml:alert>
+		</maml:alertSet>
+		<command:examples>
+			<command:example>
+				<maml:title>--------------------------  EXAMPLE 1  --------------------------</maml:title>
+				<maml:introduction>
+					<maml:para></maml:para>
+				</maml:introduction>
+				<dev:code>PS C:\&gt; $enc = Encrypt-Object -Object &quot;Hello World!&quot; -Password $([K3Y]::GetPassword()) -KeyOutFile .\PublicKee.txt</dev:code>
+				<dev:remarks>
+					<maml:para>$dec = Decrypt-Object -InputBytes $enc -Password $([K3Y]::GetPassword()) -PublicKey $(cat .\PublicKee.txt)</maml:para>
+
+				</dev:remarks>
+			</command:example>
+		</command:examples>
+		<maml:relatedLinks>
+			<maml:navigationLink>
+				<maml:linkText></maml:linkText>
+				<maml:uri>https://github.com/alainQtec/.files/blob/main/src/scripts/Security/NerdCrypt/NerdCrypt.ps1</maml:uri>
+			</maml:navigationLink>
+			<maml:navigationLink>
+				<maml:linkText>Decrypt-Object
+</maml:linkText>
+				<maml:uri></maml:uri>
+			</maml:navigationLink>
+		</maml:relatedLinks>
+	</command:command>
+	<command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10">
+		<command:details>
+			<command:name>Decrypt-Object</command:name>
+			<maml:description>
+				<maml:para>A short one-line action-based description, e.g. &#39;Tests if a function is valid&#39;</maml:para>
+
+			</maml:description>
+			<maml:copyright>
+				<maml:para></maml:para>
+			</maml:copyright>
+			<command:verb>Decrypt</command:verb>
+			<command:noun>Object</command:noun>
+			<dev:version/>
+		</command:details>
+		<maml:description>
+				<maml:para>Decryts Objects or files.</maml:para>
+
+		</maml:description>
+		<command:syntax>
+			<command:syntaxItem parametersetname="WithSecureKey">
+				<maml:name>Decrypt-Object</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>InputBytes</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+					<maml:name>PrivateKey</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">SecureString</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>PublicKey</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="4">
+					<maml:name>Iterations</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">int</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="__AllParameterSets">
+				<maml:name>Decrypt-Object</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>InputBytes</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>PublicKey</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="4">
+					<maml:name>Iterations</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">int</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>PrivateKey</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">SecureString</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>Key</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">Byte[]</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>KeyFile</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="WithKey">
+				<maml:name>Decrypt-Object</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>InputBytes</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+					<maml:name>Key</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">Byte[]</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>PublicKey</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="4">
+					<maml:name>Iterations</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">int</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="WithKeyFile">
+				<maml:name>Decrypt-Object</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>InputBytes</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+					<maml:name>KeyFile</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>PublicKey</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="4">
+					<maml:name>Iterations</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">int</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+		</command:syntax>
+		<command:parameters>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+				<maml:name>InputBytes</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				<dev:type>
+					<maml:name>byte[]</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+				<maml:name>Bytes</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				<dev:type>
+					<maml:name>byte[]</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+				<maml:name>PrivateKey</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">SecureString</command:parameterValue>
+				<dev:type>
+					<maml:name>SecureString</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+				<maml:name>Password</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">SecureString</command:parameterValue>
+				<dev:type>
+					<maml:name>SecureString</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="2">
+				<maml:name>PublicKey</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				<dev:type>
+					<maml:name>string</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+				<maml:name>Key</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">Byte[]</command:parameterValue>
+				<dev:type>
+					<maml:name>Byte[]</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+				<maml:name>KeyFile</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				<dev:type>
+					<maml:name>string</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="4">
+				<maml:name>Iterations</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">int</command:parameterValue>
+				<dev:type>
+					<maml:name>int</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+		</command:parameters>
+		<command:returnValues>
+			<command:returnValue>
+				<dev:type>
+<maml:name>System.Byte[]</maml:name>
+				<maml:uri/>
+				</dev:type>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+			</command:returnValue>
+		</command:returnValues>
+		<maml:alertSet>
+			<maml:title></maml:title>
+			<maml:alert>
+				<maml:para>Caveats about the function:
+.&#39;This function is not yet supported on Linux&#39;</maml:para>
+			</maml:alert>
+		</maml:alertSet>
+		<command:examples>
+			<command:example>
+				<maml:title>--------------------------  EXAMPLE 1  --------------------------</maml:title>
+				<maml:introduction>
+					<maml:para></maml:para>
+				</maml:introduction>
+				<dev:code>PS C:\&gt; $msg = &quot;This is my email, don&#39;t show it to anyone. alain.1337dev@outlook.com&quot;</dev:code>
+				<dev:remarks>
+					<maml:para>$enc = Encrypt-Object $msg -Password $([K3Y]::GetPassword()) -KeyOutFile .\PublicKee.txt
+
+$dec = Decrypt-Object $enc -Password $([K3Y]::GetPassword()) -PublicKey $(cat .\PublicKee.txt)</maml:para>
+
+				</dev:remarks>
+			</command:example>
+		</command:examples>
+		<maml:relatedLinks>
+			<maml:navigationLink>
+				<maml:linkText></maml:linkText>
+				<maml:uri>https://github.com/alainQtec/.files/blob/main/src/scripts/Security/NerdCrypt/NerdCrypt.ps1</maml:uri>
+			</maml:navigationLink>
+			<maml:navigationLink>
+				<maml:linkText>Encrypt-Object
+</maml:linkText>
+				<maml:uri></maml:uri>
+			</maml:navigationLink>
+		</maml:relatedLinks>
+	</command:command>
+	<command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10">
+		<command:details>
+			<command:name>New-PNKey</command:name>
+			<maml:description>
+				<maml:para>Create [K3Y] Object and Outputs it as a string.</maml:para>
+
+			</maml:description>
+			<maml:copyright>
+				<maml:para></maml:para>
+			</maml:copyright>
+			<command:verb>New</command:verb>
+			<command:noun>PNKey</command:noun>
+			<dev:version/>
+		</command:details>
+		<maml:description>
+				<maml:para>A longer description of the function, its purpose, common use cases, etc.</maml:para>
+
+		</maml:description>
+		<command:syntax>
+			<command:syntaxItem parametersetname="Params">
+				<maml:name>New-PNKey</maml:name>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>UserName</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="1">
+					<maml:name>PrivateKey</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">securestring</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>Expirity</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">datetime</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>Protect</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="false" variableLength="false">switch</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="FromK3Y">
+				<maml:name>New-PNKey</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>K3YoBJ</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">K3Y</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+					<maml:name>UserName</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>PrivateKey</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">securestring</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
+					<maml:name>Expirity</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">datetime</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+		</command:syntax>
+		<command:parameters>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+				<maml:name>K3YoBJ</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">K3Y</command:parameterValue>
+				<dev:type>
+					<maml:name>K3Y</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="0">
+				<maml:name>UserName</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				<dev:type>
+					<maml:name>string</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="1">
+				<maml:name>PrivateKey</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">securestring</command:parameterValue>
+				<dev:type>
+					<maml:name>securestring</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="1">
+				<maml:name>Password</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">securestring</command:parameterValue>
+				<dev:type>
+					<maml:name>securestring</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="1">
+				<maml:name>Securestring</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">securestring</command:parameterValue>
+				<dev:type>
+					<maml:name>securestring</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+				<maml:name>Expirity</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">datetime</command:parameterValue>
+				<dev:type>
+					<maml:name>datetime</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+				<maml:name>Protect</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="false" variableLength="false">switch</command:parameterValue>
+				<dev:type>
+					<maml:name>switch</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+		</command:parameters>
+		<command:returnValues>
+			<command:returnValue>
+				<dev:type>
+<maml:name>System.String</maml:name>
+				<maml:uri/>
+				</dev:type>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+			</command:returnValue>
+		</command:returnValues>
+		<maml:alertSet>
+			<maml:title></maml:title>
+			<maml:alert>
+				<maml:para>Information or caveats about the function e.g. &#39;This function is not supported in Linux&#39;</maml:para>
+			</maml:alert>
+		</maml:alertSet>
+		<command:examples>
+			<command:example>
+				<maml:title>--------------------------  EXAMPLE 1  --------------------------</maml:title>
+				<maml:introduction>
+					<maml:para></maml:para>
+				</maml:introduction>
+				<dev:code>PS C:\&gt; Test-MyTestFunction -Verbose</dev:code>
+				<dev:remarks>
+					<maml:para>Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines</maml:para>
+
+				</dev:remarks>
+			</command:example>
+		</command:examples>
+		<maml:relatedLinks>
+			<maml:navigationLink>
+				<maml:linkText>Specify a URI to a help page, this will show when Get-Help -Online is used.
+</maml:linkText>
+				<maml:uri></maml:uri>
+			</maml:navigationLink>
+		</maml:relatedLinks>
+	</command:command>
+	<command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10">
+		<command:details>
+			<command:name>Protect-Data</command:name>
+			<maml:description>
+				<maml:para>Protects data.</maml:para>
+
+			</maml:description>
+			<maml:copyright>
+				<maml:para></maml:para>
+			</maml:copyright>
+			<command:verb>Protect</command:verb>
+			<command:noun>Data</command:noun>
+			<dev:version/>
+		</command:details>
+		<maml:description>
+				<maml:para>A longer description of the function, its purpose, common use cases, etc.</maml:para>
+
+		</maml:description>
+		<command:syntax>
+			<command:syntaxItem parametersetname="String">
+				<maml:name>Protect-Data</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>MSG</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+					<maml:name>Scope</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>Entropy</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="SecureString">
+				<maml:name>Protect-Data</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>SecureMSG</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">securestring</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+					<maml:name>Scope</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>Entropy</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="Bytes">
+				<maml:name>Protect-Data</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>Bytes</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+					<maml:name>Scope</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>Entropy</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="Xml">
+				<maml:name>Protect-Data</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>InputXml</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">xml</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+					<maml:name>Scope</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>Entropy</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="__AllParameterSets">
+				<maml:name>Protect-Data</maml:name>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+					<maml:name>Scope</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>Entropy</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>MSG</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>SecureMSG</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">securestring</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>Bytes</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>InputXml</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">xml</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+		</command:syntax>
+		<command:parameters>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+				<maml:name>MSG</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				<dev:type>
+					<maml:name>string</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+				<maml:name>SecureMSG</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">securestring</command:parameterValue>
+				<dev:type>
+					<maml:name>securestring</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+				<maml:name>Bytes</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				<dev:type>
+					<maml:name>byte[]</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+				<maml:name>InputXml</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">xml</command:parameterValue>
+				<dev:type>
+					<maml:name>xml</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+				<maml:name>XmlDoc</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">xml</command:parameterValue>
+				<dev:type>
+					<maml:name>xml</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+				<maml:name>Scope</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				<dev:type>
+					<maml:name>string</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+				<maml:name>ProtectionScope</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				<dev:type>
+					<maml:name>string</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+				<maml:name>Entropy</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				<dev:type>
+					<maml:name>byte[]</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+		</command:parameters>
+		<command:returnValues>
+			<command:returnValue>
+				<dev:type>
+<maml:name>System.Object[]</maml:name>
+				<maml:uri/>
+				</dev:type>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+			</command:returnValue>
+		</command:returnValues>
+		<maml:alertSet>
+			<maml:title></maml:title>
+			<maml:alert>
+				<maml:para>Information or caveats about the function e.g. &#39;This function is not supported in Linux&#39;</maml:para>
+			</maml:alert>
+		</maml:alertSet>
+		<command:examples>
+			<command:example>
+				<maml:title>--------------------------  EXAMPLE 1  --------------------------</maml:title>
+				<maml:introduction>
+					<maml:para></maml:para>
+				</maml:introduction>
+				<dev:code>PS C:\&gt; [string]$sec = Protect-Data &#39;This Is a secret message &#128521;...&#39;</dev:code>
+				<dev:remarks>
+					<maml:para></maml:para>
+
+				</dev:remarks>
+			</command:example>
+			<command:example>
+				<maml:title>--------------------------  EXAMPLE 2  --------------------------</maml:title>
+				<maml:introduction>
+					<maml:para></maml:para>
+				</maml:introduction>
+				<dev:code>PS C:\&gt; [securestring]$sec = Protect-Data [securestring]$MyPassPhrase</dev:code>
+				<dev:remarks>
+					<maml:para></maml:para>
+
+				</dev:remarks>
+			</command:example>
+		</command:examples>
+		<maml:relatedLinks>
+			<maml:navigationLink>
+				<maml:linkText></maml:linkText>
+				<maml:uri>https://github.com/alainQtec/.files/blob/main/src/scripts/Security/NerdCrypt/NerdCrypt.ps1</maml:uri>
+			</maml:navigationLink>
+		</maml:relatedLinks>
+	</command:command>
+	<command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10">
+		<command:details>
+			<command:name>UnProtect-Data</command:name>
+			<maml:description>
+				<maml:para>UnProtects data.</maml:para>
+
+			</maml:description>
+			<maml:copyright>
+				<maml:para></maml:para>
+			</maml:copyright>
+			<command:verb>UnProtect</command:verb>
+			<command:noun>Data</command:noun>
+			<dev:version/>
+		</command:details>
+		<maml:description>
+				<maml:para>A longer description of the function, its purpose, common use cases, etc.</maml:para>
+
+		</maml:description>
+		<command:syntax>
+			<command:syntaxItem parametersetname="string">
+				<maml:name>UnProtect-Data</maml:name>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>Entropy</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>MSG</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="SecureString">
+				<maml:name>UnProtect-Data</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>SecureMSG</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">securestring</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>Entropy</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="Bytes">
+				<maml:name>UnProtect-Data</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>InputBytes</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>Entropy</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="Xml">
+				<maml:name>UnProtect-Data</maml:name>
+				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+					<maml:name>InputXml</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">xml</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>Entropy</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="__A llParameterSets">
+				<maml:name>UnProtect-Data</maml:name>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+					<maml:name>Scope</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>Entropy</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+			<command:syntaxItem parametersetname="__AllParameterSets">
+				<maml:name>UnProtect-Data</maml:name>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+					<maml:name>Entropy</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>MSG</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>SecureMSG</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">securestring</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>InputBytes</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>InputXml</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">xml</command:parameterValue>
+				</command:parameter>
+				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
+					<maml:name>Scope</maml:name>
+					<maml:description>
+						<maml:para></maml:para>
+					</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				</command:parameter>
+			</command:syntaxItem>
+		</command:syntax>
+		<command:parameters>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+				<maml:name>MSG</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				<dev:type>
+					<maml:name>string</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+				<maml:name>SecureMSG</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">securestring</command:parameterValue>
+				<dev:type>
+					<maml:name>securestring</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+				<maml:name>InputBytes</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				<dev:type>
+					<maml:name>byte[]</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+				<maml:name>Bytes</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				<dev:type>
+					<maml:name>byte[]</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+				<maml:name>InputXml</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">xml</command:parameterValue>
+				<dev:type>
+					<maml:name>xml</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
+				<maml:name>XmlDoc</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">xml</command:parameterValue>
+				<dev:type>
+					<maml:name>xml</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+				<maml:name>Scope</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				<dev:type>
+					<maml:name>string</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
+				<maml:name>ProtectionScope</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
+				<dev:type>
+					<maml:name>string</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
+				<maml:name>Entropy</maml:name>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+					<command:parameterValue required="true" variableLength="false">byte[]</command:parameterValue>
+				<dev:type>
+					<maml:name>byte[]</maml:name>
+					<maml:uri/>
+				</dev:type>
+				<dev:defaultValue></dev:defaultValue>
+			</command:parameter>
+		</command:parameters>
+		<command:returnValues>
+			<command:returnValue>
+				<dev:type>
+<maml:name>System.Byte[]</maml:name>
+				<maml:uri/>
+				</dev:type>
+				<maml:description>
+					<maml:para></maml:para>
+				</maml:description>
+			</command:returnValue>
+		</command:returnValues>
+		<maml:alertSet>
+			<maml:title></maml:title>
+			<maml:alert>
+				<maml:para>Information or caveats about the function e.g. &#39;This function is not supported in Linux&#39;</maml:para>
+			</maml:alert>
+		</maml:alertSet>
+		<command:examples>
+		</command:examples>
+		<maml:relatedLinks>
+			<maml:navigationLink>
+				<maml:linkText></maml:linkText>
+				<maml:uri>https://github.com/alainQtec/.files/blob/main/src/scripts/Security/NerdCrypt/NerdCrypt.ps1</maml:uri>
+			</maml:navigationLink>
+		</maml:relatedLinks>
+	</command:command>
+</helpItems>
+
