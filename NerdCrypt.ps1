@@ -1920,10 +1920,6 @@ class K3Y {
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$Password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
         $Password = [securestring]$this.ResolvePassword($Password); $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
-
-        ($IsValid, $Compression) = [k3Y]::AnalyseK3YUID($this, $Password, $false)[0, 2];
-        Write-Verbose "->[E.IsValid: $IsValid, E.Compression: $Compression]<-"
-
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
@@ -1935,7 +1931,6 @@ class K3Y {
     [byte[]]Decrypt([byte[]]$bytesToDecrypt, [securestring]$Password, [byte[]]$salt) {
         $Password = [securestring]$this.ResolvePassword($Password); # (Get The real Password)
         ($IsValid, $Compression) = [k3Y]::AnalyseK3YUID($this, $Password, $false)[0, 2];
-        Write-Verbose "->[D.IsValid: $IsValid, D.Compression: $Compression]<-"
         if (-not $IsValid) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") };
         if ($Compression.Equals('')) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Invalid Compression.", [System.ArgumentNullException]::new('Compression')) };
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
@@ -1969,10 +1964,8 @@ class K3Y {
     }
     [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID, [bool]$ThrowOnFailure) {
         # The K3Y 'UID' is a fancy way of storing the Key version, user, Compressiontype and Other Information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
-        Write-Verbose "Setkuid With $Compression Compression"
         if (!$this.HasUID()) {
             Invoke-Command -InputObject $this.UID -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-                        Write-Verbose "Inv-com ..Setk With $Compression Compression"
                         $K3YIdSTR = [string]::Empty; Set-Variable -Name K3YIdSTR -Scope local -Visibility Private -Option Private -Value $([string][K3Y]::GetK3YIdSTR($Password, $Expirity, $Compression, $_PID));
                         Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('UID', { ConvertTo-SecureString -AsPlainText -String '$K3YIdSTR' -Force }))";
                     }
@@ -2420,9 +2413,9 @@ function Encrypt-Object {
     .LINK
         Decrypt-Object
     .EXAMPLE
-        $enc = Encrypt-Object -Object "Hello World!" -Password $(Read-Host -AsSecureString -Prompt 'Password') -KeyOutFile .\PublicKee.txt
+        $enc = Encrypt-Object -Object "Hello World!" -Password $([K3Y]::GetPassword()) -KeyOutFile .\PublicKee.txt
 
-        $dec = Decrypt-Object -InputBytes $enc -Password $(Read-Host -AsSecureString -Prompt 'Password') -PublicKey $(cat .\PublicKee.txt)
+        $dec = Decrypt-Object -InputBytes $enc -Password $([K3Y]::GetPassword()) -PublicKey $(cat .\PublicKee.txt)
 
     .EXAMPLE
         Encrypt-Object "This is my email, don't show it to anyone. alain.1337dev@outlook.com"
