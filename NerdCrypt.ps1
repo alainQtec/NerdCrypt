@@ -2883,7 +2883,7 @@ function UnProtect-Data {
         [ValidateSet('CurrentUser', 'LocalMachine')]
         [ValidateNotNullOrEmpty()]
         [Alias('ProtectionScope')]
-        [string]$Scope,
+        [string]$Scope = 'CurrentUser',
 
         [Parameter(Mandatory = $false, Position = 2, ParameterSetName = '__AllParameterSets')]
         [ValidateNotNullOrEmpty()]
@@ -3014,9 +3014,7 @@ namespace CredManager {
     }
 }
 "@
-if (![bool]("CredManager.Util" -as "type")) {
-    Add-Type -TypeDefinition $code -Language CSharp
-}
+if (![bool]("CredManager.Util" -as "type")) { Add-Type -TypeDefinition $code -Language CSharp }
 # How to store credentials
 # [CredManager.Util]::SetUserCredential("Application Name", "Username", "Password")
 # # How to retrieve credentials
