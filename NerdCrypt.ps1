@@ -1920,6 +1920,10 @@ class K3Y {
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$Password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
         $Password = [securestring]$this.ResolvePassword($Password); $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
+
+        ($IsValid, $Compression) = [k3Y]::AnalyseK3YUID($this, $Password, $false)[0, 2];
+        Write-Verbose "->[E.IsValid: $IsValid, E.Compression: $Compression]<-"
+
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
@@ -1931,7 +1935,7 @@ class K3Y {
     [byte[]]Decrypt([byte[]]$bytesToDecrypt, [securestring]$Password, [byte[]]$salt) {
         $Password = [securestring]$this.ResolvePassword($Password); # (Get The real Password)
         ($IsValid, $Compression) = [k3Y]::AnalyseK3YUID($this, $Password, $false)[0, 2];
-        Write-Verbose "[IsValid: $IsValid, Compression: $Compression]"
+        Write-Verbose "->[D.IsValid: $IsValid, D.Compression: $Compression]<-"
         if (-not $IsValid) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") };
         if ($Compression.Equals('')) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Invalid Compression.", [System.ArgumentNullException]::new('Compression')) };
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
@@ -1965,8 +1969,10 @@ class K3Y {
     }
     [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID, [bool]$ThrowOnFailure) {
         # The K3Y 'UID' is a fancy way of storing the Key version, user, Compressiontype and Other Information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
+        Write-Verbose "Setkuid With $Compression Compression"
         if (!$this.HasUID()) {
             Invoke-Command -InputObject $this.UID -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                        Write-Verbose "Inv-com ..Setk With $Compression Compression"
                         $K3YIdSTR = [string]::Empty; Set-Variable -Name K3YIdSTR -Scope local -Visibility Private -Option Private -Value $([string][K3Y]::GetK3YIdSTR($Password, $Expirity, $Compression, $_PID));
                         Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('UID', { ConvertTo-SecureString -AsPlainText -String '$K3YIdSTR' -Force }))";
                     }
@@ -1992,7 +1998,7 @@ class K3Y {
                                             PID      = $_PID
                                         }
                                     )
-                                    BytesCT = [AesLg]::Encrypt([System.Text.Encoding]::UTF7.GetBytes($Compression), $Password);
+                                    BytesCT = [AesLg]::Encrypt(([System.Text.Encoding]::UTF7.GetBytes($Compression)), $Password);
                                 }
                             )
                         )
@@ -2220,16 +2226,16 @@ class K3Y {
         } catch [System.Management.Automation.SetValueException] {
             throw [System.InvalidOperationException]::New('You can only Import One Key.')
         }
-        $Key_UID = [string]::Empty; Set-Variable -Name Key_UID -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::Tostring($K3Y.UID))
-        $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::ToString($this.User.Password));
-        Invoke-Command -InputObject $this -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-                    Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('UID', { ConvertTo-SecureString -AsPlainText -String '$Key_UID' -Force }))";
-                }
-            )
-        )
+        $Key_UID = [string]::Empty; $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::ToString($this.User.Password));
         if ([regex]::IsMatch($hashSTR, "^[A-Fa-f0-9]{72}$")) {
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
                         Invoke-Expression "`$this.User.psobject.Properties.Add([psscriptproperty]::new('Password', { ConvertTo-SecureString -AsPlainText -String '$hashSTR' -Force }))";
+                    }
+                )
+            )
+            Invoke-Command -InputObject $this -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
+                        Set-Variable -Name Key_UID -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::Tostring($K3Y.UID))
+                        Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('UID', { ConvertTo-SecureString -AsPlainText -String '$Key_UID' -Force }))";
                     }
                 )
             )
@@ -2245,7 +2251,7 @@ class K3Y {
         if (-not [bool]("Windows.Security.Credentials.PasswordVault" -as 'Type')) {
             [Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
         }
-        $_Hash = [xconvert]::ToString($this.User.Password); $RName = 'NerdKey' + $_Hash
+        $_Hash = [xconvert]::ToString($this.User.Password); $RName = 'PNKey' + $_Hash
         $vault = New-Object Windows.Security.Credentials.PasswordVault
         $_Cred = New-Object Windows.Security.Credentials.PasswordCredential -ArgumentList ($RName, $this.User.UserName, [xconvert]::Tostring($this))
         Write-Verbose "[i] Saving $RName To Vault .."
@@ -2271,17 +2277,17 @@ class NerdCrypt {
     }
     NerdCrypt([Object]$Object, [string]$PublicKey) {
         $this.Object = [NcObject]::new($Object);
-        $this.SetNerdKey($PublicKey);
+        $this.SetPNKey($PublicKey);
     }
     NerdCrypt([Object]$Object, [string]$User, [string]$PublicKey) {
         $this.Object = [NcObject]::new($Object);
-        $this.SetNerdKey($PublicKey);
+        $this.SetPNKey($PublicKey);
         $this.User.UserName = $User;
     }
     NerdCrypt([Object]$Object, [string]$User, [securestring]$PrivateKey, [string]$PublicKey) {
         $this.Object = [NcObject]::new($Object);
         $this.User.UserName = $User;
-        $this.SetNerdKey($PublicKey);
+        $this.SetPNKey($PublicKey);
         $this.SetCredentials([pscredential]::new($User, $PrivateKey));
     }
     [void]SetBytes([byte[]]$bytes) {
@@ -2354,7 +2360,7 @@ class NerdCrypt {
         return $_bytes
     }
     #endregion ParanoidCrypto
-    [void]SetNerdKey([string]$StringK3y) {
+    [void]SetPNKey([string]$StringK3y) {
         [void]$this.key.Import($StringK3y);
     }
     [Securestring]Securestring() {
@@ -2575,19 +2581,20 @@ function Encrypt-Object {
         if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('Expirity')) { $nc.key.Expirity = [Expirity]::new($Expirity) }
 
         if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('PublicKey')) {
-            $nc.SetNerdKey($PublicKey);
+            $nc.SetPNKey($PublicKey);
         } else {
-            Write-Verbose "[+] Create PublicKey ...";
-            $nc.SetNerdKey($(New-NerdKey -UserName $nc.key.User.UserName -Password $PsW -Expirity $nc.key.Expirity.date -Protect));
+            Write-Verbose "[+] Create PublicKey (PNK) ...";
+            $PNK = New-PNKey -UserName $nc.key.User.UserName -Password $PsW -Expirity $nc.key.Expirity.date -Protect
+            $nc.SetPNKey($PNK);
         }
         $bytes = $nc.Object.Bytes
         [void]$nc.Encrypt($PsW, $Iterations)
         if ($PsCmdlet.ParameterSetName -ne 'WithKey') {
             if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
-                Write-Verbose "[i] Export PublicKey ..."
+                Write-Verbose "[i] Export PublicKey (PNK) ..."
                 $nc.key.Export($KeyOutFile, $true);
             } else {
-                Write-Verbose "[i] Used PublicKey:`n$([xconvert]::Tostring($nc.key))"
+                Write-Verbose "[i] Used PublicKey (PNK):`n$([xconvert]::Tostring($nc.key))"
             }
         }
         $bytes = $(if ($bytes.Equals($nc.Object.Bytes)) { $null }else { $nc.Object.Bytes })
@@ -2686,7 +2693,7 @@ function Decrypt-Object {
         return $bytes
     }
 }
-function New-NerdKey {
+function New-PNKey {
     <#
     .SYNOPSIS
         Create [K3Y] Object and Outputs it as a string.
