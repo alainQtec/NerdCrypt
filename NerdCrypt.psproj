@@ -12,6 +12,12 @@
     <File Build="0" ExportFunctions="True">NerdCrypt.psm1</File>
     <File Build="1">.gitignore</File>
     <File Build="2">en-US\NerdCrypt.psm1-Help.xml</File>
+    <File Build="2" Shared="True" ReferenceFunction="Invoke-NerdCrypt_Class_ps1" ExportFunctions="False">Private\NerdCrypt.Class.ps1</File>
+    <File Build="2" Shared="True" ReferenceFunction="Invoke-Decrypt-Object_ps1" ExportFunctions="False">Public\Decrypt-Object.ps1</File>
+    <File Build="2" Shared="True" ReferenceFunction="Invoke-Encrypt-Object_ps1" ExportFunctions="False">Public\Encrypt-Object.ps1</File>
+    <File Build="2" Shared="True" ReferenceFunction="Invoke-New-PNKey_ps1" ExportFunctions="False">Public\New-PNKey.ps1</File>
+    <File Build="2" Shared="True" ReferenceFunction="Invoke-Protect-Data_ps1" ExportFunctions="False">Public\Protect-Data.ps1</File>
+    <File Build="2" Shared="True" ReferenceFunction="Invoke-UnProtect-Data_ps1" ExportFunctions="False">Public\UnProtect-Data.ps1</File>
   </Files>
   <StartupScript>E:\_UserProfile_\Documents\SAPIEN\PowerShell Studio\Projects\NerdCrypt\Test-Module.ps1</StartupScript>
 </Project>
