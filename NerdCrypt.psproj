@@ -1,0 +1,15 @@
+﻿<Project Synchronized="False" SyncFilter="*.ps1;*.psm1;*.psd1;*.ps1xml;*.psf;*.pss;*.xml;*.help.txt" AutoExportFunctions="True" AutoExportPS1XMLFiles="True">
+  <Version>2.1</Version>
+  <FileID>4d357a12-48a7-4d1d-8d2c-86321faf95d0</FileID>
+  <ProjectType>1</ProjectType>
+  <Folders>
+    <Folder>en-US</Folder>
+  </Folders>
+  <Files>
+    <File Build="2">NerdCrypt.psd1</File>
+    <File Build="0" ExportFunctions="True">NerdCrypt.psm1</File>
+    <File Build="1">.gitignore</File>
+    <File Build="2">en-US\NerdCrypt.psm1-Help.xml</File>
+  </Files>
+  <StartupScript>E:\_UserProfile_\Documents\SAPIEN\PowerShell Studio\Projects\NerdCrypt\Test-Module.ps1</StartupScript>
+</Project>
