@@ -33,3 +33,8 @@ Write-HelloWorld
 #		Write-HelloWorld | Should BeExactly "Hello World"
 #	}
 #}
+# Describe "Check results file is present" {
+#     It "Check results file is present" {
+#         Test-Path Tests\results.log | Should -Be $true
+#     }
+# }
