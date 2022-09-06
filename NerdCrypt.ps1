@@ -272,6 +272,10 @@ class XConvert {
         $CustomObject = [xconvert]::ToPSObject($K3Y);
         return [string][xconvert]::ToCompressed([System.Convert]::ToBase64String([XConvert]::BytesFromObject($CustomObject)));
     }
+    [string]static ToString([byte[]]$Bytes) {
+        # We could do: $CharCodes = [int[]]$Bytes; [xconvert]::Tostring($CharCodes); but lots of data is lost when decoding back ...
+        return [string][System.Convert]::ToBase64String($Bytes);
+    }
     [string[]]static ToString([int[]]$CharCodes) {
         $String = @(); foreach ($n in $CharCodes) { $String += [string][char]$n }
         return $String
