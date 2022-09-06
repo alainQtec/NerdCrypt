@@ -1,2 +1,7 @@
-
-init.cmdtxt
+*.TempPoint.*
+*.Export.*
+*.psprojs
+*.RestorePoint.*
+*.Run.ps1
+*.Package.ps1
+CustomMenu.inf
