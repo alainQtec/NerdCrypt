@@ -2,7 +2,7 @@
 
     AIO PowerShell class to do all things encryption-decryption.
     
-## DESCRIPTION
+# 📖 Description
 
     All in one Encryption Decryption ps Class.
     Great way of Learning Encryption/decryption methods using PowerShell classes
@@ -18,7 +18,7 @@
     There is an option to store your encryption key(s) in Windows Password vault so that the
     Decryptor Function (Decrypt-Object) can use them without need of your input again.
         
-## NOTES
+## 📋 NOTES & Recommendations
 
     + Most of the methods work. (Most).
     + This file is over a 1000 lines (All in One), so use regions code folding if your editor supports it.
@@ -34,3 +34,8 @@ PS C:\> $d = $n.Decrypt(3);
 PS C:\> [xconvert]::BytesToObject($d);
 H3llo W0rld!
 ```
+
+# 📚 Wikis
+
+I'm working hard to explain everything in the [wiki pages](https://github.com/alainQtec/NerdCrypt/wiki)... read it it's important ! you'll find tips, tweaks and many other things... there is nothing here in the readme.
+
