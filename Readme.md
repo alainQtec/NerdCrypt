@@ -17,7 +17,7 @@
     There is an option to store your encryption key(s) in Windows Password vault so that the
     Decryptor Function (Decrypt-Object) can use them without need of your input again.
         
-## 📋 NOTES & Recommendations
+# 📋 NOTES
 
     + Most of the methods work. (Most).
     + This file is over a 1000 lines (All in One), so use regions code folding if your editor supports it.
@@ -38,3 +38,16 @@ H3llo W0rld!
 
 I'm working hard to explain everything in the [wiki pages](https://github.com/alainQtec/NerdCrypt/wiki)... read it it's important ! you'll find tips, tweaks and many other things... there is nothing here in the readme.
 
+# 🤝 Contributions
+
+    The repository is open to suggestions, contributions and all other forms of help.
+    
+To contribute it's easy, just :
+
+- Explain what it does exactly
+
+- Sources of information if possible
+
+- Pull request
+
+For any contribution, it will be signed and thanked with the nickname of the person
