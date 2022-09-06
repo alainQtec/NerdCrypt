@@ -1,10 +1,19 @@
+# Synopsis
 
-    AIO PowerShell class to do all things encryption-decryption.
+## NerdCrypt
+
+NerdCrypt, is an all in one Encryption Decryption Powershell module. It contains tools to ease the work with nerdy cryptography.
+
     
 # 📖 Description
 
-    All in one Encryption Decryption ps Class.
-    Great way of Learning Encryption/decryption methods using PowerShell classes
+    AIO PowerShell module to do all things encryption-decryption.
+    
+## How to install:
+
+```powershell
+Find-module NerdCrypt | install-Module
+```
     
 ### Encryption 
 
