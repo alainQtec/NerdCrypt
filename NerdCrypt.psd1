@@ -38,8 +38,7 @@
     # Processor architecture (None, X86, Amd64, IA64) required by this module
     ProcessorArchitecture  = 'None'
 
-    # Modules that must be imported into the global environment prior to importing
-    # this module
+    # Modules that must be imported into the global environment prior to importing this module
     RequiredModules        = @("SecretManagement.Hashicorp.Vault.KV")
 
     # Assemblies that must be loaded prior to importing this module
@@ -92,10 +91,10 @@
         PSData = @{
 
             # Tags applied to this module. These help with module discovery in online galleries.
-            # Tags = @()
+            Tags = @('Cryptography', 'Encrypt', 'Decrypt', 'AES-256')
 
             # A URL to the license for this module.
-            # LicenseUri = ''
+            LicenseUri = 'https://mit-license.org'
 
             # A URL to the main website for this project.
             # ProjectUri = ''
