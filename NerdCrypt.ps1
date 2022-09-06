@@ -2416,15 +2416,6 @@ function Encrypt-Object {
         $enc = Encrypt-Object -Object "Hello World!" -Password $([K3Y]::GetPassword()) -KeyOutFile .\PublicKee.txt
 
         $dec = Decrypt-Object -InputBytes $enc -Password $([K3Y]::GetPassword()) -PublicKey $(cat .\PublicKee.txt)
-
-    .EXAMPLE
-        Encrypt-Object "This is my email, don't show it to anyone. alain.1337dev@outlook.com"
-
-        ynOESoZ41NLD4tqxkE74HtRYK+iJmjk4/wX8SJ2wFrJUrvV....
-
-        Decrypt-Object "ynOESoZ41NLD4tqxkE74HtRYK+iJmjk4/wX8SJ2wFrJUrvV...."
-
-        This is my email, don't show it to anyone. alain.1337dev@outlook.com
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '', Justification = 'Prefer verb usage')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingConvertSecurestringWithPlainText", '')]
@@ -2605,12 +2596,20 @@ function Decrypt-Object {
     .DESCRIPTION
         Decryts Objects or files.
     .NOTES
-        Information or caveats about the function e.g. 'This function is not supported in Linux'
+        Caveats about the function:
+        - 'This function is not yet supported on Linux'
+        .LINK
+        https://github.com/alainQtec/.files/blob/main/src/scripts/Security/NerdCrypt/NerdCrypt.ps1
     .LINK
-        Specify a URI to a help page, this will show when Get-Help -Online is used.
+        Encrypt-Object
     .EXAMPLE
-        Test-MyTestFunction -Verbose
-        Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines
+        $msg = "This is my email, don't show it to anyone. alain.1337dev@outlook.com"
+
+        $enc = Encrypt-Object $msg -Password $([K3Y]::GetPassword()) -KeyOutFile .\PublicKee.txt
+
+        $dec = Decrypt-Object $enc -Password $([K3Y]::GetPassword()) -PublicKey $(cat .\PublicKee.txt)
+
+        $OGmsg = [xconvert]::BytesToObject($dec)
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '', Justification = 'Prefer verb usage')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingConvertSecurestringWithPlainText", '')]
@@ -2630,12 +2629,6 @@ function Decrypt-Object {
         [Parameter(Mandatory = $true, Position = 2, ParameterSetName = '__AllParameterSets')]
         [ValidateNotNullOrEmpty()]
         [string]$PublicKey,
-
-        # So not worth it! Unless youre too lazy to create a SecureString, Or your Password is temporal (Ex: Gets changed by your Password Generator, every 60 seconds).
-        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithPlainKey')]
-        [ValidateNotNullOrEmpty()]
-        [Alias('PlainPassword')]
-        [string]$PlainPass,
 
         # Source or the Encryption Key. Full/Path of the keyfile you already have. It will be used to lock your keys. (ConvertTo-SecureString -String "Message" -Key [Byte[]])
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithKey')]
@@ -2663,7 +2656,6 @@ function Decrypt-Object {
         $PsW = switch ($PsCmdlet.ParameterSetName) {
             'WithKey' {  }
             'WithVault' {  }
-            'WithPlainKey' { [xconvert]::ToSecurestring($PlainPass) }
             'WithSecureKey' { $PrivateKey }
             Default {
                 throw 'Error!'
