@@ -11,7 +11,4 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
     exit
 }
 #Dot source all functions in all ps1 files located in the Public folder
-Get-ChildItem -Path $PSScriptRoot\Public\*.ps1 -Exclude *.tests.ps1, *profile.ps1 |
-ForEach-Object {
-	. $_.FullName
-}
+Get-ChildItem -Path $PSScriptRoot\Public\*.ps1 -Exclude *.tests.ps1, *profile.ps1 | ForEach-Object { . $_.FullName }
