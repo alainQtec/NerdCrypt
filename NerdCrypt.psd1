@@ -12,7 +12,7 @@
     Author                 = 'Alain Herve'
 
     # Company or vendor of this module
-    CompanyName            = ''
+    CompanyName            = 'alainQtec'
 
     # Copyright statement for this module
     Copyright              = '(c) 2022. All rights reserved.'
