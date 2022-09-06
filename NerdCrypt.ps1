@@ -2819,18 +2819,18 @@ function Protect-Data {
             'string' {
                 if ($PSCmdlet.ShouldProcess("String", "Protect")) {
                     if ($UseCustomEntropy) {
-                        [xconvert]::ToProtected($Msg, $Entropy, [ProtectionScope]$ProtectionScope)
+                        [xconvert]::ToProtected($Msg, $Entropy, [ProtectionScope]$Scope)
                     } else {
-                        [xconvert]::ToProtected($Msg, [ProtectionScope]$ProtectionScope)
+                        [xconvert]::ToProtected($Msg, [ProtectionScope]$Scope)
                     }
                 }
             }
             'Bytes' {
                 if ($PSCmdlet.ShouldProcess("Bytes", "Protect")) {
                     if ($UseCustomEntropy) {
-                        [xconvert]::ToProtected($Bytes, $Entropy, [ProtectionScope]$ProtectionScope)
+                        [xconvert]::ToProtected($Bytes, $Entropy, [ProtectionScope]$Scope)
                     } else {
-                        [xconvert]::ToProtected($Bytes, [ProtectionScope]$ProtectionScope)
+                        [xconvert]::ToProtected($Bytes, [ProtectionScope]$Scope)
                     }
                 }
             }
@@ -2846,9 +2846,29 @@ function Protect-Data {
     }
 }
 function UnProtect-Data {
-    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'Bytes', SupportsShouldProcess = $true)]
+    <#
+    .SYNOPSIS
+        UnProtects data.
+    .DESCRIPTION
+        A longer description of the function, its purpose, common use cases, etc.
+    .NOTES
+        Information or caveats about the function e.g. 'This function is not supported in Linux'
+    .OutPuts
+        Same type as the input type.
+    .LINK
+        https://github.com/alainQtec/.files/blob/main/src/scripts/Security/NerdCrypt/NerdCrypt.ps1
+    #>
+    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'string', SupportsShouldProcess = $true)]
     [OutputType([byte[]])]
     param (
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'String')]
+        [ValidateNotNullOrEmpty()]
+        [string]$MSG,
+
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'SecureString')]
+        [ValidateNotNullOrEmpty()]
+        [securestring]$SecureMSG,
+
         [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Bytes')]
         [ValidateNotNullOrEmpty()]
         [Alias('Bytes')]
@@ -2862,20 +2882,53 @@ function UnProtect-Data {
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = '__AllParameterSets')]
         [ValidateSet('CurrentUser', 'LocalMachine')]
         [ValidateNotNullOrEmpty()]
-        [string]$ProtectionScope
+        [Alias('ProtectionScope')]
+        [string]$Scope,
+
+        [Parameter(Mandatory = $false, Position = 2, ParameterSetName = '__AllParameterSets')]
+        [ValidateNotNullOrEmpty()]
+        [byte[]]$Entropy
     )
 
     begin {
         #Load The Assemblies
         if (!("System.Security.Cryptography.ProtectedData" -is 'Type')) { Add-Type -AssemblyName System.Security }
+        [bool]$UseCustomEntropy = $null -ne $Entropy -and $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('Entropy')
     }
 
     process {
-        if ($PSCmdlet.ParameterSetName -eq 'Xml') {
-            $InputBytes = [xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))
-        }
-        if ($PSCmdlet.ShouldProcess("InputBytes", "Unprotect")) {
-            $UnProtected = [xconvert]::ToUnProtected([byte[]]$InputBytes, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope)
+        $UnProtected = switch ($PsCmdlet.ParameterSetName) {
+            'Xml' {
+                if ($PSCmdlet.ShouldProcess("Xml", "Protect")) {
+                    if ($UseCustomEntropy) {
+                        [xconvert]::ToUnProtected($([xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))), $Entropy, [ProtectionScope]$Scope)
+                    } else {
+                        [xconvert]::ToUnProtected($([xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))), [ProtectionScope]$Scope)
+                    }
+                }
+            }
+            'string' {
+                if ($PSCmdlet.ShouldProcess("String", "Protect")) {
+                    if ($UseCustomEntropy) {
+                        [xconvert]::ToUnProtected($Msg, $Entropy, [ProtectionScope]$Scope)
+                    } else {
+                        [xconvert]::ToUnProtected($Msg, [ProtectionScope]$Scope)
+                    }
+                }
+            }
+            'Bytes' {
+                if ($PSCmdlet.ShouldProcess("Bytes", "Protect")) {
+                    if ($UseCustomEntropy) {
+                        [xconvert]::ToUnProtected($Bytes, $Entropy, [ProtectionScope]$Scope)
+                    } else {
+                        [xconvert]::ToUnProtected($Bytes, [ProtectionScope]$Scope)
+                    }
+                }
+            }
+            'SecureString' { throw 'Yeet!' }
+            Default {
+                throw 'Error!'
+            }
         }
     }
 
