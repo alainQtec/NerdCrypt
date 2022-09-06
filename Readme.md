@@ -1,4 +1,3 @@
-# SYNOPSIS
 
     AIO PowerShell class to do all things encryption-decryption.
     
