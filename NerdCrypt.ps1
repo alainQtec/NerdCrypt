@@ -2879,7 +2879,7 @@ function UnProtect-Data {
         [Alias('XmlDoc')]
         [xml]$InputXml,
 
-        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = '__AllParameterSets')]
+        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = '__A llParameterSets')]
         [ValidateSet('CurrentUser', 'LocalMachine')]
         [ValidateNotNullOrEmpty()]
         [Alias('ProtectionScope')]
