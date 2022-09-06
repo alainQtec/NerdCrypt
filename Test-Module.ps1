@@ -1,10 +1,10 @@
-﻿<#	
+﻿<#
 	.NOTES
 	===========================================================================
-	 Created on:   	9/6/2022 5:36 PM
-	 Created by:   	alain
-	 Organization: 	
-	 Filename:     	Test-Module.ps1
+	Created on:   	9/6/2022 5:36 PM
+	Created by:   	alain
+	Organization: 	alainQtec
+	Filename:     	Test-Module.ps1
 	===========================================================================
 	.DESCRIPTION
 	The Test-Module.ps1 script lets you test the functions and other features of
@@ -16,7 +16,7 @@
 	tests, too.
 
 	To run the script, click Run or Run in Console. Or, when working on any file
-	in the project, click Home\Run or Home\Run in Console, or in the Project pane, 
+	in the project, click Home\Run or Home\Run in Console, or in the Project pane,
 	right-click the project name, and then click Run Project.
 #>
 
@@ -31,5 +31,5 @@ Write-HelloWorld
 #Describe "Test NerdCrypt" {
 #	It "tests Write-HellowWorld" {
 #		Write-HelloWorld | Should BeExactly "Hello World"
-#	}	
+#	}
 #}
