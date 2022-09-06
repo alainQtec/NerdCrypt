@@ -534,6 +534,10 @@ class XConvert {
     [string]static ToProtected([string]$string, [byte[]]$Entropy, [ProtectionScope]$Scope) {
         return [xconvert]::Tostring([xconvert]::ToProtected([xconvert]::BytesFromObject($string), $Entropy, $Scope))
     }
+    [byte[]]static ToProtected([byte[]]$bytes, [ProtectionScope]$Scope) {
+        $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15];
+        return [xconvert]::ToProtected($bytes, $Entropy, $Scope)
+    }
     [byte[]]static ToProtected([byte[]]$bytes, [byte[]]$Entropy, [ProtectionScope]$Scope) {
         $encryptedData = $null; # https://docs.microsoft.com/en-us/dotnet/api/System.Security.Cryptography.ProtectedData.Protect?
         try {
@@ -2743,8 +2747,12 @@ function New-PNKey {
 #region    DataProtection
 function Protect-Data {
     [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'Bytes', SupportsShouldProcess = $true)]
-    [OutputType([byte[]])]
+    [OutputType([Object[]])]
     param (
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'String')]
+        [ValidateNotNullOrEmpty()]
+        [string]$Msg,
+
         [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Bytes')]
         [ValidateNotNullOrEmpty()]
         [byte[]]$Bytes,
@@ -2757,20 +2765,51 @@ function Protect-Data {
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = '__AllParameterSets')]
         [ValidateSet('CurrentUser', 'LocalMachine')]
         [ValidateNotNullOrEmpty()]
-        [string]$Scope
+        [string]$Scope,
+
+        [Parameter(Mandatory = $false, Position = 2, ParameterSetName = '__AllParameterSets')]
+        [ValidateNotNullOrEmpty()]
+        [byte[]]$Entropy
     )
 
     begin {
         #Load The Assemblies
         if (!("System.Security.Cryptography.ProtectedData" -is 'Type')) { Add-Type -AssemblyName System.Security }
+        [bool]$UseCustomEntropy = $null -ne $Entropy -and $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('Entropy')
     }
 
     process {
-        if ($PSCmdlet.ParameterSetName -eq 'Xml') {
-            $InputBytes = [xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))
-        }
-        if ($PSCmdlet.ShouldProcess("InputObj", "Protect")) {
-            $ProtectedD = [xconvert]::ToProtected([byte[]]$InputBytes, [byte[]]$Entropy, [ProtectionScope]$ProtectionScope)
+        $ProtectedD = switch ($PsCmdlet.ParameterSetName) {
+            'Xml' {
+                if ($PSCmdlet.ShouldProcess("Xml", "Protect")) {
+                    if ($UseCustomEntropy) {
+                        [xconvert]::ToProtected($([xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))), $Entropy, [ProtectionScope]$ProtectionScope)
+                    } else {
+                        [xconvert]::ToProtected($([xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))), [ProtectionScope]$ProtectionScope)
+                    }
+                }
+            }
+            'string' {
+                if ($PSCmdlet.ShouldProcess("String", "Protect")) {
+                    if ($UseCustomEntropy) {
+                        [xconvert]::ToProtected($Msg, $Entropy, [ProtectionScope]$ProtectionScope)
+                    } else {
+                        [xconvert]::ToProtected($Msg, [ProtectionScope]$ProtectionScope)
+                    }
+                }
+            }
+            'Bytes' {
+                if ($PSCmdlet.ShouldProcess("Bytes", "Protect")) {
+                    if ($UseCustomEntropy) {
+                        [xconvert]::ToProtected($Bytes, $Entropy, [ProtectionScope]$ProtectionScope)
+                    } else {
+                        [xconvert]::ToProtected($Bytes, [ProtectionScope]$ProtectionScope)
+                    }
+                }
+            }
+            Default {
+                throw 'Error!'
+            }
         }
     }
 
