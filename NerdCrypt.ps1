@@ -534,6 +534,11 @@ class XConvert {
     [string]static ToProtected([string]$string, [byte[]]$Entropy, [ProtectionScope]$Scope) {
         return [xconvert]::Tostring([xconvert]::ToProtected([xconvert]::BytesFromObject($string), $Entropy, $Scope))
     }
+    [byte[]]static ToProtected([byte[]]$bytes) {
+        $Scope = [ProtectionScope]::CurrentUser
+        $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15];
+        return [xconvert]::ToProtected($bytes, $Entropy, $Scope)
+    }
     [byte[]]static ToProtected([byte[]]$bytes, [ProtectionScope]$Scope) {
         $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15];
         return [xconvert]::ToProtected($bytes, $Entropy, $Scope)
@@ -552,12 +557,12 @@ class XConvert {
         }
         return $encryptedData
     }
-    [string]static ToUnProtected([string]$string, [ProtectionScope]$Scope) {
+    [string]static ToUnProtected([string]$string) {
+        $Scope = [ProtectionScope]::CurrentUser
         $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15];
         return [xconvert]::BytesToObject([XConvert]::ToUnProtected([xconvert]::BytesFromObject($string), $Entropy, $Scope))
     }
-    [string]static ToUnProtected([string]$string) {
-        $Scope = [ProtectionScope]::CurrentUser
+    [string]static ToUnProtected([string]$string, [ProtectionScope]$Scope) {
         $Entropy = [System.Text.Encoding]::UTF8.GetBytes([xgen]::UniqueMachineId())[0..15];
         return [xconvert]::BytesToObject([XConvert]::ToUnProtected([xconvert]::BytesFromObject($string), $Entropy, $Scope))
     }
@@ -2601,8 +2606,8 @@ function Decrypt-Object {
         Decryts Objects or files.
     .NOTES
         Caveats about the function:
-        - 'This function is not yet supported on Linux'
-        .LINK
+        .'This function is not yet supported on Linux'
+    .LINK
         https://github.com/alainQtec/.files/blob/main/src/scripts/Security/NerdCrypt/NerdCrypt.ps1
     .LINK
         Encrypt-Object
@@ -2746,12 +2751,33 @@ function New-PNKey {
 }
 #region    DataProtection
 function Protect-Data {
-    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'Bytes', SupportsShouldProcess = $true)]
+    <#
+    .SYNOPSIS
+        Protects data.
+    .DESCRIPTION
+        A longer description of the function, its purpose, common use cases, etc.
+    .NOTES
+        Information or caveats about the function e.g. 'This function is not supported in Linux'
+    .OutPuts
+        Same type as the input type.
+    .LINK
+        https://github.com/alainQtec/.files/blob/main/src/scripts/Security/NerdCrypt/NerdCrypt.ps1
+    .EXAMPLE
+        [string]$sec = Protect-Data 'This Is a secret message 😉...'
+
+    .EXAMPLE
+        [securestring]$sec = Protect-Data [securestring]$MyPassPhrase
+    #>
+    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'String', SupportsShouldProcess = $true)]
     [OutputType([Object[]])]
     param (
         [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'String')]
         [ValidateNotNullOrEmpty()]
-        [string]$Msg,
+        [string]$MSG,
+
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'SecureString')]
+        [ValidateNotNullOrEmpty()]
+        [securestring]$SecureMSG,
 
         [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Bytes')]
         [ValidateNotNullOrEmpty()]
@@ -2807,6 +2833,7 @@ function Protect-Data {
                     }
                 }
             }
+            'SecureString' { throw 'Yeet!' }
             Default {
                 throw 'Error!'
             }
