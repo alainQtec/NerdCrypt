@@ -24,4 +24,8 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
     [System.Diagnostics.Process]::Start($Process);
     exit
 }
-Install-Module -Name SecretManagement.Hashicorp.Vault.KV -RequiredVersion 1.1.0
+#Dot source all functions in all ps1 files located in the Public folder
+Get-ChildItem -Path $PSScriptRoot\Public\*.ps1 -Exclude *.tests.ps1, *profile.ps1 |
+ForEach-Object {
+	. $_.FullName
+}
