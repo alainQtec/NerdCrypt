@@ -4,6 +4,8 @@
   <ProjectType>1</ProjectType>
   <Folders>
     <Folder>en-US</Folder>
+    <Folder>Private</Folder>
+    <Folder>Public</Folder>
   </Folders>
   <Files>
     <File Build="2">NerdCrypt.psd1</File>
