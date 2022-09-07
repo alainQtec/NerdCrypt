@@ -4,18 +4,22 @@
 
 NerdCrypt, is an all in one Encryption Decryption Powershell module. It contains tools to ease the work with nerdy cryptography.
 
-    
+![image](https://user-images.githubusercontent.com/79479952/188850081-673ff3bf-d2b1-4027-876a-30c46a25aee0.png)
+
+
 # 📖 Description
 
     AIO PowerShell module to do all things encryption-decryption.
-    
+
 ## How to install:
 
 ```powershell
 Find-module NerdCrypt | install-Module
 ```
-    
-### Encryption 
+
+To build and test the module, run `build.ps1`.
+
+### Encryption
 
     Applies several paranoid encryptions to an Object or a file.
     Encryption can be applied to any item that can be converted to a byte array.
@@ -25,14 +29,14 @@ Find-module NerdCrypt | install-Module
 
     There is an option to store your encryption key(s) in Windows Password vault so that the
     Decryptor Function (Decrypt-Object) can use them without need of your input again.
-        
+
 # 📋 NOTES
 
     + Most of the methods work. (Most).
     + This file is over a 1000 lines (All in One), so use regions code folding if your editor supports it.
-    
+
 ## Examples
-    
+
 ```Powershell
 PS C:\> # Try this:
 PS C:\> iex $((Invoke-RestMethod -Method Get https://api.github.com/gists/217860de99e8ddb89a8820add6f6980f).files.'Nerdcrypt.ps1'.content)
@@ -50,7 +54,7 @@ I'm working hard to explain everything in the [wiki pages](https://github.com/al
 # 🤝 Contributions
 
     The repository is open to suggestions, contributions and all other forms of help.
-    
+
 To contribute it's easy, just :
 
 - Explain what it does exactly
