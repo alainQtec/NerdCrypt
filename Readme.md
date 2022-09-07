@@ -1,6 +1,6 @@
 # Synopsis
 
-## NerdCrypt
+## ![image](https://user-images.githubusercontent.com/79479952/188853377-13e0a8a3-ed54-4dfe-a298-73360e79722a.png)
 
 NerdCrypt, is an all in one Encryption Decryption Powershell module. It contains tools to ease the work with nerdy cryptography.
 
