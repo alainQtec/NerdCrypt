@@ -1,10 +1,10 @@
 # Synopsis
 
-## ![image](https://github.com/alainQtec/NerdCrypt/bin/logo_text.png)
+## ![logo_text](https://user-images.githubusercontent.com/79479952/188858942-da5021ad-35a2-4793-836b-3305e153e1df.png)
 
 NerdCrypt, is an all in one Encryption Decryption Powershell module. It contains tools to ease the work with nerdy cryptography.
 
-![image](https://github.com/alainQtec/NerdCrypt/bin/logo.png)
+![logo](https://user-images.githubusercontent.com/79479952/188859195-36b440a9-c3f8-4294-b897-a3898eeb62a3.png)
 
 
 # 📖 Description
