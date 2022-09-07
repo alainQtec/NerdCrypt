@@ -84,7 +84,7 @@ $ManifestInfo = @{
             Tags         = @('Cryptography', 'Encrypt', 'Decrypt', 'AES-256')
             LicenseUri   = 'https://github.com/alainQtec/NerdCrypt/blob/main/LICENSE' # https://mit-license.org
             ProjectUri   = 'https://github.com/alainQtec/NerdCrypt'
-            IconUri      = 'https://raw.githubusercontent.com/alainQtec/NerdCrypt/main/bin/logo.png'
+            IconUri      = 'https://user-images.githubusercontent.com/79479952/188859195-36b440a9-c3f8-4294-b897-a3898eeb62a3.png'
             ReleaseNotes = "$ReleaseNotes"
         }
     }
