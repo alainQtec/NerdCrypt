@@ -10,13 +10,14 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
     [System.Diagnostics.Process]::Start($Process);
     exit
 }
-$Version = (Get-Content $PSScriptRoot\version.txt)
+$script:ErrorActionPreference = 'Stop'
+$script:VerbosePreference = 'SilentlyContinue'
 
-# Cleanup last BUILD
+Write-Verbose "[+] Cleanup files from last BUILD ..."
 $module = "$PSScriptRoot\module"
 Remove-Item $module -Recurse -Force -ErrorAction SilentlyContinue; $null = New-Item $module -ItemType Directory
 
-# Fix DePendencies
+Write-Verbose "[+] Resolve dependencies ..."
 $DePendencies = @(
     "Pester"
     "PSScriptAnalyzer"
@@ -27,67 +28,48 @@ foreach ($ModName in $DePendencies) {
     if (-not $installed) { Install-Module $ModName -Force -Scope CurrentUser }
 }
 
-# Copy Necessay Module files:
+Write-Verbose "[+] Create Necessay Module files.."
 $moduleItems = @(
     "en-US"
     "Private"
     "Public"
     "LICENSE"
-    "NerdCrypt.psm1"
 )
 foreach ($Item in $moduleItems) {
     Copy-Item -Recurse -Path $Item -Destination $module
 }
-#Dot source all functions in all ps1 files located in the Public folder
-'Get-ChildItem -Path $PSScriptRoot\Public\*.ps1 -Exclude *.tests.ps1, *profile.ps1 | ForEach-Object { . $_.FullName }' | Add-Content -Path (Join-Path $module "NerdCrypt.psm1")
 
-$ManifestInfo = @{
-    RootModule             = 'NerdCrypt.psm1'
-    ModuleVersion          = $Version
-    GUID                   = '4d357a12-48a7-4d1d-8d2c-86321faf95d0'
-    Author                 = 'Alain Herve'
-    CompanyName            = 'alainQtec'
-    Copyright              = '(c) 2022. All rights reserved.'
-    Description            = 'AIO PowerShell module to do all things encryption-decryption.'
-    PowerShellVersion      = '3.0'
-    PowerShellHostName     = ''
-    PowerShellHostVersion  = ''
-    DotNetFrameworkVersion = '2.0'
-    CLRVersion             = '2.0.50727'
-    ProcessorArchitecture  = 'None'
-    RequiredModules        = @("SecretManagement.Hashicorp.Vault.KV")
-    RequiredAssemblies     = @()
-    ScriptsToProcess       = @("Private\NerdCrypt.Class.ps1")
-    TypesToProcess         = @()
-    FormatsToProcess       = @()
-    NestedModules          = @()
-    FunctionsToExport      = @(
-        'Encrypt-Object',
-        'Decrypt-Object',
-        'New-PNKey',
-        'Protect-Data',
-        'UnProtect-Data'
-    ) #For performance, list functions explicitly
-    CmdletsToExport        = '*'
-    VariablesToExport      = '*'
-    AliasesToExport        = '*' #For performance, list alias explicitly
-    #DSCResourcesToExport = ''
-    # List of all modules packaged with this module
-    ModuleList             = @()
-    # List of all files packaged with this module
-    FileList               = @()
-    # Private data to pass to the module specified in ModuleToProcess. This may also contain a PSData hashtable with additional module metadata used by PowerShell.
-    PrivateData            = @{
-        #Support for PowerShellGet galleries.
-        PSData = @{
-            # Tags applied to this module. These help with module discovery in online galleries.
-            Tags         = @('Cryptography', 'Encrypt', 'Decrypt', 'AES-256')
-            LicenseUri   = 'https://github.com/alainQtec/NerdCrypt/blob/main/LICENSE' # https://mit-license.org
-            ProjectUri   = 'https://github.com/alainQtec/NerdCrypt'
-            IconUri      = 'https://user-images.githubusercontent.com/79479952/188859195-36b440a9-c3f8-4294-b897-a3898eeb62a3.png'
-            ReleaseNotes = "$ReleaseNotes"
-        }
-    }
+$funcStrings = $null
+$buildVersion = Get-Content $PSScriptRoot\version.txt
+$manifestPath = "$PSScriptRoot\NerdCrypt.psd1"
+$publicFuncFolderPath = "$PSScriptRoot\Public"
+$publicFunctions = Get-ChildItem -Path $publicFuncFolderPath -Exclude *.tests.ps1, *profile.ps1 -Filter '*.ps1'
+$publicFunctionNames = $publicFunctions | Select-Object -ExpandProperty BaseName
+
+if (!(Get-PackageProvider | Where-Object { $_.Name -eq 'NuGet' })) {
+    Install-PackageProvider -Name NuGet -Force | Out-Null
 }
-Update-ModuleManifest -Path (Join-Path $module "NerdCrypt.psd1") @ManifestInfo
-Test-Module.ps1
+Import-PackageProvider -Name NuGet -Force | Out-Null
+
+if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
+    Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+}
+
+$manifestContent = (Get-Content -Path $manifestPath -Raw) -replace '<ModuleVersion>', $buildVersion
+
+$funcStrings = if ((Test-Path -Path $publicFuncFolderPath) -and $publicFunctionNames.count -gt 0) { "'$($publicFunctionNames -join "','")'" }
+$scripts2process = "'$PSScriptRoot\Private\NerdCrypt.Class.ps1'"
+$manifestContent = $manifestContent -replace "'<FunctionsToExport>'", $funcStrings
+$manifestContent = $manifestContent -replace "'<ScriptsToProcess>'", $scripts2process
+$manifestContent | Set-Content -Path (Join-Path $module "NerdCrypt.psd1")
+
+#Dot source all functions in all ps1 files located in the Public folder
+$publicFunctions | ForEach-Object { ". $($_.FullName)" } | Add-Content -Path (Join-Path $module "NerdCrypt.psm1")
+
+# iex @"
+# `$ManifestInfo = @{
+#     $manifestContent
+# }
+# "@
+# Update-ModuleManifest -Path (Join-Path $module "NerdCrypt.psd1") @ManifestInfo
+& "$PSScriptRoot\Test-Module.ps1"
