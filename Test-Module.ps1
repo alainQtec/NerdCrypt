@@ -15,6 +15,8 @@
 #>
 
 #Explicitly import the module for testing
-Import-Module (Join-Path $module "NerdCrypt.psd1")
+$manifestPath = (Join-Path $module "NerdCrypt.psd1")
+Import-Module $manifestPath
 Write-Verbose "[+] Running tests ..."
+Test-ModuleManifest -Path $manifestPath -ErrorAction Stop
 Invoke-Pester -Path "$PSScriptRoot\tests"
