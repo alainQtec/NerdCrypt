@@ -19,4 +19,4 @@ $manifestPath = (Join-Path $module "NerdCrypt.psd1")
 Import-Module $manifestPath
 Write-Verbose "[+] Running tests ..."
 Test-ModuleManifest -Path $manifestPath -ErrorAction Stop
-Invoke-Pester -Path "$PSScriptRoot\tests"
+Invoke-Pester -Path "$PSScriptRoot\tests" -OutputFormat NUnitXml -OutputFile Tests\results.xml
