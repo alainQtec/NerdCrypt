@@ -45,7 +45,7 @@ $funcStrings = $null
 $buildVersion = Get-Content $PSScriptRoot\version.txt
 $manifestPath = "$PSScriptRoot\NerdCrypt.psd1"
 $publicFuncFolderPath = "$PSScriptRoot\Public"
-$publicFunctions = Get-ChildItem -Path $publicFuncFolderPath -Exclude *.tests.ps1, *profile.ps1 -Filter '*.ps1'
+$publicFunctions = Get-ChildItem -Path $publicFuncFolderPath -Filter "*.ps1"
 $publicFunctionNames = $publicFunctions | Select-Object -ExpandProperty BaseName
 
 if (!(Get-PackageProvider | Where-Object { $_.Name -eq 'NuGet' })) {
@@ -58,20 +58,14 @@ if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
 }
 
 $manifestContent = (Get-Content -Path $manifestPath -Raw) -replace '<ModuleVersion>', $buildVersion
-
-$funcStrings = if ((Test-Path -Path $publicFuncFolderPath) -and $publicFunctionNames.count -gt 0) { "'$($publicFunctionNames -join "','")'" }
+$funcStrings = if ((Test-Path -Path $publicFuncFolderPath) -and $publicFunctionNames.count -gt 0) { "'$($publicFunctionNames -join "',`n        '")'" }
 $scripts2process = "'$PSScriptRoot\Private\NerdCrypt.Class.ps1'"
+$module_Manifest = Join-Path $module "NerdCrypt.psd1"
 $manifestContent = $manifestContent -replace "'<FunctionsToExport>'", $funcStrings
 $manifestContent = $manifestContent -replace "'<ScriptsToProcess>'", $scripts2process
-$manifestContent | Set-Content -Path (Join-Path $module "NerdCrypt.psd1")
+$manifestContent | Set-Content -Path $module_Manifest
 
 #Dot source all functions in all ps1 files located in the Public folder
 $publicFunctions | ForEach-Object { ". $($_.FullName)" } | Add-Content -Path (Join-Path $module "NerdCrypt.psm1")
-
-# iex @"
-# `$ManifestInfo = @{
-#     $manifestContent
-# }
-# "@
-# Update-ModuleManifest -Path (Join-Path $module "NerdCrypt.psd1") @ManifestInfo
+# Update-ModuleManifest -Path $module_Manifest @ManifestInfo
 & "$PSScriptRoot\Test-Module.ps1"
