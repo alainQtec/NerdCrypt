@@ -21,7 +21,9 @@ Write-Verbose "[+] Resolve dependencies ..."
 $DePendencies = @(
     "Pester"
     "PSScriptAnalyzer"
+    "Microsoft.PowerShell.SecretStore"
     "SecretManagement.Hashicorp.Vault.KV"
+    "Microsoft.PowerShell.SecretManagement"
 )
 foreach ($ModName in $DePendencies) {
     $installed = Import-Module $ModName -PassThru -ErrorAction SilentlyContinue
