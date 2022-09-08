@@ -2243,7 +2243,7 @@ class K3Y {
     [void]SaveToVault() {
         $ThrowOnFailure = $true; [void]$this.HasHashedPassword($ThrowOnFailure)
         if (-not [bool]("Windows.Security.Credentials.PasswordVault" -as 'Type')) {
-            [Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
+            New-Object "Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime" | Out-Null
         }
         $_Hash = [xconvert]::ToString($this.User.Password); $RName = 'PNKey' + $_Hash
         $vault = New-Object Windows.Security.Credentials.PasswordVault
