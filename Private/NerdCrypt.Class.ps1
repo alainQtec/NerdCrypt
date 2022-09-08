@@ -215,10 +215,9 @@ class xgen {
         # [xgen]::Enumerator("my.colors", ('blue', 'red', 'yellow'));
         # [Enum]::GetNames([my.colors]);
         try {
-            $appdomain = [System.Threading.Thread]::GetDomain()
-            $assembly = [System.Reflection.AssemblyName]::new()
+            $assembly = New-Object 'System.Reflection.AssemblyName'
             $assembly.Name = "EmittedEnum"
-            $assemblyBuilder = $appdomain.DefineDynamicAssembly($assembly, [System.Reflection.Emit.AssemblyBuilderAccess]::Save -bor [System.Reflection.Emit.AssemblyBuilderAccess]::Run);
+            $assemblyBuilder = [System.Threading.Thread]::GetDomain().DefineDynamicAssembly($assembly, [System.Reflection.Emit.AssemblyBuilderAccess]::Save -bor [System.Reflection.Emit.AssemblyBuilderAccess]::Run);
             $moduleBuilder = $assemblyBuilder.DefineDynamicModule("DynamicModule", "DynamicModule.mod");
             $enumBuilder = $moduleBuilder.DefineEnum($name, [System.Reflection.TypeAttributes]::Public, [System.Int32]);
             for ($i = 0; $i -lt $Members.count; $i++) { [void]$enumBuilder.DefineLiteral($Members[$i], $i) }
@@ -1795,7 +1794,7 @@ class XOR {
 
 #endregion Usual~Algorithms
 
-#region    FileCryptography
+#region    FileCrypter
 # AES Encrypt-decrypt files.
 Class FileCrypt {
     [ValidateNotNullOrEmpty()][System.IO.FileInfo]static $File
@@ -1881,7 +1880,7 @@ Class FileCrypt {
         }
     }
 }
-#endregion FileCryptography
+#endregion FileCrypter
 
 #region    Custom_Cryptography_Wrapper
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingInvokeExpression", '')]
