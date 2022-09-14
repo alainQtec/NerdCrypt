@@ -287,6 +287,11 @@ Begin {
                 } catch {
                     throw $_
                 }
+                # Create Class
+                $NC_Class = Get-Item ([IO.Path]::Combine($Env:BHPSModulePath, "NerdCrypt.Class.ps1"))
+                if ($PSVersionTable.PSEdition -ne "Core" -and $PSVersionTable.PSVersion.Major -le 5.1) {
+                    (Get-Content $NC_Class.FullName).Replace("    ZLib", '') | Out-File $NC_Class
+                }
                 Write-Verbose -Message 'Creating psm1 ...'
                 $psm1 = New-Item -Path ([IO.Path]::Combine($outputModVerDir, "$($Env:BHProjectName).psm1")) -ItemType File -Force
                 $functionsToExport = @()
