@@ -5,8 +5,8 @@ NerdCrypt, is an all in one Encryption Decryption Powershell module. It contains
 
 
 [![Upload artifact from Ubuntu](https://github.com/alainQtec/NerdCrypt/actions/workflows/Upload_Artifact.yaml/badge.svg)](https://github.com/alainQtec/NerdCrypt/actions/workflows/Upload_Artifact.yaml)
-[![Publish Module to PowerShell Gallery](https://github.com/alainQtec/NerdCrypt/actions/workflows/Publish.yaml/badge.svg)](https://github.com/alainQtec/NerdCrypt/actions/workflows/Publish.yaml)
-[![CI/CD](https://github.com/alainQtec/NerdCrypt/actions/workflows/CI.yaml/badge.svg)](https://github.com/alainQtec/NerdCrypt/actions/workflows/CI.yaml)
+[![Publish Module](https://github.com/alainQtec/NerdCrypt/actions/workflows/Publish.yaml/badge.svg)](https://github.com/alainQtec/NerdCrypt/actions/workflows/Publish.yaml)
+[![CI](https://github.com/alainQtec/NerdCrypt/actions/workflows/CI.yaml/badge.svg?branch=main)](https://github.com/alainQtec/NerdCrypt/actions/workflows/CI.yaml)
 
 ***
 <br />
