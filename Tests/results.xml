@@ -68,7 +68,7 @@
                 <failure>
                   <message>The term 'New-PNKey' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.</message>
                   <stack-trace>at &lt;ScriptBlock&gt;, E:\_UserProfile_\Documents\GitHub\NerdCrypt\tests\Integration.Tests.ps1: line 30
-30:         (New-PNKey -UserName $ENV:USERNAME -Password $(
+30:         (New-PNKey -UserName $Env:USERNAME -Password $(
 </stack-trace>
                 </failure>
               </test-case>
