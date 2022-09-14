@@ -18,6 +18,7 @@
     PS C:\> [xconvert]::BytesToObject($d);
     H3llo W0rld!
 #>
+if ($psver.PSEdition -eq "Core" -or $psver.PSVersion.Major -gt 5.1) {}
 
 #region    Helpers
 
@@ -54,10 +55,10 @@ enum CertStoreName {
     TRUST
     CA
 }
-if ($PSVersionTable.PSEdition -eq "Core" -or $PSVersionTable.PSVersion.Major -gt 5.1) {
-    [void][xgen]::Enumerator('Compression', ('Deflate', 'Gzip', 'ZLib'))
-} else {
-    [void][xgen]::Enumerator('Compression', ('Deflate', 'Gzip'))
+enum Compression {
+    Gzip
+    Deflate
+    ZLib
 }
 # [xgen]::Enumerator('ExpType', ('Milliseconds', 'Years', 'Months', 'Days', 'Hours', 'Minutes', 'Seconds'))
 #endregion enums
@@ -213,22 +214,24 @@ class xgen {
     [string]static UnResolvedPath([System.Management.Automation.SessionState]$session, [string]$Path) {
         return $session.Path.GetUnresolvedProviderPathFromPSPath($Path)
     }
-    [void]static Enumerator([string]$Name, [string[]]$Members) {
-        # Ex:
-        # [xgen]::Enumerator("my.colors", ('blue', 'red', 'yellow'));
-        # [Enum]::GetNames([my.colors]);
-        try {
-            $assembly = New-Object 'System.Reflection.AssemblyName'
-            $assembly.Name = "EmittedEnum"
-            $assemblyBuilder = [System.Threading.Thread]::GetDomain().DefineDynamicAssembly($assembly, [System.Reflection.Emit.AssemblyBuilderAccess]::Save -bor [System.Reflection.Emit.AssemblyBuilderAccess]::Run);
-            $moduleBuilder = $assemblyBuilder.DefineDynamicModule("DynamicModule", "DynamicModule.mod");
-            $enumBuilder = $moduleBuilder.DefineEnum($name, [System.Reflection.TypeAttributes]::Public, [System.Int32]);
-            for ($i = 0; $i -lt $Members.count; $i++) { [void]$enumBuilder.DefineLiteral($Members[$i], $i) }
-            [void]$enumBuilder.CreateType()
-        } catch {
-            throw $_
-        }
-    }
+    # Only Works On ps v5 or below
+    # [void]static Enumerator([string]$Name, [string[]]$Members) {
+    #     # Ex:
+    #     # [xgen]::Enumerator("my.colors", ('blue', 'red', 'yellow'));
+    #     # [Enum]::GetNames([my.colors]);
+    #     try {
+    #         $assembly = New-Object 'System.Reflection.AssemblyName'
+    #         $assembly.Name = "EmittedEnum"
+    #         #Create [System.Reflection.Emit.AssemblyBuilder]
+    #         $assemblyBuilder = [System.Threading.Thread]::GetDomain().DefineDynamicAssembly($assembly, [System.Reflection.Emit.AssemblyBuilderAccess]::Save -bor [System.Reflection.Emit.AssemblyBuilderAccess]::Run);
+    #         $moduleBuilder = $assemblyBuilder.DefineDynamicModule("DynamicModule", "DynamicModule.mod");
+    #         $enumBuilder = $moduleBuilder.DefineEnum($name, [System.Reflection.TypeAttributes]::Public, [System.Int32]);
+    #         for ($i = 0; $i -lt $Members.count; $i++) { [void]$enumBuilder.DefineLiteral($Members[$i], $i) }
+    #         [void]$enumBuilder.CreateType()
+    #     } catch {
+    #         throw $_
+    #     }
+    # }
     [System.Security.Cryptography.Aes]static Aes() { return [xgen]::Aes(1) }
     [System.Security.Cryptography.Aes]static Aes([int]$Iterations) {
         $salt = $null; $password = $null;
