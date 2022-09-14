@@ -10,7 +10,7 @@
 
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'FromK3Y')]
         [Parameter(Mandatory = $false, Position = 0, ParameterSetName = 'Params')]
-        [ValidateNotNullOrEmpty()][string]$UserName = $env:USERNAME,
+        [ValidateNotNullOrEmpty()][string]$UserName = $Env:USERNAME,
 
         [Parameter(Mandatory = $false, Position = 2, ParameterSetName = 'FromK3Y')]
         [Parameter(Mandatory = $true, Position = 1, ParameterSetName = 'Params')]
