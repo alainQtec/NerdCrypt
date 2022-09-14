@@ -288,9 +288,14 @@ Begin {
                     throw $_
                 }
                 # Create Class
-                $NC_Class = Get-Item ([IO.Path]::Combine($Env:BHPSModulePath, "NerdCrypt.Class.ps1"))
+                $_NC_File = [IO.Path]::Combine($Env:BHPSModulePath, "Classes", "NerdCrypt.Class.ps1")
+                $NC_Class = Get-Item $_NC_File
                 if ($PSVersionTable.PSEdition -ne "Core" -and $PSVersionTable.PSVersion.Major -le 5.1) {
-                    (Get-Content $NC_Class.FullName).Replace("    ZLib", '') | Out-File $NC_Class
+                    if ([IO.File]::Exists($NC_Class)) {
+                        (Get-Content $NC_Class.FullName).Replace("    ZLib", '') -match '\S' | Out-File $NC_Class
+                    } else {
+                        Throw [System.IO.FileNotFoundException]::new('Unable to find the specified file.', "$_NC_File")
+                    }
                 }
                 Write-Verbose -Message 'Creating psm1 ...'
                 $psm1 = New-Item -Path ([IO.Path]::Combine($outputModVerDir, "$($Env:BHProjectName).psm1")) -ItemType File -Force
