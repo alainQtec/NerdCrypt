@@ -11,27 +11,6 @@ NerdCrypt, is an all in one Encryption Decryption Powershell module. It contains
 ***
 <br />
 <div align="center">
-  <!-- Azure Pipelines -->
-  <a href="https://dev.azure.com/alainQtec/SCRT%20HQ/_build/latest?definitionId=6">
-    <img src="https://dev.azure.com/alainQtec/SCRT%20HQ/_apis/build/status/NerdCrypt-CI"
-      alt="Azure Pipelines" title="Azure Pipelines" />
-  </a>&nbsp;&nbsp;&nbsp;&nbsp;
-  <!-- Discord -->
-  <a href="https://discord.gg/G66zVG7">
-    <img src="https://img.shields.io/discord/235574673155293194.svg?style=flat&label=Discord&logo=discord&color=purple"
-      alt="Discord - Chat" title="Discord - Chat" />
-  </a>&nbsp;&nbsp;&nbsp;&nbsp;
-  <!-- Slack -->
-  <a href="https://alainQtec-slack-invite.herokuapp.com/">
-    <img src="https://img.shields.io/badge/chat-on%20slack-orange.svg?style=flat&logo=slack"
-      alt="Slack - Chat" title="Slack - Chat" />
-  </a>&nbsp;&nbsp;&nbsp;&nbsp;
-  <!-- Codacy -->
-  <a href="https://www.codacy.com/app/alainQtec/NerdCrypt?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=alainQtec/NerdCrypt&amp;utm_campaign=Badge_Grade">
-    <img src="https://api.codacy.com/project/badge/Grade/63f7e2eb9b764c62a4ff196f68c59100"
-      alt="Codacy" title="Codacy" />
-  </a>
-  </br>
   </br>
   <!-- PS Gallery -->
   <a href="https://www.PowerShellGallery.com/packages/NerdCrypt">
@@ -41,12 +20,13 @@ NerdCrypt, is an all in one Encryption Decryption Powershell module. It contains
   <!-- GitHub Releases -->
   <a href="https://github.com/alainQtec/NerdCrypt/releases/latest">
     <img src="https://img.shields.io/github/downloads/alainQtec/NerdCrypt/total.svg?logo=github&color=blue"
-      alt="GitHub Releases" title="GitHub Releases" />
+      alt="Downloads" title="GitHub Release downloads" />
   </a>&nbsp;&nbsp;&nbsp;&nbsp;
+
   <!-- GitHub Releases -->
   <a href="https://github.com/alainQtec/NerdCrypt/releases/latest">
     <img src="https://img.shields.io/github/release/alainQtec/NerdCrypt.svg?label=version&logo=github"
-      alt="GitHub Releases" title="GitHub Releases" />
+      alt="Version" title="GitHub Release versions" />
   </a>
 </div>
 <br />
@@ -72,10 +52,16 @@ Install-Module NerdCrypt -Scope CurrentUser -Repository PSGallery
 
 To build the module, run `build.ps1`.
 
+Want to run the Pester tests locally? Pass `Test` as the value to the `Task` script parameter like so:
+
+```powershell
+.\build.ps1 -Task Test
+```
+
 To Run all Tests:
 
 ```PowerShell
-.\Test-Module.ps1 -Module $Module_Build_Output_Path -Tests ".\tests"
+.\Test-Module.ps1 -Module $Module_Path -Tests ".\tests"
 ```
 
 ## 📚 **Wikis**
@@ -93,12 +79,6 @@ Please see the [Releases section of this repository](https://github.com/alainQte
 Interested in helping out with the Module development? Please check out our [Contribution Guidelines](https://github.com/alainQtec/NerdCrypt/blob/master/CONTRIBUTING.md)!
 
 Building the module locally to test changes is as easy as running the `build.ps1` file in the root of the repo. This will compile the module with your changes and import the newly compiled module at the end by default.
-
-Want to run the Pester tests locally? Pass `Test` as the value to the `Task` script parameter like so:
-
-```powershell
-.\build.ps1 -Task Test
-```
 
 ## Code of Conduct
 
