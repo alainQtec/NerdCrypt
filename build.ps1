@@ -1,4 +1,14 @@
-﻿[cmdletbinding(DefaultParameterSetName = 'task')]
+﻿<#
+.SYNOPSIS
+    A CUstom BuildScript For The Module NerdCrypt
+.DESCRIPTION
+    A longer description of the function, its purpose, common use cases, etc.
+.LINK
+    Specify a URI to a help page, this will show when Get-Help -Online is used.
+.EXAMPLE
+    .\build.ps1 -Task deploy
+#>
+[cmdletbinding(DefaultParameterSetName = 'task')]
 param(
     [parameter(ParameterSetName = 'task', Position = 0)]
     [ValidateSet('Init', 'Clean', 'Compile', 'Import', 'Test', 'Deploy')]
@@ -51,151 +61,6 @@ Begin {
             Set-EnvironmentVariable BHPSModulePath ([IO.path]::Combine($Env:BHBuildOutput, $Env:BHProjectName, $Env:BHBuildNumber))
             Set-EnvironmentVariable BHPSModuleManifest ([IO.path]::Combine($Env:BHBuildOutput, $Env:BHProjectName, $Env:BHBuildNumber, "$Env:BHProjectName.psd1"))
             Set-EnvironmentVariable BHReleaseNotes "# Changelog`n`n"
-        }
-    )
-    $script:deployScriptBlock = [scriptblock]::Create({
-            if (($Env:BHBuildSystem -eq 'VSTS' -and $Env:BHCommitMessage -match '!deploy' -and $Env:BHBranchName -eq "master") -or $script:ForceDeploy -eq $true) {
-                if ($null -eq (Get-Module PoshTwit -ListAvailable)) {
-                    "    Installing PoshTwit module..."
-                    Install-Module PoshTwit -Scope CurrentUser
-                }
-                Import-Module PoshTwit -Verbose:$false
-                # Load the module, read the exported functions, update the psd1 FunctionsToExport
-                $commParsed = $Env:BHCommitMessage | Select-String -Pattern '\sv\d+\.\d+\.\d+\s'
-                if ($commParsed) {
-                    $commitVer = $commParsed.Matches.Value.Trim().Replace('v', '')
-                }
-                $curVer = (Get-Module $Env:BHProjectName).Version
-                if ($moduleInGallery = Find-Module "$Env:BHProjectName*" -Repository PSGallery) {
-                    $galVer = $moduleInGallery.Version.ToString()
-                    "    Current version on the PSGallery is: $galVer"
-                } else {
-                    $galVer = '0.0.1'
-                }
-                $galVerSplit = $galVer.Split('.')
-                $nextGalVer = [System.Version](($galVerSplit[0..($galVerSplit.Count - 2)] -join '.') + '.' + ([int]$galVerSplit[-1] + 1))
-
-                $versionToDeploy = if ($commitVer -and ([System.Version]$commitVer -lt $nextGalVer)) {
-                    Write-Host -ForegroundColor Yellow "Version in commit message is $commitVer, which is less than the next Gallery version and would result in an error. Possible duplicate deployment build, skipping module bump and negating deployment"
-                    $Env:BHCommitMessage = $Env:BHCommitMessage.Replace('!deploy', '')
-                    $null
-                } elseif ($commitVer -and ([System.Version]$commitVer -gt $nextGalVer)) {
-                    Write-Host -ForegroundColor Green "Module version to deploy: $commitVer [from commit message]"
-                    [System.Version]$commitVer
-                } elseif ($curVer -ge $nextGalVer) {
-                    Write-Host -ForegroundColor Green "Module version to deploy: $curVer [from manifest]"
-                    $curVer
-                } elseif ($Env:BHCommitMessage -match '!hotfix') {
-                    Write-Host -ForegroundColor Green "Module version to deploy: $nextGalVer [commit message match '!hotfix']"
-                    $nextGalVer
-                } elseif ($Env:BHCommitMessage -match '!minor') {
-                    $minorVers = [System.Version]("{0}.{1}.{2}" -f $nextGalVer.Major, ([int]$nextGalVer.Minor + 1), 0)
-                    Write-Host -ForegroundColor Green "Module version to deploy: $minorVers [commit message match '!minor']"
-                    $minorVers
-                } elseif ($Env:BHCommitMessage -match '!major') {
-                    $majorVers = [System.Version]("{0}.{1}.{2}" -f ([int]$nextGalVer.Major + 1), 0, 0)
-                    Write-Host -ForegroundColor Green "Module version to deploy: $majorVers [commit message match '!major']"
-                    $majorVers
-                } else {
-                    Write-Host -ForegroundColor Green "Module version to deploy: $nextGalVer [PSGallery next version]"
-                    $nextGalVer
-                }
-                # Bump the module version
-                if ($versionToDeploy) {
-                    try {
-                        $manifest = Import-PowerShellDataFile -Path $Env:BHPSModuleManifest
-                        if ($Env:BHBuildSystem -eq 'VSTS' -and -not [String]::IsNullOrEmpty($Env:NugetApiKey)) {
-                            $manifestPath = Join-Path $outputModVerDir "$($Env:BHProjectName).psd1"
-                            if (-not $manifest) {
-                                $manifest = Import-PowerShellDataFile -Path $manifestPath
-                            }
-                            if ($manifest.ModuleVersion.ToString() -eq $versionToDeploy.ToString()) {
-                                "    Manifest is already the expected version. Skipping manifest version update"
-                            } else {
-                                "    Updating module version on manifest to [$($versionToDeploy)]"
-                                Update-Metadata -Path $manifestPath -PropertyName ModuleVersion -Value $versionToDeploy -Verbose
-                            }
-                            try {
-                                "    Publishing version [$($versionToDeploy)] to PSGallery..."
-                                Publish-Module -Path $outputModVerDir -NuGetApiKey $Env:NugetApiKey -Repository PSGallery -Verbose
-                                "    Deployment successful!"
-                            } catch {
-                                $err = $_
-                                Write-BuildError $err.Exception.Message
-                                throw $err
-                            }
-                        } else {
-                            "    [SKIPPED] Deployment of version [$($versionToDeploy)] to PSGallery"
-                        }
-                        $commitId = git rev-parse --verify HEAD
-                        if (-not [String]::IsNullOrEmpty($Env:GitHubPAT)) {
-                            "    Creating Release ZIP..."
-                            $zipPath = [System.IO.Path]::Combine($PSScriptRoot, "$($Env:BHProjectName).zip")
-                            if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-                            Add-Type -Assembly System.IO.Compression.FileSystem
-                            [System.IO.Compression.ZipFile]::CreateFromDirectory($outputModDir, $zipPath)
-                            "    Publishing Release v$($versionToDeploy) @ commit Id [$($commitId)] to GitHub..."
-                            $ReleaseNotes = $Env:BHReleaseNotes
-                            $ReleaseNotes += (git log -1 --pretty=%B | Select-Object -Skip 2) -join "`n"
-                            $ReleaseNotes += "`n`n***`n`n# Instructions`n`n"
-                            $ReleaseNotes += @"
-1. [Click here](https://github.com/alainQtec/$($Env:BHProjectName)/releases/download/v$($versionToDeploy.ToString())/$($Env:BHProjectName).zip) to download the *$($Env:BHProjectName).zip* file attached to the release.
-2. **If on Windows**: Right-click the downloaded zip, select Properties, then unblock the file.
-    > _This is to prevent having to unblock each file individually after unzipping._
-3. Unzip the archive.
-4. (Optional) Place the module folder somewhere in your ``PSModulePath``.
-    > _You can view the paths listed by running the environment variable ```$Env:PSModulePath``_
-5. Import the module, using the full path to the PSD1 file in place of ``$($Env:BHProjectName)`` if the unzipped module folder is not in your ``PSModulePath``:
-    ``````powershell
-    # In `$Env:PSModulePath
-    Import-Module $($Env:BHProjectName)
-
-    # Otherwise, provide the path to the manifest:
-    Import-Module -Path C:\MyPSModules\$($Env:BHProjectName)\$($versionToDeploy.ToString())\$($Env:BHProjectName).psd1
-    ``````
-"@
-                            Set-Item -Path Env:\BHReleaseNotes -Value $ReleaseNotes
-                            $gitHubParams = @{
-                                VersionNumber    = $versionToDeploy.ToString()
-                                CommitId         = $commitId
-                                ReleaseNotes     = $Env:BHReleaseNotes
-                                ArtifactPath     = $zipPath
-                                GitHubUsername   = 'alainQtec'
-                                GitHubRepository = $Env:BHProjectName
-                                GitHubApiKey     = $Env:GitHubPAT
-                                Draft            = $false
-                            }
-                            Publish-GithubRelease @gitHubParams
-                            "    Release creation successful!"
-                        } else {
-                            "    [SKIPPED] Publishing Release v$($versionToDeploy) @ commit Id [$($commitId)] to GitHub"
-                        }
-                        if ($Env:BHBuildSystem -eq 'VSTS' -and -not [String]::IsNullOrEmpty($Env:TwitterAccessSecret) -and -not [String]::IsNullOrEmpty($Env:TwitterAccessToken) -and -not [String]::IsNullOrEmpty($Env:TwitterConsumerKey) -and -not [String]::IsNullOrEmpty($Env:TwitterConsumerSecret)) {
-                            "    Publishing tweet about new release..."
-                            $text = "#$($Env:BHProjectName) v$($versionToDeploy) is now available on the #PSGallery! https://www.powershellgallery.com/packages/$($Env:BHProjectName)/$($versionToDeploy.ToString()) #PowerShell"
-                            $manifest.PrivateData.PSData.Tags | ForEach-Object {
-                                $text += " #$($_)"
-                            }
-                            if ($text.Length -gt 280) {
-                                "    Trimming [$($text.Length - 280)] extra characters from tweet text to get to 280 character limit..."
-                                $text = $text.Substring(0, 280)
-                            }
-                            "    Tweet text: $text"
-                            Publish-Tweet -Tweet $text -ConsumerKey $Env:TwitterConsumerKey -ConsumerSecret $Env:TwitterConsumerSecret -AccessToken $Env:TwitterAccessToken -AccessSecret $Env:TwitterAccessSecret
-                            "    Tweet successful!"
-                        } else {
-                            "    [SKIPPED] Twitter update of new release"
-                        }
-                    } catch {
-                        Write-BuildError $_
-                    }
-                } else {
-                    Write-Host -ForegroundColor Yellow "No module version matched! Negating deployment to prevent errors"
-                    $Env:BHCommitMessage = $Env:BHCommitMessage.Replace('!deploy', '')
-                }
-            } else {
-                Write-Host -ForegroundColor Magenta "Build system is not VSTS, commit message does not contain '!deploy' and/or branch is not 'master' -- skipping module update!"
-            }
         }
     )
     $script:PSake_ScriptBlock = [scriptblock]::Create({
@@ -382,8 +247,149 @@ Begin {
                 $Env:PSModulePath = $origModulePath
             } -description 'Run Pester tests against compiled module'
 
-            Task Deploy -depends Init $deployScriptBlock -description 'Deploy module to PSGallery' -preaction {
-                Import-Module $outputModDir -Force -Verbose:$false
+            Task Deploy -depends Init -description 'Deploy module to PSGallery' -preaction {
+                if (($Env:BHBuildSystem -eq 'VSTS' -and $Env:BHCommitMessage -match '!deploy' -and $Env:BHBranchName -eq "main") -or $script:ForceDeploy -eq $true) {
+                    if ($null -eq (Get-Module PoshTwit -ListAvailable)) {
+                        "    Installing PoshTwit module..."
+                        Install-Module PoshTwit -Scope CurrentUser
+                    }
+                    Import-Module PoshTwit -Verbose:$false
+                    # Load the module, read the exported functions, update the psd1 FunctionsToExport
+                    $commParsed = $Env:BHCommitMessage | Select-String -Pattern '\sv\d+\.\d+\.\d+\s'
+                    if ($commParsed) {
+                        $commitVer = $commParsed.Matches.Value.Trim().Replace('v', '')
+                    }
+                    $CurrentVersion = (Get-Module $Env:BHProjectName).Version
+                    if ($moduleInGallery = Find-Module "$Env:BHProjectName*" -Repository PSGallery) {
+                        $galVer = $moduleInGallery.Version.ToString()
+                        "    Current version on the PSGallery is: $galVer"
+                    } else {
+                        $galVer = '0.0.1'
+                    }
+                    $galVerSplit = $galVer.Split('.')
+                    $nextGalVer = [System.Version](($galVerSplit[0..($galVerSplit.Count - 2)] -join '.') + '.' + ([int]$galVerSplit[-1] + 1))
+
+                    $versionToDeploy = if ($commitVer -and ([System.Version]$commitVer -lt $nextGalVer)) {
+                        Write-Host -ForegroundColor Yellow "Version in commit message is $commitVer, which is less than the next Gallery version and would result in an error. Possible duplicate deployment build, skipping module bump and negating deployment"
+                        $Env:BHCommitMessage = $Env:BHCommitMessage.Replace('!deploy', '')
+                        $null
+                    } elseif ($commitVer -and ([System.Version]$commitVer -gt $nextGalVer)) {
+                        Write-Host -ForegroundColor Green "Module version to deploy: $commitVer [from commit message]"
+                        [System.Version]$commitVer
+                    } elseif ($CurrentVersion -ge $nextGalVer) {
+                        Write-Host -ForegroundColor Green "Module version to deploy: $CurrentVersion [from manifest]"
+                        $CurrentVersion
+                    } elseif ($Env:BHCommitMessage -match '!hotfix') {
+                        Write-Host -ForegroundColor Green "Module version to deploy: $nextGalVer [commit message match '!hotfix']"
+                        $nextGalVer
+                    } elseif ($Env:BHCommitMessage -match '!minor') {
+                        $minorVers = [System.Version]("{0}.{1}.{2}" -f $nextGalVer.Major, ([int]$nextGalVer.Minor + 1), 0)
+                        Write-Host -ForegroundColor Green "Module version to deploy: $minorVers [commit message match '!minor']"
+                        $minorVers
+                    } elseif ($Env:BHCommitMessage -match '!major') {
+                        $majorVers = [System.Version]("{0}.{1}.{2}" -f ([int]$nextGalVer.Major + 1), 0, 0)
+                        Write-Host -ForegroundColor Green "Module version to deploy: $majorVers [commit message match '!major']"
+                        $majorVers
+                    } else {
+                        Write-Host -ForegroundColor Green "Module version to deploy: $nextGalVer [PSGallery next version]"
+                        $nextGalVer
+                    }
+                    # Bump the module version
+                    if ($versionToDeploy) {
+                        try {
+                            $manifest = Import-PowerShellDataFile -Path $Env:BHPSModuleManifest
+                            if ($Env:BHBuildSystem -eq 'VSTS' -and -not [String]::IsNullOrEmpty($Env:NugetApiKey)) {
+                                $manifestPath = Join-Path $outputModVerDir "$($Env:BHProjectName).psd1"
+                                if (-not $manifest) {
+                                    $manifest = Import-PowerShellDataFile -Path $manifestPath
+                                }
+                                if ($manifest.ModuleVersion.ToString() -eq $versionToDeploy.ToString()) {
+                                    "    Manifest is already the expected version. Skipping manifest version update"
+                                } else {
+                                    "    Updating module version on manifest to [$($versionToDeploy)]"
+                                    Update-Metadata -Path $manifestPath -PropertyName ModuleVersion -Value $versionToDeploy -Verbose
+                                }
+                                try {
+                                    "    Publishing version [$($versionToDeploy)] to PSGallery..."
+                                    Publish-Module -Path $outputModVerDir -NuGetApiKey $Env:NugetApiKey -Repository PSGallery -Verbose
+                                    "    Deployment successful!"
+                                } catch {
+                                    $err = $_
+                                    Write-BuildError $err.Exception.Message
+                                    throw $err
+                                }
+                            } else {
+                                "    [SKIPPED] Deployment of version [$($versionToDeploy)] to PSGallery"
+                            }
+                            $commitId = git rev-parse --verify HEAD
+                            if (-not [String]::IsNullOrEmpty($Env:GitHubPAT)) {
+                                "    Creating Release ZIP..."
+                                $zipPath = [System.IO.Path]::Combine($PSScriptRoot, "$($Env:BHProjectName).zip")
+                                if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+                                Add-Type -Assembly System.IO.Compression.FileSystem
+                                [System.IO.Compression.ZipFile]::CreateFromDirectory($outputModDir, $zipPath)
+                                "    Publishing Release v$($versionToDeploy) @ commit Id [$($commitId)] to GitHub..."
+                                $ReleaseNotes = $Env:BHReleaseNotes
+                                $ReleaseNotes += (git log -1 --pretty=%B | Select-Object -Skip 2) -join "`n"
+                                $ReleaseNotes += "`n`n***`n`n# Instructions`n`n"
+                                $ReleaseNotes += @"
+1. [Click here](https://github.com/alainQtec/$($Env:BHProjectName)/releases/download/v$($versionToDeploy.ToString())/$($Env:BHProjectName).zip) to download the *$($Env:BHProjectName).zip* file attached to the release.
+2. **If on Windows**: Right-click the downloaded zip, select Properties, then unblock the file.
+    > _This is to prevent having to unblock each file individually after unzipping._
+3. Unzip the archive.
+4. (Optional) Place the module folder somewhere in your ``PSModulePath``.
+    > _You can view the paths listed by running the environment variable ```$Env:PSModulePath``_
+5. Import the module, using the full path to the PSD1 file in place of ``$($Env:BHProjectName)`` if the unzipped module folder is not in your ``PSModulePath``:
+    ``````powershell
+    # In `$Env:PSModulePath
+    Import-Module $($Env:BHProjectName)
+
+    # Otherwise, provide the path to the manifest:
+    Import-Module -Path C:\MyPSModules\$($Env:BHProjectName)\$($versionToDeploy.ToString())\$($Env:BHProjectName).psd1
+    ``````
+"@
+                                Set-EnvironmentVariable BHReleaseNotes $ReleaseNotes
+                                $gitHubParams = @{
+                                    VersionNumber    = $versionToDeploy.ToString()
+                                    CommitId         = $commitId
+                                    ReleaseNotes     = $Env:BHReleaseNotes
+                                    ArtifactPath     = $zipPath
+                                    GitHubUsername   = 'alainQtec'
+                                    GitHubRepository = $Env:BHProjectName
+                                    GitHubApiKey     = $Env:GitHubPAT
+                                    Draft            = $false
+                                }
+                                Publish-GithubRelease @gitHubParams
+                                "    Release creation successful!"
+                            } else {
+                                "    [SKIPPED] Publishing Release v$($versionToDeploy) @ commit Id [$($commitId)] to GitHub"
+                            }
+                            if ($Env:BHBuildSystem -eq 'VSTS' -and -not [String]::IsNullOrEmpty($Env:TwitterAccessSecret) -and -not [String]::IsNullOrEmpty($Env:TwitterAccessToken) -and -not [String]::IsNullOrEmpty($Env:TwitterConsumerKey) -and -not [String]::IsNullOrEmpty($Env:TwitterConsumerSecret)) {
+                                "    Publishing tweet about new release..."
+                                $text = "#$($Env:BHProjectName) v$($versionToDeploy) is now available on the #PSGallery! https://www.powershellgallery.com/packages/$($Env:BHProjectName)/$($versionToDeploy.ToString()) #PowerShell"
+                                $manifest.PrivateData.PSData.Tags | ForEach-Object {
+                                    $text += " #$($_)"
+                                }
+                                if ($text.Length -gt 280) {
+                                    "    Trimming [$($text.Length - 280)] extra characters from tweet text to get to 280 character limit..."
+                                    $text = $text.Substring(0, 280)
+                                }
+                                "    Tweet text: $text"
+                                Publish-Tweet -Tweet $text -ConsumerKey $Env:TwitterConsumerKey -ConsumerSecret $Env:TwitterConsumerSecret -AccessToken $Env:TwitterAccessToken -AccessSecret $Env:TwitterAccessSecret
+                                "    Tweet successful!"
+                            } else {
+                                "    [SKIPPED] Twitter update of new release"
+                            }
+                        } catch {
+                            Write-BuildError $_
+                        }
+                    } else {
+                        Write-Host -ForegroundColor Yellow "No module version matched! Negating deployment to prevent errors"
+                        $Env:BHCommitMessage = $Env:BHCommitMessage.Replace('!deploy', '')
+                    }
+                } else {
+                    Write-Host -ForegroundColor Magenta "Build system is not VSTS,`ncommit message does not contain '!deploy' and/or`nbranch is not 'master' -- skipping module update!"
+                }
             }
         }
     )
@@ -748,8 +754,10 @@ Process {
 
     Invoke-CommandWithLog {
         Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false
-        if (!(Get-PackageProvider -Name Nuget)) { Install-PackageProvider -Name NuGet -Force | Out-Null }
-        Import-PackageProvider -Name NuGet -Force | Out-Null
+        if (!(Get-PackageProvider -Name Nuget)) {
+            Install-PackageProvider -Name NuGet -Force | Out-Null
+        }
+        $null = Import-PackageProvider -Name NuGet -Force
     }
     Invoke-CommandWithLog {
         if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
