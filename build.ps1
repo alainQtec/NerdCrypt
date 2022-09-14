@@ -25,37 +25,36 @@ Begin {
             $gitVars = if ($IsCI) {
                 @{
                     BHBranchName    = $Env:BUILD_SOURCEBRANCHNAME
-                    BHProjectName   = $(if ($Env:BHProjectName) { $Env:BHProjectName }else { 'NerdCrypt' })
                     BHBuildNumber   = $Env:BUILD_BUILDNUMBER
-                    BHBuildOutput   = "$Env:BuildScriptPath\BuildOutput"
                     BHBuildSystem   = 'VSTS'
                     BHProjectPath   = $Env:SYSTEM_DEFAULTWORKINGDIRECTORY
                     BHCommitMessage = $Env:BUILD_SOURCEVERSIONMESSAGE
-                    BHReleaseNotes  = "# Changelog`n`n"
                 }
             } else {
                 @{
                     BHBranchName    = $(Push-Location $Env:BuildScriptPath; (git rev-parse --abbrev-ref HEAD).Trim(); Pop-Location)
-                    BHProjectName   = $(if ($Env:BHProjectName) { $Env:BHProjectName }else { 'NerdCrypt' })
                     BHBuildNumber   = $(if ($buildVersion) { $buildVersion }else { 'Unknown' })
-                    BHBuildOutput   = "$Env:BuildScriptPath\BuildOutput"
                     BHBuildSystem   = [System.Environment]::MachineName
                     BHProjectPath   = $Env:BuildScriptPath
                     BHCommitMessage = $(Push-Location $Env:BuildScriptPath; (git log --format=%B -n 1).Trim(); Pop-Location)
-                    BHReleaseNotes  = "# Changelog`n`n"
                 }
             }
-            Write-Heading 'Setting environment variables if needed'
+            Write-Heading 'Setting environment variables'
+            # If needed:
             foreach ($var in $gitVars.Keys) {
-                if (-not (Test-Path Env:\$var)) {
+                if ([string]::IsNullOrWhiteSpace([System.Environment]::GetEnvironmentVariable('BHBranchName'))) {
                     Set-EnvironmentVariable $var $gitVars[$var]
                 }
             }
+            # Mandatory:
+            Set-EnvironmentVariable BHProjectName $(if ($Env:BHProjectName) { $Env:BHProjectName }else { 'NerdCrypt' })
+            Set-EnvironmentVariable BHBuildOutput ([IO.path]::Combine($Env:BuildScriptPath, "BuildOutput"))
             Set-EnvironmentVariable BHPSModulePath ([IO.path]::Combine($Env:BHBuildOutput, $Env:BHProjectName, $Env:BHBuildNumber))
             Set-EnvironmentVariable BHPSModuleManifest ([IO.path]::Combine($Env:BHBuildOutput, $Env:BHProjectName, $Env:BHBuildNumber, "$Env:BHProjectName.psd1"))
+            Set-EnvironmentVariable BHReleaseNotes "# Changelog`n`n"
         }
     )
-    $deployScriptBlock = [scriptblock]::Create({
+    $script:deployScriptBlock = [scriptblock]::Create({
             if (($Env:BHBuildSystem -eq 'VSTS' -and $Env:BHCommitMessage -match '!deploy' -and $Env:BHBranchName -eq "master") -or $script:ForceDeploy -eq $true) {
                 if ($null -eq (Get-Module PoshTwit -ListAvailable)) {
                     "    Installing PoshTwit module..."
@@ -200,7 +199,7 @@ Begin {
             }
         }
     )
-    $PSake_ScriptBlock = [scriptblock]::Create({
+    $script:PSake_ScriptBlock = [scriptblock]::Create({
             # PSake makes variables declared here available in other scriptblocks
             Properties {
                 # Find the build folder based on build system
