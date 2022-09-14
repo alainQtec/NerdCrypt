@@ -162,17 +162,13 @@ class xgen {
         return $entropy
     }
     [string]static UniqueMachineId() {
-        $Id = [string]($env:MachineId)
+        $Id = [string]($Env:MachineId)
         if ([string]::IsNullOrWhiteSpace($Id)) {
-            Set-Item -Path env:\MachineId -Value $(
-                [string]::Join(':', $(
-                        (Get-CimInstance -Class Win32_BIOS -Verbose:$false | ForEach-Object { ([string]$_.Manufacturer, [string]$_.SerialNumber) }) -join ':',
-                        (Get-CimInstance -Class CIM_Processor -Verbose:$false).ProcessorId, # 2 seconds faster than $([System.Management.ManagementObjectCollection][wmiclass]::new("win32_processor").GetInstances() | Select-Object -ExpandProperty ProcessorId))
-                        (Get-CimInstance -Class Win32_LogicalDisk -Verbose:$false | Where-Object { $_.DeviceID -eq "C:" }).VolumeSerialNumber
-                    )
-                )
-            );
-            $Id = [string]($env:MachineId)
+            $Bios_Id = (Get-CimInstance -Class Win32_BIOS -Verbose:$false | ForEach-Object { ([string]$_.Manufacturer, [string]$_.SerialNumber) }) -join ':'
+            $Proc_Id = (Get-CimInstance -Class CIM_Processor -Verbose:$false).ProcessorId # 2 seconds faster than $([System.Management.ManagementObjectCollection][wmiclass]::new("win32_processor").GetInstances() | Select-Object -ExpandProperty ProcessorId))
+            $disk_Id = (Get-CimInstance -Class Win32_LogicalDisk -Verbose:$false | Where-Object { $_.DeviceID -eq "C:" }).VolumeSerialNumber
+            Set-Item -Path Env:\MachineId -Value ([string]::Join(':', $($Bios_Id, $Proc_Id, $disk_Id)));
+            $Id = [string]($Env:MachineId)
         }
         return $Id
     }
@@ -1900,11 +1896,11 @@ class K3Y {
     [ValidateNotNullOrEmpty()][byte[]]hidden $rgbSalt = [System.Text.Encoding]::UTF7.GetBytes('hR#ho"rK6FMu mdZFXp}JMY\?NC]9(.:6;>oB5U>.GkYC-JD;@;XRgXBgsEi|%MqU>_+w/RpUJ}Kt.>vWr[WZ;[e8GM@P@YKuT947Z-]ho>E2"c6H%_L2A:O5:E)6Fv^uVE; aN\4t\|(*;rPRndSOS(7& xXLRKX)VL\/+ZB4q.iY { %Ko^<!sW9n@r8ihj*=T $+Cca-Nvv#JnaZh');
 
     K3Y() {
-        $this.User = [SecureCred]::new([pscredential]::new($env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
+        $this.User = [SecureCred]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
         $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([Datetime]$Expirity) {
-        $this.User = [SecureCred]::new([pscredential]::new($env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
+        $this.User = [SecureCred]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
         $this.Expirity = [Expirity]::new($Expirity); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([pscredential]$User, [Datetime]$Expirity) {
@@ -1994,7 +1990,7 @@ class K3Y {
                                     KeyInfo = [xconvert]::BytesFromObject([PSCustomObject]@{
                                             Expirity = $Expirity
                                             Version  = [version]::new("1.0.0.1")
-                                            User     = $env:USERNAME
+                                            User     = $Env:USERNAME
                                             PID      = $_PID
                                         }
                                     )
@@ -2012,7 +2008,7 @@ class K3Y {
         return [K3Y]::GetPassword($ThrowOnFailure);
     }
     [securestring]static GetPassword([bool]$ThrowOnFailure) {
-        $Password = $null; Set-Variable -Name Password -Scope Local -Visibility Private -Option Private -Value ($(Get-Variable Host).value.UI.PromptForCredential('NerdCrypt', "Please Enter Your Password", $env:UserName, $env:COMPUTERNAME).Password);
+        $Password = $null; Set-Variable -Name Password -Scope Local -Visibility Private -Option Private -Value ($(Get-Variable Host).value.UI.PromptForCredential('NerdCrypt', "Please Enter Your Password", $Env:UserName, $Env:COMPUTERNAME).Password);
         if ($ThrowOnFailure -and ($null -eq $Password -or $([string]::IsNullOrWhiteSpace([xconvert]::ToString($Password))))) {
             throw [System.InvalidOperationException]::new("Please Provide a Password that is not Null Or WhiteSpace.", [System.ArgumentNullException]::new("Password"));
         }
@@ -2300,7 +2296,7 @@ class NerdCrypt {
         $this.SetBytes([xconvert]::BytesFromObject([XConvert]::ToString($securestring)));
     }
     [void]SetCredentials() {
-        $this.SetCredentials((Get-Variable Host).Value.UI.PromptForCredential("NerdCrypt needs your credentials.", "Please enter your UserName and Password.", "$env:UserName", ""));
+        $this.SetCredentials((Get-Variable Host).Value.UI.PromptForCredential("NerdCrypt needs your credentials.", "Please enter your UserName and Password.", "$Env:UserName", ""));
     }
     [void]SetCredentials([System.Management.Automation.PSCredential]$Credentials) {
         $this.key.User.UserName = $Credentials.UserName
