@@ -11,6 +11,10 @@ param(
 )
 
 Begin {
+    #Requires -RunAsAdministrator
+    if ($null -ne ${env:=::}) {
+        Throw 'Please Run this as Administrator'
+    }
     #region    Variables
     $Env:_BuildStart = Get-Date -Format 'o'
     $Env:BuildScriptPath = $PSScriptRoot
@@ -728,17 +732,6 @@ Begin {
     #endregion BuildHelper_Functions
 }
 Process {
-    if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        $Process = [System.Diagnostics.ProcessStartInfo]::new("PowerShell")
-        if ($null -ne $args) {
-            $Process.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command `"cd '$pwd'; & '$PSCommandPath' `"$args`";`""
-        } else {
-            $Process.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command `"cd '$pwd'; & '$PSCommandPath';`"";
-        }
-        $Process.Verb = "runas";
-        [System.Diagnostics.Process]::Start($Process);
-        exit
-    }
     Write-EnvironmentSummary "Build started"
     Invoke-Command -ScriptBlock $SetBuildVariables
     Write-Heading "Setting package feeds"
