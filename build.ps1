@@ -227,7 +227,7 @@ Begin {
                 }
                 $null = @($tests, $Verbose, $TestFile, $outputDir, $outputModDir, $outputModVerDir, $lines, $DirSeperator, $PathSeperator)
                 $null = Invoke-Command -NoNewScope -ScriptBlock {
-                    $l = [io.file]::ReadAllLines("$Env:BuildScriptPath\build.ps1")
+                    $l = [IO.File]::ReadAllLines([IO.Path]::Combine($Env:BuildScriptPath, 'build.ps1'))
                     $t = New-Item $([IO.Path]::GetTempFileName().Replace('.tmp', '.ps1'))
                     Set-Content -Path "$($t.FullName)" -Value $l[$l.IndexOf('    #region    BuildHelper_Functions')..$l.IndexOf('    #endregion BuildHelper_Functions')] -Encoding UTF8 | Out-Null; . $t;
                     Remove-Item -Path $t.FullName
