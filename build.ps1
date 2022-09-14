@@ -40,9 +40,8 @@ Begin {
                 }
             }
             Write-Heading 'Setting environment variables'
-            # If needed:
             foreach ($var in $gitVars.Keys) {
-                if ([string]::IsNullOrWhiteSpace([System.Environment]::GetEnvironmentVariable('BHBranchName'))) {
+                if ([string]::IsNullOrWhiteSpace([System.Environment]::GetEnvironmentVariable("$var"))) {
                     Set-EnvironmentVariable $var $gitVars[$var]
                 }
             }
