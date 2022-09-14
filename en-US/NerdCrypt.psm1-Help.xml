@@ -475,7 +475,7 @@ if (-not [bool](&quot;Windows.Security.Credentials.PasswordVault&quot; -as &#39;
 
 $vault = [Windows.Security.Credentials.PasswordVault]::new()
 # Suppose you have stuff in your vault. ex:
-# $vault.Add([Windows.Security.Credentials.PasswordCredential]::new(&#39;MySecretPlan&#39;, $env:USERNAME, &quot;#Test`nThis is my secret Plan written in MarkDown...&quot;))
+# $vault.Add([Windows.Security.Credentials.PasswordCredential]::new(&#39;MySecretPlan&#39;, $Env:USERNAME, &quot;#Test`nThis is my secret Plan written in MarkDown...&quot;))
 
 $VaultContent = $vault.RetrieveAll() | select resource, userName | % {$vault.Retrieve($_.Resource, $_.UserName)} | select UserName, Resource, @{l=&#39;Content&#39;; e={$_.Password}};
 $VaultContent | ConvertTo-Json | Set-Content -Path $PathtoMyGoober\MyLocalVault_Export.json -Encoding UTF8
@@ -489,7 +489,8 @@ $vault.RetrieveAll() | % { $vault.Remove($vault.Retrieve($_.Resource, $_.UserNam
 				<maml:introduction>
 					<maml:para></maml:para>
 				</maml:introduction>
-				<dev:code>PS C:\&gt; $enc = Encrypt-Object -Object &quot;Hello World!&quot; -Password $([K3Y]::GetPassword()) -KeyOutFile .\PublicKee.txt</dev:code>
+				<dev:code>PS C:\&gt; $enc = Encrypt-Object -Object &quot;Hello World!&quot; -Password $([K3Y]::GetPassword()) -KeyOutFile .\PublicKee.txt
+</dev:code>
 				<dev:remarks>
 					<maml:para>$dec = Decrypt-Object -InputBytes $enc -Password $([K3Y]::GetPassword()) -PublicKey $(cat .\PublicKee.txt)</maml:para>
 
@@ -788,7 +789,8 @@ $vault.RetrieveAll() | % { $vault.Remove($vault.Retrieve($_.Resource, $_.UserNam
 				<maml:introduction>
 					<maml:para></maml:para>
 				</maml:introduction>
-				<dev:code>PS C:\&gt; $msg = &quot;This is my email, don&#39;t show it to anyone. alain.1337dev@outlook.com&quot;</dev:code>
+				<dev:code>PS C:\&gt; $msg = &quot;This is my email, don&#39;t show it to anyone. alain.1337dev@outlook.com&quot;
+</dev:code>
 				<dev:remarks>
 					<maml:para>$enc = Encrypt-Object $msg -Password $([K3Y]::GetPassword()) -KeyOutFile .\PublicKee.txt
 
@@ -1000,7 +1002,8 @@ $dec = Decrypt-Object $enc -Password $([K3Y]::GetPassword()) -PublicKey $(cat .\
 				<maml:introduction>
 					<maml:para></maml:para>
 				</maml:introduction>
-				<dev:code>PS C:\&gt; Test-MyTestFunction -Verbose</dev:code>
+				<dev:code>PS C:\&gt; Test-MyTestFunction -Verbose
+</dev:code>
 				<dev:remarks>
 					<maml:para>Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines</maml:para>
 
