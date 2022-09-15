@@ -8,6 +8,7 @@ NerdCrypt, is an all in one Encryption Decryption Powershell module. It contains
 [![Publish Module](https://github.com/alainQtec/NerdCrypt/actions/workflows/Publish.yaml/badge.svg)](https://github.com/alainQtec/NerdCrypt/actions/workflows/Publish.yaml)
 [![CI](https://github.com/alainQtec/NerdCrypt/actions/workflows/CI.yaml/badge.svg?branch=main)](https://github.com/alainQtec/NerdCrypt/actions/workflows/CI.yaml)
 
+<br />
 ***
 <br />
 <div align="center">
