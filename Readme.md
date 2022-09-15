@@ -31,7 +31,7 @@ NerdCrypt, is an all in one Encryption Decryption Powershell module. It contains
     <img src="https://img.shields.io/github/downloads/alainQtec/NerdCrypt/total.svg?logo=github&color=blue"
       alt="Downloads" title="GitHub Release downloads" />
   </a>
-  <!-- GitHub Releases -->
+  <!-- Latest gitHub Release version -->
   <a href="https://github.com/alainQtec/NerdCrypt/releases/latest">
     <img src="https://img.shields.io/github/release/alainQtec/NerdCrypt.svg?label=version&logo=github"
       alt="Version" title="GitHub Release versions" />
@@ -47,7 +47,7 @@ NerdCrypt, is an all in one Encryption Decryption Powershell module. It contains
 
 NerdCrypt is a cross-platform PowerShell module handling string encryption and decryption using RSA keys only. It enables strings to be encrypted when the client only has the public key available, in the event the encrypted string is being sent to a secure endpoint housing the private key where it will be decrypted for further use. The same module can be implemented on the receiving endpoint to decrypt the strings as well, if desired.
 
-## How to install:
+## 🧑‍💻 **How to install**:
 
 ```powershell
 Find-module NerdCrypt | install-Module
@@ -76,7 +76,7 @@ To Run all Tests:
 
 Everything is explained in the [wiki pages](https://github.com/alainQtec/NerdCrypt/wiki)... read it it's important ! you'll find tips and many other things... there is nothing here in the readme.
 
-### GitHub Releases
+### 🚀 **GitHub Releases**
 
 Please see the [Releases section of this repository](https://github.com/alainQtec/NerdCrypt/releases) for instructions.
 
