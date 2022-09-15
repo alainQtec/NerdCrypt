@@ -3,27 +3,34 @@
 
 NerdCrypt, is an all in one Encryption Decryption Powershell module. It contains tools to ease the work with nerdy cryptography.
 
-
-[![Upload artifact from Ubuntu](https://github.com/alainQtec/NerdCrypt/actions/workflows/Upload_Artifact.yaml/badge.svg)](https://github.com/alainQtec/NerdCrypt/actions/workflows/Upload_Artifact.yaml)
-[![Publish Module](https://github.com/alainQtec/NerdCrypt/actions/workflows/Publish.yaml/badge.svg)](https://github.com/alainQtec/NerdCrypt/actions/workflows/Publish.yaml)
-[![CI](https://github.com/alainQtec/NerdCrypt/actions/workflows/CI.yaml/badge.svg?branch=main)](https://github.com/alainQtec/NerdCrypt/actions/workflows/CI.yaml)
-
 <br />
-***
-<br />
-<div align="center">
+<div align="Left">
   </br>
+  <!-- Upload Artifacts -->
+  <a href="https://github.com/alainQtec/NerdCrypt/actions/workflows/Upload_Artifact.yaml">
+    <img src="https://github.com/alainQtec/NerdCrypt/actions/workflows/Upload_Artifact.yaml/badge.svg"
+      alt="Upload artifact from Ubuntu" title="Upload artifacts" />
+  </a>
+  <!-- Publish Module -->
+    <a href="https://github.com/alainQtec/NerdCrypt/actions/workflows/Publish.yaml">
+        <img src="https://github.com/alainQtec/NerdCrypt/actions/workflows/Publish.yaml/badge.svg"
+      alt="Publish Module" title="Publish Module" />
+    </a>
   <!-- PS Gallery -->
   <a href="https://www.PowerShellGallery.com/packages/NerdCrypt">
     <img src="https://img.shields.io/powershellgallery/dt/NerdCrypt.svg?style=flat&logo=powershell&color=blue"
       alt="PowerShell Gallery" title="PowerShell Gallery" />
-  </a>&nbsp;&nbsp;&nbsp;&nbsp;
+  </a>
+  <!-- Continuous Intergration -->
+  <a href="https://github.com/alainQtec/NerdCrypt/actions/workflows/CI.yaml">
+    <img src="https://github.com/alainQtec/NerdCrypt/actions/workflows/CI.yaml/badge.svg?branch=main"
+      alt="CI/CD" title="Continuous Intergration" />
+  </a>
   <!-- GitHub Releases -->
   <a href="https://github.com/alainQtec/NerdCrypt/releases/latest">
     <img src="https://img.shields.io/github/downloads/alainQtec/NerdCrypt/total.svg?logo=github&color=blue"
       alt="Downloads" title="GitHub Release downloads" />
-  </a>&nbsp;&nbsp;&nbsp;&nbsp;
-
+  </a>
   <!-- GitHub Releases -->
   <a href="https://github.com/alainQtec/NerdCrypt/releases/latest">
     <img src="https://img.shields.io/github/release/alainQtec/NerdCrypt.svg?label=version&logo=github"
