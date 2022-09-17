@@ -8,7 +8,7 @@ variables:
 trigger:
   branches:
     include:
-      - master
+      - main
       - "*"
     exclude:
       - refs/tag/*
@@ -135,7 +135,7 @@ phases:
       - Phase_3
       - Phase_4
       - Phase_5
-    condition: and(succeeded(), in(variables['Build.Reason'], 'Manual', 'IndividualCI', 'BatchedCI'), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+    condition: and(succeeded(), in(variables['Build.Reason'], 'Manual', 'IndividualCI', 'BatchedCI'), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
     queue:
       name: Hosted VS2017
 
