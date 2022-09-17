@@ -783,17 +783,13 @@ Process {
         }
     }
 
-    Invoke-CommandWithLog {
-        Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false
-        if (!(Get-PackageProvider -Name Nuget)) {
-            Install-PackageProvider -Name NuGet -Force | Out-Null
-        }
-        $null = Import-PackageProvider -Name NuGet -Force
+    Invoke-CommandWithLog { Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false }
+    if (!(Get-PackageProvider -Name Nuget)) {
+        Invoke-CommandWithLog { Install-PackageProvider -Name NuGet -Force | Out-Null }
     }
-    Invoke-CommandWithLog {
-        if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
-            Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false
-        }
+    $null = Import-PackageProvider -Name NuGet -Force
+    if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
+        Invoke-CommandWithLog { Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false }
     }
     Invoke-CommandWithLog { $PSDefaultParameterValues = @{
             '*-Module:Verbose'            = $false
