@@ -860,7 +860,7 @@ Process {
         } else {
             Invoke-Command -ScriptBlock $PSake_Build
             Write-BuildLog "Create a 'local' repository"
-            $RepoPath = New-Item -Path "C:\LocalPSRepo" -ItemType Directory -Force
+            $RepoPath = New-Item -Path "$([IO.Path]::Combine($Env:USERPROFILE, 'LocalPSRepo'))" -ItemType Directory -Force
             Register-PSRepository LocalPSRepo -SourceLocation "$RepoPath" -PublishLocation "$RepoPath" -InstallationPolicy Trusted -ErrorAction SilentlyContinue -Verbose:$false
             Write-Verbose "Verify that the new repository was created successfully"
             $PsRepo = Get-PSRepository LocalPSRepo -Verbose:$false
@@ -893,7 +893,7 @@ Process {
             # CleanUp
             Write-Verbose "CleanUp: Uninstall the test module, and delete the LocalPSRepo"
             Unregister-PSRepository 'LocalPSRepo'
-            Remove-Item "C:\LocalPSRepo" -Force -Recurse -ErrorAction 'SilentlyContinue'
+            Remove-Item "$([IO.Path]::Combine($Env:USERPROFILE, 'LocalPSRepo'))" -Force -Recurse -ErrorAction 'SilentlyContinue'
             Uninstall-Module $ModuleName
         }
         Write-EnvironmentSummary "Build finished"
