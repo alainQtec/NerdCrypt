@@ -84,10 +84,10 @@ Please see the [Releases section of this repository](https://github.com/alainQte
 
  The repository is open to suggestions, contributions and all other forms of help.
 
-Interested in helping out with the Module development? Please check out our [Contribution Guidelines](https://github.com/alainQtec/NerdCrypt/blob/master/CONTRIBUTING.md)!
+Interested in helping out with the Module development? Please check out our [Contribution Guidelines](https://github.com/alainQtec/NerdCrypt/blob/main/CONTRIBUTING.md)!
 
 Building the module locally to test changes is as easy as running the `build.ps1` file in the root of the repo. This will compile the module with your changes and import the newly compiled module at the end by default.
 
 ## Code of Conduct
 
-Please adhere to our [Code of Conduct](https://github.com/alainQtec/NerdCrypt/blob/master/CODE_OF_CONDUCT.md) when interacting with this repo.
+Please adhere to our [Code of Conduct](https://github.com/alainQtec/NerdCrypt/blob/main/CODE_OF_CONDUCT.md) when interacting with this repo.
