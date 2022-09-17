@@ -30,7 +30,7 @@ Here's the overall flow of making contributions:
 3. Push your changes back to your fork on GitHub
 4. Submit a pull request
 5. Pull request is reviewed. Any necessary edits / suggestions will be made
-6. Once changes are approved, the pull request is merged into the origin's master branch and deployed to the PowerShell Gallery once CI tests pass in AppVeyor
+6. Once changes are approved, the pull request is merged into the origin's main branch and deployed to the PowerShell Gallery once CI tests pass in AppVeyor
 
 ### Contributing Guidelines
 
