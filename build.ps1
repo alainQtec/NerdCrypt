@@ -388,29 +388,40 @@ Begin {
                         $Env:BHCommitMessage = $Env:BHCommitMessage.Replace('!deploy', '')
                     }
                 } else {
-                    Write-Host -ForegroundColor Magenta "Build system is not VSTS,`ncommit message does not contain '!deploy' and/or`nbranch is not 'master' -- skipping module update!"
-                    # Write-Verbose "Create a 'local' repository"
-                    # $RepoPath = Resolve-Path "~/psrepo"
-                    # New-Item -Path $RepoPath -ItemType Directory -Force | Out-Null
-                    # Register-PSRepository LocalPSRepo -SourceLocation "$RepoPath" -PublishLocation "$RepoPath" -InstallationPolicy Trusted
-                    # Write-Verbose "Verify that the new repository was created successfully"
-                    # Get-PSRepository LocalPSRepo
-                    # # Save the Devolutions.Hub module from BuildOutput to "$RepoPath/$env:BHModuleName/$env:BHModuleVersion"
-                    # $ModuleName = 'Devolutions.Hub'
-                    # $ModuleVersion = '2021.1.0'
-                    # $ModulePath = "~/modules/${ModuleName}/${ModuleVersion}"
-                    # # Publish To LocalRepo
-                    # $ModulePackage = [IO.Path]::Combine(${RepoPath}, "${ModuleName}.${ModuleVersion}.nupkg")
-                    # Remove-Item -Path $ModulePackage -ErrorAction 'SilentlyContinue'
-                    # Publish-Module -Path $ModulePath -Repository 'LocalPSRepo'
-                    # # CleanUp
-                    # Write-Verbose "CleanUp: Uninstall the test module, and delete the LocalPSRepo"
-                    # Uninstall-Module $ModuleName
-                    # Unregister-PSRepository 'LocalPSRepo'
-                    # Remove-Item "~/psrepo" -Force -Recurse -ErrorAction 'SilentlyContinue'
-                    # Remove-Item "~/modules" -Force -Recurse -ErrorAction 'SilentlyContinue'
+                    Write-Host -ForegroundColor Magenta "Build system is not VSTS!"
                 }
             }
+        }
+    )
+    $script:PSake_Build = [ScriptBlock]::Create({
+            Write-BuildLog "Resolving dependencies ..."
+            $DePendencies = @(
+                "Psake"
+                "Pester"
+                "PSScriptAnalyzer"
+                "Microsoft.PowerShell.SecretStore"
+                "SecretManagement.Hashicorp.Vault.KV"
+                "Microsoft.PowerShell.SecretManagement"
+            )
+            foreach ($ModuleName in $DePendencies) {
+                $ModuleName | Resolve-Module @update -Verbose
+            }
+            Write-BuildLog "Module Requirements Successfully resolved."
+            $null = Set-Content -Path $Psake_BuildFile -Value $PSake_ScriptBlock
+
+            Write-Heading "Invoking psake with task list: [ $($Task -join ', ') ]"
+            $psakeParams = @{
+                nologo    = $true
+                buildFile = $Psake_BuildFile.FullName
+                taskList  = $Task
+            }
+            if ($Task -eq 'TestOnly') {
+                Set-Variable -Name ExcludeTag -Scope global -Value @('Module')
+            } else {
+                Set-Variable -Name ExcludeTag -Scope global -Value $null
+            }
+            Invoke-psake @psakeParams @verbose
+            Remove-Item $Psake_BuildFile -Verbose | Out-Null
         }
     )
     #endregion ScriptBlockss
@@ -690,7 +701,7 @@ Begin {
             [String]$VersionNumber,
 
             [parameter(Mandatory = $false)]
-            [String]$CommitId = 'master',
+            [String]$CommitId = 'main',
 
             [parameter(Mandatory = $true)]
             [String]$Env:BHReleaseNotes,
@@ -809,74 +820,83 @@ Process {
         Write-Heading "Getting help"
         Write-BuildLog -c '"psake" | Resolve-Module @update -Verbose'
         'psake' | Resolve-Module @update -Verbose
-        Get-PSakeScriptTasks -buildFile $Psake_BuildFile.FullName |
-            Sort-Object -Property Name |
-            Format-Table -Property Name, Description, Alias, DependsOn
+        Get-PSakeScriptTasks -buildFile $Psake_BuildFile.FullName | Sort-Object -Property Name | Format-Table -Property Name, Description, Alias, DependsOn
     } else {
         Write-Heading "Finalizing build Prerequisites"
-        if (
-            $Task -eq 'Deploy' -and (
-                $Env:BUILD_BUILDURI -notlike 'vstfs:*' -or
-                $Env:BUILD_SOURCEBRANCH -like '*pull*' -or
-                $Env:BUILD_SOURCEVERSIONMESSAGE -notmatch '!deploy' -or
-                $Env:BUILD_SOURCEBRANCHNAME -ne 'master' -or
-                $PSVersionTable.PSVersion.Major -ne 5 -or
-                $null -eq $Env:NugetApiKey
-            )
-        ) {
-            "Task is 'Deploy', but conditions are not correct for deployment:`n" +
-            "    + Current build system is VSTS     : $($Env:BUILD_BUILDURI -like 'vstfs:*') [$Env:BUILD_BUILDURI]`n" +
-            "    + Current branch is master         : $($Env:BUILD_SOURCEBRANCHNAME -eq 'master') [$Env:BUILD_SOURCEBRANCHNAME]`n" +
-            "    + Source is not a pull request	    : $($Env:BUILD_SOURCEBRANCH -notlike '*pull*') [$Env:BUILD_SOURCEBRANCH]`n" +
-            "    + Commit message matches '!deploy' : $($Env:BUILD_SOURCEVERSIONMESSAGE -match '!deploy') [$Env:BUILD_SOURCEVERSIONMESSAGE]`n" +
-            "    + Current PS major version is 5    : $($PSVersionTable.PSVersion.Major -eq 5) [$($PSVersionTable.PSVersion.ToString())]`n" +
-            "    + NuGet API key is not null        : $($null -ne $Env:NugetApiKey)`n" +
-            "Skipping psake for this job!" | Write-Host -ForegroundColor Yellow
-            exit 0
-        } else {
+        if ($Env:BHBuildSystem -eq 'VSTS') {
             if ($Task -eq 'Deploy') {
-                "Task is 'Deploy' and conditions for deployment are:`n" +
+                $MSG = "Task is 'Deploy' and conditions for deployment are:`n" +
                 "    + Current build system is VSTS     : $($Env:BUILD_BUILDURI -like 'vstfs:*') [$Env:BUILD_BUILDURI]`n" +
-                "    + Current branch is master         : $($Env:BUILD_SOURCEBRANCHNAME -eq 'master') [$Env:BUILD_SOURCEBRANCHNAME]`n" +
+                "    + Current branch is main         : $($Env:BUILD_SOURCEBRANCHNAME -eq 'main') [$Env:BUILD_SOURCEBRANCHNAME]`n" +
                 "    + Source is not a pull request     : $($Env:BUILD_SOURCEBRANCH -notlike '*pull*') [$Env:BUILD_SOURCEBRANCH]`n" +
                 "    + Commit message matches '!deploy' : $($Env:BUILD_SOURCEVERSIONMESSAGE -match '!deploy') [$Env:BUILD_SOURCEVERSIONMESSAGE]`n" +
                 "    + Current PS major version is 5    : $($PSVersionTable.PSVersion.Major -eq 5) [$($PSVersionTable.PSVersion.ToString())]`n" +
-                "    + NuGet API key is not null        : $($null -ne $Env:NugetApiKey)`n" | Write-Host -ForegroundColor Green
+                "    + NuGet API key is not null        : $($null -ne $Env:NugetApiKey)`n"
+                if (
+                    $Env:BUILD_BUILDURI -notlike 'vstfs:*' -or
+                    $Env:BUILD_SOURCEBRANCH -like '*pull*' -or
+                    $Env:BUILD_SOURCEVERSIONMESSAGE -notmatch '!deploy' -or
+                    $Env:BUILD_SOURCEBRANCHNAME -ne 'main' -or
+                    $PSVersionTable.PSVersion.Major -ne 5 -or
+                    $null -eq $Env:NugetApiKey
+                ) {
+                    $MSG = $MSG.Replace('and conditions for deployment are:', 'but conditions are not correct for deployment.')
+                    $MSG | Write-Host -ForegroundColor Yellow
+                    if (($Env:BHCommitMessage -match '!deploy' -and $Env:BHBranchName -eq "main") -or $script:ForceDeploy -eq $true) {
+                        Write-Warning "Force Deploy"
+                    } else {
+                        "Skipping psake for this job!" | Write-Host -ForegroundColor Yellow
+                        exit 0
+                    }
+                } else {
+                    $MSG | Write-Host -ForegroundColor Green
+                }
             }
-            Write-BuildLog "Resolving dependencies ..."
-            $DePendencies = @(
-                "Psake"
-                "Pester"
-                "PSScriptAnalyzer"
-                "Microsoft.PowerShell.SecretStore"
-                "SecretManagement.Hashicorp.Vault.KV"
-                "Microsoft.PowerShell.SecretManagement"
-            )
-            foreach ($ModuleName in $DePendencies) {
-                $ModuleName | Resolve-Module @update -Verbose
-            }
-            Write-BuildLog "Module Requirements Successfully resolved."
-            $null = Set-Content -Path $Psake_BuildFile -Value $PSake_ScriptBlock
-
-            Write-Heading "Invoking psake with task list: [ $($Task -join ', ') ]"
-            $psakeParams = @{
-                nologo    = $true
-                buildFile = $Psake_BuildFile.FullName
-                taskList  = $Task
-            }
-            if ($Task -eq 'TestOnly') {
-                Set-Variable -Name ExcludeTag -Scope global -Value @('Module')
-            } else {
-                Set-Variable -Name ExcludeTag -Scope global -Value $null
-            }
-            Invoke-psake @psakeParams @verbose
-            Remove-Item $Psake_BuildFile -Verbose | Out-Null
+            Invoke-Command -ScriptBlock $PSake_Build
             if ($Task -contains 'Import' -and $psake.build_success) {
                 Write-Heading "Importing $Env:BHProjectName to local scope"
                 Import-Module ([IO.Path]::Combine($Env:BHBuildOutput, $Env:BHProjectName)) -Verbose:$false
             }
-            Write-EnvironmentSummary "Build finished"
+        } else {
+            Invoke-Command -ScriptBlock $PSake_Build
+            Write-BuildLog "Create a 'local' repository"
+            $RepoPath = New-Item -Path "C:\LocalPSRepo" -ItemType Directory -Force
+            Register-PSRepository LocalPSRepo -SourceLocation "$RepoPath" -PublishLocation "$RepoPath" -InstallationPolicy Trusted -ErrorAction SilentlyContinue -Verbose:$false
+            Write-Verbose "Verify that the new repository was created successfully"
+            $PsRepo = Get-PSRepository LocalPSRepo -Verbose:$false
+            if (-not (Test-Path -Path ($PsRepo.SourceLocation) -PathType Container -ErrorAction SilentlyContinue -Verbose:$false)) {
+                New-Item -Path $PsRepo.SourceLocation -ItemType Directory -Force | Out-Null
+            }
+            # Save the module from BuildOutput to "$RepoPath\$env:BHModuleName\$env:BHModuleVersion"
+            $ModuleName = $Env:BHProjectName
+            $ModulePath = [IO.Path]::Combine($env:BHBuildOutput, $env:BHProjectName, $env:BHBuildNumber)
+            # Publish To LocalRepo
+            $ModulePackage = [IO.Path]::Combine($RepoPath.FullName, "${ModuleName}.$env:BHBuildNumber.nupkg")
+            if ([IO.File]::Exists($ModulePackage)) {
+                Remove-Item -Path $ModulePackage -ErrorAction 'SilentlyContinue'
+            }
+            Write-BuildLog "Publish to Local Repository ..."
+            $RequiredModules = Get-Metadata ([IO.Path]::Combine($ModulePath, "$env:BHProjectName.psd1")) RequiredModules -Verbose:$false
+            foreach ($Module in $RequiredModules) {
+                $md = Get-Module $Module -Verbose:$false; $mdPath = $md.Path | Split-Path
+                Write-Verbose "Publish RequiredModule $Module ..."
+                Publish-Module -Path $mdPath -Repository LocalPSRepo -Verbose:$false
+            }
+            Invoke-CommandWithLog { Publish-Module -Path $ModulePath -Repository LocalPSRepo } -Verbose:$false
+            # Install Module
+            Install-Module $ModuleName -Repository LocalPSRepo
+            # Import Module
+            if ($Task -contains 'Import' -and $psake.build_success) {
+                Write-Heading "Importing $Env:BHProjectName to local scope"
+                Import-Module $ModuleName
+            }
+            # CleanUp
+            Write-Verbose "CleanUp: Uninstall the test module, and delete the LocalPSRepo"
+            Unregister-PSRepository 'LocalPSRepo'
+            Remove-Item "C:\LocalPSRepo" -Force -Recurse -ErrorAction 'SilentlyContinue'
+            Uninstall-Module $ModuleName
         }
+        Write-EnvironmentSummary "Build finished"
     }
 }
 End {
