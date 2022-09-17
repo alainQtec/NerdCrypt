@@ -389,6 +389,26 @@ Begin {
                     }
                 } else {
                     Write-Host -ForegroundColor Magenta "Build system is not VSTS,`ncommit message does not contain '!deploy' and/or`nbranch is not 'master' -- skipping module update!"
+                    # Write-Verbose "Create a 'local' repository"
+                    # $RepoPath = Resolve-Path "~/psrepo"
+                    # New-Item -Path $RepoPath -ItemType Directory -Force | Out-Null
+                    # Register-PSRepository LocalPSRepo -SourceLocation "$RepoPath" -PublishLocation "$RepoPath" -InstallationPolicy Trusted
+                    # Write-Verbose "Verify that the new repository was created successfully"
+                    # Get-PSRepository LocalPSRepo
+                    # # Save the Devolutions.Hub module from BuildOutput to "$RepoPath/$env:BHModuleName/$env:BHModuleVersion"
+                    # $ModuleName = 'Devolutions.Hub'
+                    # $ModuleVersion = '2021.1.0'
+                    # $ModulePath = "~/modules/${ModuleName}/${ModuleVersion}"
+                    # # Publish To LocalRepo
+                    # $ModulePackage = [IO.Path]::Combine(${RepoPath}, "${ModuleName}.${ModuleVersion}.nupkg")
+                    # Remove-Item -Path $ModulePackage -ErrorAction 'SilentlyContinue'
+                    # Publish-Module -Path $ModulePath -Repository 'LocalPSRepo'
+                    # # CleanUp
+                    # Write-Verbose "CleanUp: Uninstall the test module, and delete the LocalPSRepo"
+                    # Uninstall-Module $ModuleName
+                    # Unregister-PSRepository 'LocalPSRepo'
+                    # Remove-Item "~/psrepo" -Force -Recurse -ErrorAction 'SilentlyContinue'
+                    # Remove-Item "~/modules" -Force -Recurse -ErrorAction 'SilentlyContinue'
                 }
             }
         }
@@ -400,9 +420,9 @@ Begin {
     #region    BuildHelper_Functions
     function Get-Elapsed {
         if ($IsCI) {
-            "[+$(((Get-Date) - (Get-Date $Env:_BuildStart)).ToString())]"
+            "[ + $(((Get-Date) - (Get-Date $Env:_BuildStart)).ToString())]"
         } else {
-            "[$((Get-Date).ToString("HH:mm:ss")) +$(((Get-Date) - (Get-Date $Env:_BuildStart)).ToString())]"
+            "[$((Get-Date).ToString("HH:mm:ss")) + $(((Get-Date) - (Get-Date $Env:_BuildStart)).ToString())]"
         }
     }
     function Get-LatestModuleVersion($Name) {
@@ -449,8 +469,8 @@ Begin {
         }
         process {
             foreach ($moduleName in $Names) {
-                $versionToImport = ''
-                Write-Verbose -Message "Resolving Module [$($moduleName)]"
+                $versionToImport = [string]::Empty
+                Write-Host "##[command] Resolving Module [$moduleName]" -ForegroundColor Magenta
                 $Module = Get-Module -Name $moduleName -ListAvailable -Verbose:$false -ErrorAction SilentlyContinue
                 if ($null -ne $Module) {
                     # Determine latest version on PSGallery and warn us if we're out of date
@@ -581,7 +601,7 @@ Begin {
         Process {
             Write-Warning $Message
             if ($IsCI) {
-                Write-Host "##vso[task.logissue type=warning;]$Message"
+                Write-Host "##vso[task.logissue type=warning; ]$Message"
             } else {
             }
         }
@@ -594,7 +614,7 @@ Begin {
         )
         Process {
             if ($IsCI) {
-                Write-Host "##vso[task.logissue type=error;]$Message"
+                Write-Host "##vso[task.logissue type=error; ]$Message"
             }
             Write-Error $Message
         }
