@@ -1,19 +1,19 @@
 $projectRoot = Resolve-Path "$PSScriptRoot\..\.."
-$ModulePath = Resolve-Path "$projectRoot\BuildOutput\$($Env:BHProjectName)"
-$decompiledModulePath = Resolve-Path "$projectRoot\$($Env:BHProjectName)"
+$ModulePath = Resolve-Path "$projectRoot\BuildOutput\$($([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')))"
+$decompiledModulePath = Resolve-Path "$projectRoot\$($([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')))"
 
 # Verbose output for non-main builds on appveyor
 # Handy for troubleshooting.
 # Splat @Verbose against commands as needed (here or in pester tests)
 $Verbose = @{}
-if ($Env:BHBranchName -eq "development" -or $Env:BHCommitMessage -match "!verbose") {
+if ($([Environment]::GetEnvironmentVariable($BuildId + 'BranchName')) -eq "development" -or $([Environment]::GetEnvironmentVariable($BuildId + 'CommitMessage')) -match "!verbose") {
     $Verbose.add("Verbose", $True)
 }
 
 Import-Module $ModulePath -Force -Verbose:$false
 
 
-Describe "Module tests: $($Env:BHProjectName)" -Tag 'Module' {
+Describe "Module tests: $($([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')))" -Tag 'Module' {
     Context "Confirm files are valid Powershell syntax" {
         $scripts = Get-ChildItem $decompiledModulePath -Include *.ps1, *.psm1, *.psd1 -Recurse
 
