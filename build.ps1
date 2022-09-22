@@ -423,7 +423,7 @@ Begin {
             [Parameter(Position = 1)]
             [ValidatePattern('\w*')]
             [ValidateNotNullOrEmpty()][Alias('BuildId')]
-            [String]$VariableNamePrefix = [string]::Join('', (0..9 + (97..122 | ForEach-Object { [string][char]$_ }) | Get-Random -Count 19)) + '_'
+            [String]$VariableNamePrefix = [string]::Join('', (0..9 + (97..122 | ForEach-Object { [string][char]$_ }) | Get-Random -Count 18)) + '_'
         )
 
         Process {
@@ -442,8 +442,10 @@ Begin {
                 Write-Warning 'Could not Find Version File'
             }
             New-Variable -Name IsCI -Value $($IsCI -or (Test-Path (Get-Item Env:) | Where-Object { $_.Name -eq 'TF_BUILD' })) -Scope Global -Force -Option AllScope
-            if ($PSCmdlet.ShouldProcess("$Env:ComputerName", "Clean Last Builds's Env~ variables")) {
-                Invoke-Command $Clean_Last_EnvBuildvariables -ArgumentList $Last_Build_Id
+            if (!$IsCI) {
+                if ($PSCmdlet.ShouldProcess("$Env:ComputerName", "Clean Last Builds's Env~ variables")) {
+                    Invoke-Command $Clean_Last_EnvBuildvariables -ArgumentList $Last_Build_Id
+                }
             }
             if ($PSCmdlet.ShouldProcess("$Env:ComputerName", "Set BuildEnvironmentVariables")) {
                 Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildScriptPath') -Value $(if ([string]::IsNullOrWhiteSpace($BuildScriptPath)) { $ScriptRoot }else { $BuildScriptPath })
@@ -930,6 +932,8 @@ Process {
     }
 }
 End {
-    Invoke-Command $Clean_Last_EnvBuildvariables -ArgumentList $BuildId
+    if (!$IsCI) {
+        Invoke-Command $Clean_Last_EnvBuildvariables -ArgumentList $BuildId
+    }
     exit ( [int](!$psake.build_success) )
 }
