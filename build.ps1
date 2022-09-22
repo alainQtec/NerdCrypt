@@ -25,8 +25,7 @@ Begin {
     #Requires -RunAsAdministrator
     if ($null -ne ${env:=::}) { Throw 'Please Run this as Administrator' }
     #region    Variables
-    New-Variable -Name BuildId -Option AllScope -Value $([string]::Join('', (0..9 + (97..122 | ForEach-Object { [string][char]$_ }) | Get-Random -Count 19)) + '_')
-    [Environment]::SetEnvironmentVariable("$($BuildId + 'BuildStart')", "$(Get-Date -Format o)")
+    Set-Variable -Name BuildId -Option AllScope -Value $([string]::Join('', (0..9 + (97..122 | ForEach-Object { [string][char]$_ }) | Get-Random -Count 19)) + '_')
     #region    ScriptBlocks
     $script:PSake_ScriptBlock = [scriptblock]::Create({
             # PSake makes variables declared here available in other scriptblocks
@@ -448,6 +447,7 @@ Begin {
                 }
             }
             if ($PSCmdlet.ShouldProcess("$Env:ComputerName", "Set BuildEnvironmentVariables")) {
+                Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildStart') -Value $(Get-Date -Format o)
                 Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildScriptPath') -Value $(if ([string]::IsNullOrWhiteSpace($BuildScriptPath)) { $ScriptRoot }else { $BuildScriptPath })
                 Set-Variable -Name BuildScriptPath -Value ([Environment]::GetEnvironmentVariable($BuildId + 'BuildScriptPath')) -Scope Local -Force
                 Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildSystem') -Value $(if ($IsCI) { "VSTS" }else { [System.Environment]::MachineName })
@@ -469,9 +469,9 @@ Begin {
     }
     function Get-Elapsed {
         if ($IsCI) {
-            "[ + $(((Get-Date) - (Get-Date $([Environment]::GetEnvironmentVariable($BuildId + 'BuildStart')))).ToString())]"
+            "[ + $(((Get-Date) - (Get-Date $([Environment]::GetEnvironmentVariable($script:BuildId + 'BuildStart')))).ToString())]"
         } else {
-            "[$((Get-Date).ToString("HH:mm:ss")) + $(((Get-Date) - (Get-Date $([Environment]::GetEnvironmentVariable($BuildId + 'BuildStart')))).ToString())]"
+            "[$((Get-Date).ToString("HH:mm:ss")) + $(((Get-Date) - (Get-Date $([Environment]::GetEnvironmentVariable($script:BuildId + 'BuildStart')))).ToString())]"
         }
     }
     function Get-LatestModuleVersion($Name) {
@@ -804,10 +804,9 @@ Begin {
     #endregion BuildHelper_Functions
 }
 Process {
-    Write-EnvironmentSummary "Build started"
     Set-BuildVariables -VariableNamePrefix $BuildId
+    Write-EnvironmentSummary "Build started"
     Write-Heading "Setting package feeds"
-
     $PKGRepoHash = @{
         PackageManagement = '1.3.1'
         PowerShellGet     = '2.1.2'
