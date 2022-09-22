@@ -6,7 +6,7 @@ foreach ($class in $Classes) {
     Try {
         . $class.FullName
     } Catch {
-        Write-Error "Failed to Load $($class.fullname): $_"
+        Write-Warning "Failed to Load $($class.Fullname): $_"
     }
 }
 $PrivateModules = [string[]](Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -ErrorAction SilentlyContinue | Where-Object { $_.PSIsContainer } | Select-Object -ExpandProperty FullName)
@@ -20,11 +20,11 @@ if ($PrivateModules.Count -gt 0) {
     }
 }
 # Dot source the files
-foreach ($import in @($Public + $Private)) {
+foreach ($Import in @($Public + $Private)) {
     Try {
-        . $import.fullname
+        . $Import.fullname
     } Catch {
-        Write-Error "Failed to import function $($import.fullname): $_"
+        Write-Warning "Failed to import function $($Import.fullname): $_"
     }
     Export-ModuleMember $import.BaseName
 }
