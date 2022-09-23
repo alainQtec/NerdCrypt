@@ -396,9 +396,9 @@ Begin {
             )
             if (![string]::IsNullOrWhiteSpace($build_Id)) {
                 Write-Verbose "CleanUp ..."
-                $Old_Env_Vars = Get-ChildItem Env: | Where-Object { $_.Name -like "$build_Id*" }
-                if ($Old_Env_Vars.Count -gt 0) {
-                    $Old_Env_Vars | ForEach-Object { [Environment]::SetEnvironmentVariable($_.Name, $null) }
+                $OldEnvNames = [Environment]::GetEnvironmentVariables().Keys | Where-Object { $_ -like "$build_Id*" }
+                if ($OldEnvNames.Count -gt 0) {
+                    foreach ($Name in $OldEnvNames) { [Environment]::SetEnvironmentVariable($Name, $null) }
                 }
             } else {
                 Write-Warning "Invalid BuildId! Skipping ..."
