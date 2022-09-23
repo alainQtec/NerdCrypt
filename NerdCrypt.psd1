@@ -14,12 +14,12 @@
     ProcessorArchitecture  = 'None'
     RequiredModules        = @("SecretManagement.Hashicorp.Vault.KV")
     RequiredAssemblies     = @()
-    ScriptsToProcess       = @(
-        "<ScriptsToProcess>"
-    )
+    ScriptsToProcess       = @()
     TypesToProcess         = @()
     FormatsToProcess       = @()
-    NestedModules          = @()
+    NestedModules          = @(
+        './NerdCrypt.Extension'
+    )
     FunctionsToExport      = @(
         '<FunctionsToExport>'
     ) #For performance, list functions explicitly
