@@ -139,7 +139,7 @@ Begin {
                 }
                 $manifestContent = Get-Content -Path $([Environment]::GetEnvironmentVariable($BuildId + 'PSModuleManifest')) -Raw
                 $PsModuleContent = Get-Content -Path ([IO.Path]::Combine($([Environment]::GetEnvironmentVariable($BuildId + 'ProjectPath')), "$([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')).psm1" )) -Raw
-                $PsModuleContent = $PsModuleContent.Replace("'<Aliases>'", "'Encrypt','Decrypt'")
+                $PsModuleContent = $PsModuleContent.Replace("'<Aliases>'", "'Encrypt', 'Decrypt'")
                 $PsModuleContent | Add-Content -Path $psm1 -Encoding UTF8
                 $publicFunctionNames = Get-ChildItem -Path $publicFunctionsPath -Filter "*.ps1" | Select-Object -ExpandProperty BaseName
 
@@ -395,10 +395,15 @@ Begin {
                 [string]$build_Id
             )
             if (![string]::IsNullOrWhiteSpace($build_Id)) {
-                Write-Verbose "CleanUp ..."
+                Write-Heading "CleanUp"
                 $OldEnvNames = [Environment]::GetEnvironmentVariables().Keys | Where-Object { $_ -like "$build_Id*" }
                 if ($OldEnvNames.Count -gt 0) {
-                    foreach ($Name in $OldEnvNames) { [Environment]::SetEnvironmentVariable($Name, $null) }
+                    foreach ($Name in $OldEnvNames) {
+                        Write-BuildLog "Remove env variable $Name"
+                        [Environment]::SetEnvironmentVariable($Name, $null)
+                    }
+                } else {
+                    Write-BuildLog "No old Env variables to remove; Move on ..."
                 }
             } else {
                 Write-Warning "Invalid BuildId! Skipping ..."
@@ -447,25 +452,24 @@ Begin {
                     Invoke-Command $Clean_EnvBuildvariables -ArgumentList $Last_Build_Id
                 }
             }
-            if ($PSCmdlet.ShouldProcess("$Env:ComputerName", "Set BuildEnvironmentVariables")) {
-                Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildStart') -Value $(Get-Date -Format o)
-                Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildScriptPath') -Value $(if ([string]::IsNullOrWhiteSpace($BuildScriptPath)) { $ScriptRoot }else { $BuildScriptPath })
-                Set-Variable -Name BuildScriptPath -Value ([Environment]::GetEnvironmentVariable($BuildId + 'BuildScriptPath')) -Scope Local -Force
-                Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildSystem') -Value $(if ($IsCI) { "VSTS" }else { [System.Environment]::MachineName })
-                Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'ProjectPath') -Value $(if ($IsCI) { $Env:SYSTEM_DEFAULTWORKINGDIRECTORY }else { $BuildScriptPath })
-                Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BranchName') -Value $(if ($IsCI) { $Env:BUILD_SOURCEBRANCHNAME }else { $(Push-Location $BuildScriptPath; (git rev-parse --abbrev-ref HEAD).Trim(); Pop-Location) })
-                Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'CommitMessage') -Value $(if ($IsCI) { $Env:BUILD_SOURCEVERSIONMESSAGE }else { $(Push-Location $BuildScriptPath; (git log --format=%B -n 1).Trim(); Pop-Location) })
-                Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildNumber') -Value $(if ($IsCI) { $Env:BUILD_BUILDNUMBER } else { $(if ($buildVersion) { $buildVersion }else { "0.0.0" }) })
-                Set-Variable -Name BuildNumber -Value ([Environment]::GetEnvironmentVariable($BuildId + 'BuildNumber')) -Scope Local -Force
-                Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildOutput') -Value $([IO.path]::Combine($BuildScriptPath, "BuildOutput"))
-                Set-Variable -Name BuildOutput -Value ([Environment]::GetEnvironmentVariable($BuildId + 'BuildOutput')) -Scope Local -Force
-                Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'ProjectName') -Value $("NerdCrypt")
-                Set-Variable -Name ProjectName -Value ([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')) -Scope Local -Force
-                Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'PSModulePath') -Value $([IO.path]::Combine($BuildOutput, $ProjectName, $BuildNumber))
-                Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'PSModuleManifest') -Value $([IO.path]::Combine($BuildOutput, $ProjectName, $BuildNumber, "$ProjectName.psd1"))
-                Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'ModulePath') -Value $(if (![string]::IsNullOrWhiteSpace($Env:PSModuleManifest)) { [IO.Path]::GetDirectoryName($Env:PSModuleManifest) }else { [IO.Path]::GetDirectoryName($BuildOutput) })
-                Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'ReleaseNotes') -Value $("# Changelog`n`n")
-            }
+            Write-Heading "Set BuildEnv Variables"
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildStart') -Value $(Get-Date -Format o)
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildScriptPath') -Value $(if ([string]::IsNullOrWhiteSpace($BuildScriptPath)) { $ScriptRoot }else { $BuildScriptPath })
+            Set-Variable -Name BuildScriptPath -Value ([Environment]::GetEnvironmentVariable($BuildId + 'BuildScriptPath')) -Scope Local -Force
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildSystem') -Value $(if ($IsCI) { "VSTS" }else { [System.Environment]::MachineName })
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'ProjectPath') -Value $(if ($IsCI) { $Env:SYSTEM_DEFAULTWORKINGDIRECTORY }else { $BuildScriptPath })
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BranchName') -Value $(if ($IsCI) { $Env:BUILD_SOURCEBRANCHNAME }else { $(Push-Location $BuildScriptPath; (git rev-parse --abbrev-ref HEAD).Trim(); Pop-Location) })
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'CommitMessage') -Value $(if ($IsCI) { $Env:BUILD_SOURCEVERSIONMESSAGE }else { $(Push-Location $BuildScriptPath; (git log --format=%B -n 1).Trim(); Pop-Location) })
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildNumber') -Value $(if ($IsCI) { $Env:BUILD_BUILDNUMBER } else { $(if ($buildVersion) { $buildVersion }else { "0.0.0" }) })
+            Set-Variable -Name BuildNumber -Value ([Environment]::GetEnvironmentVariable($BuildId + 'BuildNumber')) -Scope Local -Force
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildOutput') -Value $([IO.path]::Combine($BuildScriptPath, "BuildOutput"))
+            Set-Variable -Name BuildOutput -Value ([Environment]::GetEnvironmentVariable($BuildId + 'BuildOutput')) -Scope Local -Force
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'ProjectName') -Value $("NerdCrypt")
+            Set-Variable -Name ProjectName -Value ([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')) -Scope Local -Force
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'PSModulePath') -Value $([IO.path]::Combine($BuildOutput, $ProjectName, $BuildNumber))
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'PSModuleManifest') -Value $([IO.path]::Combine($BuildOutput, $ProjectName, $BuildNumber, "$ProjectName.psd1"))
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'ModulePath') -Value $(if (![string]::IsNullOrWhiteSpace($Env:PSModuleManifest)) { [IO.Path]::GetDirectoryName($Env:PSModuleManifest) }else { [IO.Path]::GetDirectoryName($BuildOutput) })
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'ReleaseNotes') -Value $("# Changelog`n`n")
         }
     }
     function Get-Elapsed {
@@ -1030,11 +1034,15 @@ Process {
                 Write-Heading "Importing $([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')) to local scope"
                 Invoke-CommandWithLog { Import-Module $ModuleName }
             }
-            # CleanUp
-            Write-Verbose "CleanUp: Uninstall the test module, and delete the LocalPSRepo"
-            Unregister-PSRepository 'LocalPSRepo'
-            Remove-Item "$([IO.Path]::Combine($Env:USERPROFILE, 'LocalPSRepo'))" -Force -Recurse -ErrorAction 'SilentlyContinue'
-            Uninstall-Module $ModuleName
+            Write-Heading "CleanUp: Uninstall the test module, and delete the LocalPSRepo"
+            if ($Task -notcontains 'Import') {
+                Uninstall-Module $ModuleName
+                Unregister-PSRepository 'LocalPSRepo'
+            }
+            $Local_PSRepo = [IO.Path]::Combine($Env:USERPROFILE, 'LocalPSRepo')
+            if (Test-Path $Local_PSRepo -PathType Container -ErrorAction SilentlyContinue) {
+                Remove-Item "$Local_PSRepo" -Force -Recurse
+            }
         }
         Write-EnvironmentSummary "Build finished"
     }
@@ -1043,5 +1051,6 @@ End {
     if (!$IsAC) {
         Invoke-Command $Clean_EnvBuildvariables -ArgumentList $BuildId
     }
+    [Environment]::SetEnvironmentVariable('BuildId', $null)
     exit ( [int](!$psake.build_success) )
 }
