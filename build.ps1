@@ -103,7 +103,7 @@ Begin {
                     foreach ($Item in @(
                             "bin"
                             "en-US"
-                            "NerdCrypt.Extension"
+                            "NerdCrypt.Core"
                             "Private"
                             "Public"
                             "LICENSE"
@@ -119,7 +119,7 @@ Begin {
                     throw $_
                 }
                 # Create Class
-                $_NC_File = [IO.Path]::Combine($([Environment]::GetEnvironmentVariable($BuildId + 'PSModulePath')), "NerdCrypt.Extension", "NerdCrypt.Extension.psm1")
+                $_NC_File = [IO.Path]::Combine($([Environment]::GetEnvironmentVariable($BuildId + 'PSModulePath')), "NerdCrypt.Core", "NerdCrypt.Core.psm1")
                 $NC_Class = Get-Item $_NC_File
                 if ($PSVersionTable.PSEdition -ne "Core" -and $PSVersionTable.PSVersion.Major -le 5.1) {
                     if ([IO.File]::Exists($NC_Class)) {
@@ -284,7 +284,8 @@ Begin {
                                 "    [SKIPPED] Deployment of version [$($versionToDeploy)] to PSGallery"
                             }
                             $commitId = git rev-parse --verify HEAD
-                            if (-not [String]::IsNullOrEmpty($Env:GitHubPAT)) {
+                            if (-not [String]::IsNullOrEmpty($Env:GitHubPAT) -and $IsAC) {
+                                $Project_Name = [Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')
                                 "    Creating Release ZIP..."
                                 $zipPath = [System.IO.Path]::Combine($PSScriptRoot, "$($([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName'))).zip")
                                 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
@@ -295,22 +296,22 @@ Begin {
                                 $ReleaseNotes += (git log -1 --pretty=%B | Select-Object -Skip 2) -join "`n"
                                 $ReleaseNotes += "`n`n***`n`n# Instructions`n`n"
                                 $ReleaseNotes += @"
-1. [Click here](https://github.com/alainQtec/$($([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')))/releases/download/v$($versionToDeploy.ToString())/$($([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName'))).zip) to download the *$($([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName'))).zip* file attached to the release.
+1. [Click here](https://github.com/alainQtec/$Project_Name/releases/download/v$($versionToDeploy.ToString())/$Project_Name.zip) to download the *$Project_Name.zip* file attached to the release.
 2. **If on Windows**: Right-click the downloaded zip, select Properties, then unblock the file.
     > _This is to prevent having to unblock each file individually after unzipping._
 3. Unzip the archive.
 4. (Optional) Place the module folder somewhere in your ``PSModulePath``.
     > _You can view the paths listed by running the environment variable ```$Env:PSModulePath``_
-5. Import the module, using the full path to the PSD1 file in place of ``$($([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')))`` if the unzipped module folder is not in your ``PSModulePath``:
+5. Import the module, using the full path to the PSD1 file in place of ``$Project_Name`` if the unzipped module folder is not in your ``PSModulePath``:
     ``````powershell
     # In `$Env:PSModulePath
-    Import-Module $($([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')))
+    Import-Module $Project_Name
 
     # Otherwise, provide the path to the manifest:
-    Import-Module -Path C:\MyPSModules\$($([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')))\$($versionToDeploy.ToString())\$($([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName'))).psd1
+    Import-Module -Path C:\MyPSModules\$Project_Name\$($versionToDeploy.ToString())\$Project_Name.psd1
     ``````
 "@
-                                Set-EnvironmentVariable BHReleaseNotes $ReleaseNotes
+                                Set-EnvironmentVariable -name ('{0}{1}' -f $BuildId, 'ReleaseNotes') -Value $ReleaseNotes
                                 $gitHubParams = @{
                                     VersionNumber    = $versionToDeploy.ToString()
                                     CommitId         = $commitId
@@ -429,6 +430,9 @@ Begin {
             $Last_Build_Id = if ([IO.File]::Exists($LastIdFile)) { (Get-Content $LastIdFile -Raw).Trim() }else { '' }
             $VersionFile = [IO.Path]::Combine($ScriptRoot, 'Version.txt')
             Set-Variable -Name BuildId -Value $VariableNamePrefix -Force -Option AllScope -Scope Global
+            [Environment]::SetEnvironmentVariable('BuildId', $BuildId)
+            New-Variable -Name IsAC -Value $($IsAC -or (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('GITHUB_ACTION_PATH')))) -Scope Global -Force -Option AllScope
+            New-Variable -Name IsCI -Value $($IsCI -or (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('TF_BUILD')))) -Scope Global -Force -Option AllScope
             if ([IO.File]::Exists($LastIdFile)) { Remove-Item $LastIdFile -Force }
             $BuildId | Out-File $LastIdFile -Force;
             Get-Item $LastIdFile -Force | ForEach-Object { $_.Attributes = $_.Attributes -bor "Hidden" }
@@ -438,8 +442,7 @@ Begin {
             } else {
                 Write-Warning 'Could not Find Version File'
             }
-            New-Variable -Name IsCI -Value $($IsCI -or (Test-Path (Get-Item Env:) | Where-Object { $_.Name -eq 'TF_BUILD' })) -Scope Global -Force -Option AllScope
-            if (!$IsCI) {
+            if (!$IsAC) {
                 if ($PSCmdlet.ShouldProcess("$Env:ComputerName", "Clean Last Builds's Env~ variables")) {
                     Invoke-Command $Clean_Last_EnvBuildvariables -ArgumentList $Last_Build_Id
                 }
@@ -886,8 +889,11 @@ Process {
             }
             Invoke-Command -ScriptBlock $PSake_Build
             if ($Task -contains 'Import' -and $psake.build_success) {
-                Write-Heading "Importing $([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')) to local scope"
-                Import-Module ([IO.Path]::Combine($([Environment]::GetEnvironmentVariable($BuildId + 'BuildOutput')), $([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')))) -Verbose:$false
+                $Project_Name = [Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')
+                $Project_Path = [Environment]::GetEnvironmentVariable($BuildId + 'BuildOutput')
+                Write-Heading "Importing $Project_Name to local scope"
+                $Module_Path = [IO.Path]::Combine($Project_Path, $Project_Name)
+                Invoke-CommandWithLog { Import-Module $Module_Path -Verbose:$false }
             }
         } else {
             Invoke-Command -ScriptBlock $PSake_Build
@@ -906,7 +912,7 @@ Process {
             if ([IO.File]::Exists($ModulePackage)) {
                 Remove-Item -Path $ModulePackage -ErrorAction 'SilentlyContinue'
             }
-            Write-BuildLog "Publish to Local Repository ..."
+            Write-Heading "Publish to Local Repository"
             $RequiredModules = Get-Metadata ([IO.Path]::Combine($ModulePath, "$([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')).psd1")) RequiredModules -Verbose:$false
             foreach ($Module in $RequiredModules) {
                 $md = Get-Module $Module -Verbose:$false; $mdPath = $md.Path | Split-Path
@@ -919,7 +925,7 @@ Process {
             # Import Module
             if ($Task -contains 'Import' -and $psake.build_success) {
                 Write-Heading "Importing $([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')) to local scope"
-                Import-Module $ModuleName
+                Invoke-CommandWithLog { Import-Module $ModuleName }
             }
             # CleanUp
             Write-Verbose "CleanUp: Uninstall the test module, and delete the LocalPSRepo"
@@ -931,7 +937,7 @@ Process {
     }
 }
 End {
-    if (!$IsCI) {
+    if (!$IsAC) {
         Invoke-Command $Clean_Last_EnvBuildvariables -ArgumentList $BuildId
     }
     exit ( [int](!$psake.build_success) )
