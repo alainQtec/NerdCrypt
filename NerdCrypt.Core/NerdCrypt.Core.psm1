@@ -2370,3 +2370,8 @@ class NerdCrypt {
     }
 }
 #endregion MainClass
+
+#Region    Functions
+#Endregion Functions
+
+Export-ModuleMember -Function *-* -Alias *
