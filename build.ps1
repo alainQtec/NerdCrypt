@@ -387,7 +387,7 @@ Begin {
             Remove-Item $Psake_BuildFile -Verbose | Out-Null
         }
     )
-    $script:Clean_Last_EnvBuildvariables = [scriptblock]::Create({
+    $script:Clean_EnvBuildvariables = [scriptblock]::Create({
             Param (
                 [Parameter(Position = 0)]
                 [ValidatePattern('\w*')]
@@ -427,7 +427,7 @@ Begin {
         Process {
             $ScriptRoot = $(if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) { $PWD.Path }else { $PSScriptRoot })
             $LastIdFile = [IO.Path]::Combine($HOME, 'Last_Build_Id.txt')
-            $Last_Build_Id = if ([IO.File]::Exists($LastIdFile)) { (Get-Content $LastIdFile -Raw).Trim() }else { '' }
+            Set-Variable -Name Last_Build_Id -Value $(if ([IO.File]::Exists($LastIdFile)) { (Get-Content $LastIdFile -Raw).Trim() }else { '' }) -Force -Option AllScope -Scope Global
             $VersionFile = [IO.Path]::Combine($ScriptRoot, 'Version.txt')
             Set-Variable -Name BuildId -Value $VariableNamePrefix -Force -Option AllScope -Scope Global
             [Environment]::SetEnvironmentVariable('BuildId', $BuildId)
@@ -442,9 +442,9 @@ Begin {
             } else {
                 Write-Warning 'Could not Find Version File'
             }
-            if (!$IsAC) {
+            if (![string]::IsNullOrEmpty($Last_Build_Id)) {
                 if ($PSCmdlet.ShouldProcess("$Env:ComputerName", "Clean Last Builds's Env~ variables")) {
-                    Invoke-Command $Clean_Last_EnvBuildvariables -ArgumentList $Last_Build_Id
+                    Invoke-Command $Clean_EnvBuildvariables -ArgumentList $Last_Build_Id
                 }
             }
             if ($PSCmdlet.ShouldProcess("$Env:ComputerName", "Set BuildEnvironmentVariables")) {
@@ -938,7 +938,7 @@ Process {
 }
 End {
     if (!$IsAC) {
-        Invoke-Command $Clean_Last_EnvBuildvariables -ArgumentList $BuildId
+        Invoke-Command $Clean_EnvBuildvariables -ArgumentList $BuildId
     }
     exit ( [int](!$psake.build_success) )
 }
