@@ -912,7 +912,7 @@ Process {
             if ([IO.File]::Exists($ModulePackage)) {
                 Remove-Item -Path $ModulePackage -ErrorAction 'SilentlyContinue'
             }
-            Write-Heading "Publish to Local Repository"
+            Write-Heading "Publish to Local PsRepository"
             $RequiredModules = Get-Metadata ([IO.Path]::Combine($ModulePath, "$([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')).psd1")) RequiredModules -Verbose:$false
             foreach ($Module in $RequiredModules) {
                 $md = Get-Module $Module -Verbose:$false; $mdPath = $md.Path | Split-Path
