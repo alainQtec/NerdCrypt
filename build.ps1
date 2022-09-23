@@ -103,7 +103,7 @@ Begin {
                     foreach ($Item in @(
                             "bin"
                             "en-US"
-                            "Classes"
+                            "NerdCrypt.Extension"
                             "Private"
                             "Public"
                             "LICENSE"
@@ -119,7 +119,7 @@ Begin {
                     throw $_
                 }
                 # Create Class
-                $_NC_File = [IO.Path]::Combine($([Environment]::GetEnvironmentVariable($BuildId + 'PSModulePath')), "Classes", "NerdCrypt.Class.ps1")
+                $_NC_File = [IO.Path]::Combine($([Environment]::GetEnvironmentVariable($BuildId + 'PSModulePath')), "NerdCrypt.Extension", "NerdCrypt.Extension.psm1")
                 $NC_Class = Get-Item $_NC_File
                 if ($PSVersionTable.PSEdition -ne "Core" -and $PSVersionTable.PSVersion.Major -le 5.1) {
                     if ([IO.File]::Exists($NC_Class)) {
@@ -147,8 +147,6 @@ Begin {
                 # Using .Replace() is Better than Update-ModuleManifest as this does not destroy the Indentation in the Psd1 file.
                 $manifestContent = $manifestContent.Replace(
                     "'<FunctionsToExport>'", $(if ((Test-Path -Path $publicFunctionsPath) -and $publicFunctionNames.count -gt 0) { "'$($publicFunctionNames -join "',`n        '")'" }else { $null })
-                ).Replace(
-                    "<ScriptsToProcess>", $((Get-ChildItem ([IO.Path]::Combine($([Environment]::GetEnvironmentVariable($BuildId + 'PSModulePath')), "Classes")) -File -Filter "*.Class.ps1" | ForEach-Object { "$([IO.Path]::Combine('Classes', $_.Name))" }) -join ",`n        ").Trim()
                 ).Replace(
                     "<ModuleVersion>", $([Environment]::GetEnvironmentVariable($BuildId + 'BuildNumber'))
                 ).Replace(
@@ -454,7 +452,7 @@ Begin {
                 Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'ProjectPath') -Value $(if ($IsCI) { $Env:SYSTEM_DEFAULTWORKINGDIRECTORY }else { $BuildScriptPath })
                 Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BranchName') -Value $(if ($IsCI) { $Env:BUILD_SOURCEBRANCHNAME }else { $(Push-Location $BuildScriptPath; (git rev-parse --abbrev-ref HEAD).Trim(); Pop-Location) })
                 Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'CommitMessage') -Value $(if ($IsCI) { $Env:BUILD_SOURCEVERSIONMESSAGE }else { $(Push-Location $BuildScriptPath; (git log --format=%B -n 1).Trim(); Pop-Location) })
-                Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildNumber') -Value $(if ($IsCI) { $Env:BUILD_BUILDNUMBER } else { $(if ($buildVersion) { $buildVersion }else { "Unknown" }) })
+                Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildNumber') -Value $(if ($IsCI) { $Env:BUILD_BUILDNUMBER } else { $(if ($buildVersion) { $buildVersion }else { "0.0.0" }) })
                 Set-Variable -Name BuildNumber -Value ([Environment]::GetEnvironmentVariable($BuildId + 'BuildNumber')) -Scope Local -Force
                 Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildOutput') -Value $([IO.path]::Combine($BuildScriptPath, "BuildOutput"))
                 Set-Variable -Name BuildOutput -Value ([Environment]::GetEnvironmentVariable($BuildId + 'BuildOutput')) -Scope Local -Force
@@ -468,10 +466,12 @@ Begin {
         }
     }
     function Get-Elapsed {
+        $buildstart = [Environment]::GetEnvironmentVariable($script:BuildId + 'BuildStart')
+        $build_date = if ([string]::IsNullOrWhiteSpace($buildstart)) { Get-Date }else { Get-Date $buildstart }
         if ($IsCI) {
-            "[ + $(((Get-Date) - (Get-Date $([Environment]::GetEnvironmentVariable($script:BuildId + 'BuildStart')))).ToString())]"
+            "[ + $(((Get-Date) - $build_date).ToString())]"
         } else {
-            "[$((Get-Date).ToString("HH:mm:ss")) + $(((Get-Date) - (Get-Date $([Environment]::GetEnvironmentVariable($script:BuildId + 'BuildStart')))).ToString())]"
+            "[$((Get-Date).ToString("HH:mm:ss")) + $(((Get-Date) - $build_date).ToString())]"
         }
     }
     function Get-LatestModuleVersion($Name) {
