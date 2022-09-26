@@ -415,33 +415,107 @@ Begin {
     #endregion Variables
 
     #region    BuildHelper_Functions
+                class dotEnv {
+                [Array]static Read([string]$EnvFile) {
+                    $content = Get-Content $EnvFile -ErrorAction Stop
+                    $res_Obj = [System.Collections.Generic.List[string[]]]::new()
+                    foreach ($line in $content) {
+                        if([string]::IsNullOrWhiteSpace($line)){
+                            Write-Verbose "[GetdotEnv] Skipping empty line"
+                            continue
+                        }
+                        if($line.StartsWith("#") -or $line.StartsWith("//")){
+                            Write-Verbose "[GetdotEnv] Skipping comment: $line"
+                            continue
+                        }
+                        ($m, $d )= switch -Wildcard ($line) {
+                            "*:=*" { "Prefix", ($line -split ":=",2); Break }
+                            "*=:*" { "Suffix", ($line -split "=:",2); Break }
+                            "*=*" { "Assign", ($line -split "=",2); Break }
+                            Default {
+                                throw 'Unable to find Key value pair in line'
+                            }
+                        }
+                        $res_Obj.Add(($d[0].Trim(), $d[1].Trim(), $m));
+                    }
+                    return $res_Obj
+                }
+                [void]static Write([string]$EnvFile) {}
+                [void]static Set([string]$EnvFile) {}
+                [void]static Set([string]$EnvFile, [string]$RootDir, [bool]$Force) {
+                    if($Global:PreviousDir -eq $RootDir){
+                        if (-not $Force) {
+                            Write-Verbose "[setdotEnv] Skipping same dir"
+                            return
+                        }
+                    } else {
+                        $Global:PreviousDir = $RootDir
+                    }
+
+                    #return if no env file
+                    if (!(Test-Path $EnvFile)) {
+                        Write-Verbose "[setdotEnv] No .env file"
+                        return
+                    }
+
+                    #read the local env file
+                    $content = [dotEnv]::Read($EnvFile)
+                    Write-Verbose "[setdotEnv] Parsed .env file"
+                    foreach ($value in $content) {
+                        switch ($value[2]) {
+                            "Assign" {
+                                [Environment]::SetEnvironmentVariable($value[0], $value[1], "Process") | Out-Null
+                            }
+                            "Prefix" {
+                                $value[1] = "{0};{1}" -f  $value[1],[System.Environment]::GetEnvironmentVariable($value[0])
+                                [Environment]::SetEnvironmentVariable($value[0], $value[1], "Process") | Out-Null
+                            }
+                            "Suffix" {
+                                $value[1] = "{1};{0}" -f  $value[1],[System.Environment]::GetEnvironmentVariable($value[0])
+                                [Environment]::SetEnvironmentVariable($value[0], $value[1], "Process") | Out-Null
+                            }
+                            Default {
+                                throw [System.IO.InvalidDataException]::new()
+                            }
+                        }
+                    }
+                }
+            }
     function Set-BuildVariables {
-        [cmdletbinding(SupportsShouldProcess = $true)]
+        [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
         param(
             [Parameter(Position = 0)]
             [ValidateNotNullOrEmpty()]
             [Alias('RootPath')]
-            [string]$Path = $PWD.Path,
+            [string]$Path = (Get-Location).Path,
 
             [Parameter(Position = 1)]
             [ValidatePattern('\w*')]
             [ValidateNotNullOrEmpty()][Alias('BuildId')]
-            [String]$VariableNamePrefix = [string]::Join('', (0..9 + (97..122 | ForEach-Object { [string][char]$_ }) | Get-Random -Count 18)) + '_'
+            [String]$VarNamePrefix = [string][Guid]::NewGuid().Guid.replace('-', [string]::Join('', (0..9 + (97..122 | ForEach-Object { [string][char]$_ }) | Get-Random -Count 1))) + '_'
         )
 
         Process {
-            $ScriptRoot = $(if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) { $PWD.Path }else { $PSScriptRoot })
-            $LastIdFile = [IO.Path]::Combine($HOME, 'Last_Build_Id.txt')
-            Set-Variable -Name Last_Build_Id -Value $(if ([IO.File]::Exists($LastIdFile)) { (Get-Content $LastIdFile -Raw).Trim() }else { '' }) -Force -Option AllScope -Scope Global
+            $ScriptRoot = $(if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) { (Get-Location).Path }else { $PSScriptRoot })
+            $LocEnvFile = [IO.Path]::Combine($ScriptRoot, '.env')
+            # Default /Preset Env: variables:
+            if ([IO.File]::Exists($LocEnvFile)) {
+                Invoke-Command -ScriptBlock $setdotEnv -ArgumentList @($ScriptRoot, $LocEnvFile)
+            }else {
+                throw [System.Management.Automation.ItemNotFoundException]::new("No .env file")
+            }
+            Exit 0
+
+            Set-Variable -Name Last_Build_Id -Value $() -Force -Option AllScope -Scope Global
             $VersionFile = [IO.Path]::Combine($ScriptRoot, 'Version.txt')
-            Set-Variable -Name BuildId -Value $VariableNamePrefix -Force -Option AllScope -Scope Global
+            Set-Variable -Name BuildId -Value $VarNamePrefix -Force -Option AllScope -Scope Global
             [Environment]::SetEnvironmentVariable('BuildId', $BuildId)
             New-Variable -Name IsAC -Value $($IsAC -or (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('GITHUB_ACTION_PATH')))) -Scope Global -Force -Option AllScope
             New-Variable -Name IsCI -Value $($IsCI -or (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('TF_BUILD')))) -Scope Global -Force -Option AllScope
             if ([IO.File]::Exists($LastIdFile)) { Remove-Item $LastIdFile -Force }
             $BuildId | Out-File $LastIdFile -Force;
             Get-Item $LastIdFile -Force | ForEach-Object { $_.Attributes = $_.Attributes -bor "Hidden" }
-            New-Variable -Name BuildScriptPath -Value ([Environment]::GetEnvironmentVariable($VariableNamePrefix + 'BuildScriptPath')) -Scope Local -Force
+            New-Variable -Name BuildScriptPath -Value ([Environment]::GetEnvironmentVariable($VarNamePrefix + 'BuildScriptPath')) -Scope Local -Force
             if ([IO.File]::Exists($VersionFile)) {
                 New-Variable -Name BuildVersion -Value $(Get-Content $VersionFile) -Scope Global -Force -Option AllScope
             } else {
@@ -452,7 +526,7 @@ Begin {
                     Invoke-Command $Clean_EnvBuildvariables -ArgumentList $Last_Build_Id
                 }
             }
-            Write-Heading "Set BuildEnv Variables"
+            Write-Heading "Set BuildEnv Variables" # dynamic var~s
             Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildStart') -Value $(Get-Date -Format o)
             Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildScriptPath') -Value $(if ([string]::IsNullOrWhiteSpace($BuildScriptPath)) { $ScriptRoot }else { $BuildScriptPath })
             Set-Variable -Name BuildScriptPath -Value ([Environment]::GetEnvironmentVariable($BuildId + 'BuildScriptPath')) -Scope Local -Force
@@ -914,7 +988,7 @@ Begin {
     #endregion BuildHelper_Functions
 }
 Process {
-    Set-BuildVariables -VariableNamePrefix $BuildId
+    Set-BuildVariables -VarNamePrefix $BuildId
     Write-EnvironmentSummary "Build started"
     Write-Heading "Setting package feeds"
     $PKGRepoHash = @{
