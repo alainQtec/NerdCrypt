@@ -62,5 +62,5 @@ Please follow these guidelines for any content being added:
 
 For any questions, comments or concerns outside of opening an issue, please reach out:
 
-* [`E-Mail`](Mail.to::alain.1337dev@Outlook.com)
+* [`E-Mail`](mailto:alain.1337dev@Outlook.com)
 * [`@alainQtec`](https://twitter.com/alainQtec) on Twitter
