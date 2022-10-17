@@ -82,7 +82,10 @@ Please see the [Releases section of this repository](https://github.com/alainQte
 
 ## 🤝 **Contributions**
 
- The repository is open to suggestions, contributions and all other forms of help.
+
+![Alt](https://repobeats.axiom.co/api/embed/d201fa56239511a45aa4aacb0e06e24f756cc531.svg "Repobeats analytics image")
+
+This repository is open to suggestions, contributions and all other forms of help.
 
 Interested in helping out with the Module development? Please check out our [Contribution Guidelines](https://github.com/alainQtec/NerdCrypt/blob/main/CONTRIBUTING.md)!
 
