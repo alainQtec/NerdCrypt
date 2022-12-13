@@ -441,7 +441,15 @@ Begin {
             return $res_Obj
         }
         [void]static Write([string]$EnvFile) {}
-        [void]static Set([string]$EnvFile) {}
+        [void]static Set([string]$EnvFile) {
+            [dotEnv]::Set($EnvFile, (Get-Location).path, $false)
+        }
+        [void]static Set([string]$EnvFile, [string]$RootDir) {
+            [dotEnv]::Set($EnvFile, $RootDir, $false)
+        }
+        [void]static Set([string]$EnvFile, [System.IO.FileInfo]$RootDir) {
+            [dotEnv]::Set($EnvFile, $RootDir.FullName, $false)
+        }
         [void]static Set([string]$EnvFile, [string]$RootDir, [bool]$Force) {
             if ($(Get-Variable -Name PreviousDir -Scope Global -ErrorAction SilentlyContinue).Value -eq $RootDir) {
                 if (-not $Force) {
@@ -500,7 +508,7 @@ Begin {
             $LocEnvFile = [IO.Path]::Combine($ScriptRoot, '.env')
             # Default /Preset Env: variables:
             if ([IO.File]::Exists($LocEnvFile)) {
-                Invoke-Command -ScriptBlock $setdotEnv -ArgumentList @($ScriptRoot, $LocEnvFile)
+                [dotEnv]::Set($LocEnvFile, $ScriptRoot)
             } else {
                 throw [System.Management.Automation.ItemNotFoundException]::new("No .env file")
             }
