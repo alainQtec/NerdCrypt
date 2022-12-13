@@ -415,72 +415,72 @@ Begin {
     #endregion Variables
 
     #region    BuildHelper_Functions
-                class dotEnv {
-                [Array]static Read([string]$EnvFile) {
-                    $content = Get-Content $EnvFile -ErrorAction Stop
-                    $res_Obj = [System.Collections.Generic.List[string[]]]::new()
-                    foreach ($line in $content) {
-                        if([string]::IsNullOrWhiteSpace($line)){
-                            Write-Verbose "[GetdotEnv] Skipping empty line"
-                            continue
-                        }
-                        if($line.StartsWith("#") -or $line.StartsWith("//")){
-                            Write-Verbose "[GetdotEnv] Skipping comment: $line"
-                            continue
-                        }
-                        ($m, $d )= switch -Wildcard ($line) {
-                            "*:=*" { "Prefix", ($line -split ":=",2); Break }
-                            "*=:*" { "Suffix", ($line -split "=:",2); Break }
-                            "*=*" { "Assign", ($line -split "=",2); Break }
-                            Default {
-                                throw 'Unable to find Key value pair in line'
-                            }
-                        }
-                        $res_Obj.Add(($d[0].Trim(), $d[1].Trim(), $m));
-                    }
-                    return $res_Obj
+    class dotEnv {
+        [Array]static Read([string]$EnvFile) {
+            $content = Get-Content $EnvFile -ErrorAction Stop
+            $res_Obj = [System.Collections.Generic.List[string[]]]::new()
+            foreach ($line in $content) {
+                if ([string]::IsNullOrWhiteSpace($line)) {
+                    Write-Verbose "[GetdotEnv] Skipping empty line"
+                    continue
                 }
-                [void]static Write([string]$EnvFile) {}
-                [void]static Set([string]$EnvFile) {}
-                [void]static Set([string]$EnvFile, [string]$RootDir, [bool]$Force) {
-                    if($Global:PreviousDir -eq $RootDir){
-                        if (-not $Force) {
-                            Write-Verbose "[setdotEnv] Skipping same dir"
-                            return
-                        }
-                    } else {
-                        $Global:PreviousDir = $RootDir
+                if ($line.StartsWith("#") -or $line.StartsWith("//")) {
+                    Write-Verbose "[GetdotEnv] Skipping comment: $line"
+                    continue
+                }
+                ($m, $d )= switch -Wildcard ($line) {
+                    "*:=*" { "Prefix", ($line -split ":=", 2); Break }
+                    "*=:*" { "Suffix", ($line -split "=:", 2); Break }
+                    "*=*" { "Assign", ($line -split "=", 2); Break }
+                    Default {
+                        throw 'Unable to find Key value pair in line'
                     }
+                }
+                $res_Obj.Add(($d[0].Trim(), $d[1].Trim(), $m));
+            }
+            return $res_Obj
+        }
+        [void]static Write([string]$EnvFile) {}
+        [void]static Set([string]$EnvFile) {}
+        [void]static Set([string]$EnvFile, [string]$RootDir, [bool]$Force) {
+            if ($(Get-Variable -Name PreviousDir -Scope Global -ErrorAction SilentlyContinue).Value -eq $RootDir) {
+                if (-not $Force) {
+                    Write-Verbose "[setdotEnv] Skipping same dir"
+                    return
+                }
+            } else {
+                Set-Variable -Name PreviousDir -Scope Global -Value $RootDir
+            }
 
-                    #return if no env file
-                    if (!(Test-Path $EnvFile)) {
-                        Write-Verbose "[setdotEnv] No .env file"
-                        return
+            #return if no env file
+            if (!(Test-Path $EnvFile)) {
+                Write-Verbose "[setdotEnv] No .env file"
+                return
+            }
+
+            #read the local env file
+            $content = [dotEnv]::Read($EnvFile)
+            Write-Verbose "[setdotEnv] Parsed .env file"
+            foreach ($value in $content) {
+                switch ($value[2]) {
+                    "Assign" {
+                        [Environment]::SetEnvironmentVariable($value[0], $value[1], "Process") | Out-Null
                     }
-
-                    #read the local env file
-                    $content = [dotEnv]::Read($EnvFile)
-                    Write-Verbose "[setdotEnv] Parsed .env file"
-                    foreach ($value in $content) {
-                        switch ($value[2]) {
-                            "Assign" {
-                                [Environment]::SetEnvironmentVariable($value[0], $value[1], "Process") | Out-Null
-                            }
-                            "Prefix" {
-                                $value[1] = "{0};{1}" -f  $value[1],[System.Environment]::GetEnvironmentVariable($value[0])
-                                [Environment]::SetEnvironmentVariable($value[0], $value[1], "Process") | Out-Null
-                            }
-                            "Suffix" {
-                                $value[1] = "{1};{0}" -f  $value[1],[System.Environment]::GetEnvironmentVariable($value[0])
-                                [Environment]::SetEnvironmentVariable($value[0], $value[1], "Process") | Out-Null
-                            }
-                            Default {
-                                throw [System.IO.InvalidDataException]::new()
-                            }
-                        }
+                    "Prefix" {
+                        $value[1] = "{0};{1}" -f  $value[1], [System.Environment]::GetEnvironmentVariable($value[0])
+                        [Environment]::SetEnvironmentVariable($value[0], $value[1], "Process") | Out-Null
+                    }
+                    "Suffix" {
+                        $value[1] = "{1};{0}" -f  $value[1], [System.Environment]::GetEnvironmentVariable($value[0])
+                        [Environment]::SetEnvironmentVariable($value[0], $value[1], "Process") | Out-Null
+                    }
+                    Default {
+                        throw [System.IO.InvalidDataException]::new()
                     }
                 }
             }
+        }
+    }
     function Set-BuildVariables {
         [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
         param(
@@ -501,7 +501,7 @@ Begin {
             # Default /Preset Env: variables:
             if ([IO.File]::Exists($LocEnvFile)) {
                 Invoke-Command -ScriptBlock $setdotEnv -ArgumentList @($ScriptRoot, $LocEnvFile)
-            }else {
+            } else {
                 throw [System.Management.Automation.ItemNotFoundException]::new("No .env file")
             }
             Exit 0
