@@ -18,7 +18,7 @@
     TypesToProcess         = @()
     FormatsToProcess       = @()
     NestedModules          = @(
-        './NerdCrypt.Core'
+        '.Private/NerdCrypt.Core'
     )
     FunctionsToExport      = @(
         '<FunctionsToExport>'
