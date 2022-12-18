@@ -22,6 +22,17 @@ function Install-VSTS {
     }
 
     process {
+        $url = "https://aka.ms/vsts-cli-windows-installer"
+
+        # Download the installer
+        Invoke-WebRequest -Uri $url -OutFile "vsts-cli-installer.msi"
+
+        # Install the VSTS CLI
+        Start-Process "msiexec.exe" -ArgumentList "/i vsts-cli-installer.msi /qn" -Wait
+
+        # Clean up the installer file
+        Remove-Item "vsts-cli-installer.msi"
+
     }
 
     end {
