@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    AIO PowerShell class to do all things encryption-decryption.
+    AIO PowerShell Module to do all things encryption-decryption.
 .DESCRIPTION
-    All in one Encryption Decryption ps Class.
-    Great way of Learning Encryption/decryption methods using PowerShell classes
+    [Nerdcrypt] is an all in one Encryption Decryption ps Class, and a great way of Learning Encryption/decryption methods using PowerShell classes
+    All functions in this module are built based on it.
 .NOTES
     [+] Most of the methods work. (Most).
     [+] This file is over 2000 lines of code (All in One), so use regions code folding if your editor supports it.
@@ -18,6 +18,10 @@
     PS C:\> [xconvert]::BytesToObject($d);
     H3llo W0rld!
 #>
+
+# Import the necessary assemblies
+Add-Type -AssemblyName System.Security
+Add-Type -AssemblyName System.Runtime.InteropServices;
 
 #region    Helpers
 
@@ -60,6 +64,29 @@ enum Compression {
     ZLib
 }
 # [xgen]::Enumerator('ExpType', ('Milliseconds', 'Years', 'Months', 'Days', 'Hours', 'Minutes', 'Seconds'))
+
+enum CredFlags {
+    None = 0x0
+    PromptNow = 0x2
+    UsernameTarget = 0x4
+}
+
+enum CredType {
+    Generic = 1
+    DomainPassword = 2
+    DomainCertificate = 3
+    DomainVisiblePassword = 4
+    GenericCertificate = 5
+    DomainExtended = 6
+    Maximum = 7
+    MaximumEx = 1007 # (Maximum + 1000)
+}
+
+enum CredentialPersistence {
+    Session = 1
+    LocalComputer = 2
+    Enterprise = 3
+}
 #endregion enums
 
 #region    Custom_Stuff_generators
@@ -68,41 +95,54 @@ enum Compression {
 class xgen {
     xgen() {}
     [string]static RandomName() {
-        return [xgen]::RandomName(16)
+        return [xgen]::RandomName((Get-Random -min 16 -max 80));
     }
     [string]static RandomName([int]$Length) {
         return [string][xgen]::RandomName($Length, $Length);
     }
+    [string]static RandomName([bool]$IncludeNumbers) {
+        $Length = Get-Random -min 16 -max 80
+        return [string][xgen]::RandomName($Length, $Length, $IncludeNumbers);
+    }
+    [string]static RandomName([int]$Length, [bool]$IncludeNumbers) {
+        return [string][xgen]::RandomName($Length, $Length, $IncludeNumbers);
+    }
     [string]static RandomName([int]$minLength, [int]$maxLength) {
-        [int]$iterations = 2
-        $MinrL = 3; $MaxrL = 999 # Gotta have some restrictions, or one typo could endup creating insanely long Passwords, ex 30000 intead of 30.
+        return [string][xgen]::RandomName($minLength, $maxLength, $false);
+    }
+    [string]static RandomName([int]$minLength, [int]$maxLength, [bool]$IncludeNumbers) {
+        [int]$iterations = 2; $MinrL = 3; $MaxrL = 999 #Gotta have some restrictions, or one typo could slow down an entire script.
         if ($minLength -lt $MinrL) { Write-Warning "Length is below the Minimum required 'String Length'. Try $MinrL or greater." ; Break }
         if ($maxLength -gt $MaxrL) { Write-Warning "Length is greater the Maximum required 'String Length'. Try $MaxrL or lower." ; Break }
-        [string]$samplekeys = [string]::Join('', ([int[]](97..122) | ForEach-Object { [string][char]$_ }) + (0..9))
+        $samplekeys = if ($IncludeNumbers) {
+            [string]::Join('', ([int[]](97..122) | ForEach-Object { [string][char]$_ }) + (0..9))
+        } else {
+            [string]::Join('', ([int[]](97..122) | ForEach-Object { [string][char]$_ }))
+        }
         return [string][xgen]::RandomSTR($samplekeys, $iterations, $minLength, $maxLength);
     }
     [string]static Password() {
         return [string][xgen]::Password(1);
     }
     [string]static Password([int]$iterations) {
-        return [string][xgen]::Password($iterations, 30, 256);
+        return [string][xgen]::Password($iterations, 24, 80);
     }
     [string]static Password([int]$iterations, [int]$Length) {
         return [string][xgen]::Password($iterations, $Length, $Length);
     }
     [string]static Password([int]$iterations, [int]$minLength, [int]$maxLength) {
         # https://stackoverflow.com/questions/55556/characters-to-avoid-in-automatically-generated-passwords
-        $Passw0rd = [string]::Empty; [string]$samplekeys = [xconvert]::ToString([System.Convert]::FromBase64String("ISIjJCUmJygpKissLS4vMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hKS0xNTk9QUlNUVVZXWFlaW1xdXl9hYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5eiB7fH1+"), '')
+        $Passw0rd = [string]::Empty; [string]$possibleCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;':\`",./<>?";
         $MinrL = 8; $MaxrL = 999 # Gotta have some restrictions, or one typo could endup creating insanely long or small Passwords, ex 30000 intead of 30.
         if ($minLength -lt $MinrL) { Write-Warning "Length is below the Minimum required 'Password Length'. Try $MinrL or greater." ; Break }
         if ($maxLength -gt $MaxrL) { Write-Warning "Length is greater the Maximum required 'Password Length'. Try $MaxrL or lower." ; Break }
         if ($minLength -lt 130) {
-            $Passw0rd = [string][xgen]::RandomSTR($samplekeys, $iterations, $minLength, $maxLength)
+            $Passw0rd = [string][xgen]::RandomSTR($possibleCharacters, $iterations, $minLength, $maxLength)
         } else {
-            #This person Wants a really good password, so We create it:
+            #This person Wants a really good password, so We retry Until we get a 60% strong password.
             do {
-                $Passw0rd = [string][xgen]::RandomSTR($samplekeys, $iterations, $minLength, $maxLength)
-            } until ([int][xgen]::PasswordStrength($Passw0rd) -gt 125)
+                $Passw0rd = [string][xgen]::RandomSTR($possibleCharacters, $iterations, $minLength, $maxLength)
+            } until ([int][xgen]::PasswordStrength($Passw0rd) -gt 60)
         }
         return $Passw0rd;
     }
@@ -112,22 +152,17 @@ class xgen {
         $passwordNonWord = [System.Text.RegularExpressions.Regex]::new("\W", [System.Text.RegularExpressions.RegexOptions]::Compiled);
         $passwordUppercase = [System.Text.RegularExpressions.Regex]::new("[A-Z]", [System.Text.RegularExpressions.RegexOptions]::Compiled);
         $passwordLowercase = [System.Text.RegularExpressions.Regex]::new("[a-z]", [System.Text.RegularExpressions.RegexOptions]::Compiled);
-        [int]$strength = 0; $digits = $passwordDigits.Matches($passw0rd); $NonWords = $passwordNonWord.Matches($passw0rd); $Uppercases = $passwordUppercase.Matches($passw0rd); $Lowercases = $passwordLowercase.Matches($passw0rd)
-        if ($passw0rd.Length -gt 7) { $strength += 5 };
-        if ($passw0rd.Length -gt 15) { $strength += 15 };
-        if ($digits.Count -ge 2) { $strength += 5 };
-        if ($digits.Count -ge 5) { $strength += 15 };
-        if ($NonWords.Count -ge 2) { $strength += 5 };
-        if ($NonWords.Count -ge 5) { $strength += 15 };
-        if ($Uppercases.Count -ge 2) { $strength += 5 };
-        if ($Uppercases.Count -ge 5) { $strength += 15 };
-        if ($Lowercases.Count -ge 2) { $strength += 5 };
-        if ($Lowercases.Count -ge 5) { $strength += 15 };
-        if ($digits.Count -gt 15 -and $passw0rd.Length -ge 64) { $strength += 10 }; # Lenght is the real strength.
-        if ($NonWords.Count -gt 10 -and $passw0rd.Length -ge 30) { $strength += 5 };
-        if ($NonWords.Count -gt 15 -and $passw0rd.Length -ge 128) { $strength += 10 }; #The longer the more strong this password gets.
-        if ($NonWords.Count -gt 10 -and $passw0rd.Length -ge 64 -and $Uppercases.Count -gt 5 -and $Lowercases.Count -gt 5) { $strength += 10 };
-        if ($NonWords.Count -gt 15 -and $passw0rd.Length -ge 226 -and $Uppercases.Count -gt 15 -and $Lowercases.Count -gt 15) { $strength += 15 };
+        [int]$strength = 0; $digits = $passwordDigits.Matches($passw0rd); $NonWords = $passwordNonWord.Matches($passw0rd); $Uppercases = $passwordUppercase.Matches($passw0rd); $Lowercases = $passwordLowercase.Matches($passw0rd);
+        if ($digits.Count -ge 2) { $strength += 10 };
+        if ($digits.Count -ge 5) { $strength += 10 };
+        if ($NonWords.Count -ge 2) { $strength += 10 };
+        if ($NonWords.Count -ge 5) { $strength += 10 };
+        if ($passw0rd.Length -gt 8) { $strength += 10 };
+        if ($passw0rd.Length -ge 16) { $strength += 10 };
+        if ($Lowercases.Count -ge 2) { $strength += 10 };
+        if ($Lowercases.Count -ge 5) { $strength += 10 };
+        if ($Uppercases.Count -ge 2) { $strength += 10 };
+        if ($Uppercases.Count -ge 5) { $strength += 10 };
         return $strength;
     }
     [byte[]]static Salt() {
@@ -159,16 +194,32 @@ class xgen {
     [byte[]]static RandomEntropy() {
         [byte[]]$entropy = [byte[]]::new(16);
         [void][System.Security.Cryptography.RNGCryptoServiceProvider]::new().GetBytes($entropy)
-        return $entropy
+        return $entropy;
+        #Used to generate random IV
     }
     [string]static UniqueMachineId() {
         $Id = [string]($Env:MachineId)
-        if ([string]::IsNullOrWhiteSpace($Id)) {
-            $Bios_Id = (Get-CimInstance -Class Win32_BIOS -Verbose:$false | ForEach-Object { ([string]$_.Manufacturer, [string]$_.SerialNumber) }) -join ':'
-            $Proc_Id = (Get-CimInstance -Class CIM_Processor -Verbose:$false).ProcessorId # 2 seconds faster than $([System.Management.ManagementObjectCollection][wmiclass]::new("win32_processor").GetInstances() | Select-Object -ExpandProperty ProcessorId))
-            $disk_Id = (Get-CimInstance -Class Win32_LogicalDisk -Verbose:$false | Where-Object { $_.DeviceID -eq "C:" }).VolumeSerialNumber
-            Set-Item -Path Env:\MachineId -Value ([string]::Join(':', $($Bios_Id, $Proc_Id, $disk_Id)));
-            $Id = [string]($Env:MachineId)
+        $vp = (Get-Variable VerbosePreference).Value
+        #  Creates a Custom Short Code, but its slow!
+        #  $Bios_Id = (Get-CimInstance -Class Win32_BIOS -Verbose:$false | ForEach-Object { ([string]$_.Manufacturer, [string]$_.SerialNumber) }) -join ':'
+        #  $Proc_Id = (Get-CimInstance -Class CIM_Processor -Verbose:$false).ProcessorId # 2 seconds faster than $([System.Management.ManagementObjectCollection][wmiclass]::new("win32_processor").GetInstances() | Select-Object -ExpandProperty ProcessorId))
+        #  $disk_Id = (Get-CimInstance -Class Win32_LogicalDisk -Verbose:$false | Where-Object { $_.DeviceID -eq "C:" }).VolumeSerialNumber
+        #  Set-Item -Path Env:\MachineId -Value ([string]::Join(':', $($Bios_Id, $Proc_Id, $disk_Id)));
+        try {
+            Set-Variable VerbosePreference -Value $([System.Management.Automation.ActionPreference]::SilentlyContinue)
+            if ([string]::IsNullOrWhiteSpace($Id)) {
+                # Use the Windows Management Instrumentation (WMI) to get the machine's unique ID
+                $machineId = Get-CimInstance -ClassName Win32_ComputerSystemProduct | Select-Object -ExpandProperty UUID
+                # Use a cryptographic hash function (SHA-256) to generate a unique machine ID
+                $sha256 = [System.Security.Cryptography.SHA256]::Create()
+                Set-Item -Path Env:\MachineId -Value $([convert]::ToBase64String($sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($machineId))));
+                $sha256.Clear(); $sha256.Dispose()
+                $Id = [string]($Env:MachineId)
+            }
+        } catch {
+            throw $_
+        } finally {
+            Set-Variable VerbosePreference -Value $vp
         }
         return $Id
     }
@@ -678,25 +729,7 @@ class XConvert {
             $bytes = [byte[]]$obj
         } else {
             # Serialize the Object:
-            try {
-                #Use BinaryFormatter: https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter?
-                $bf = [System.Runtime.Serialization.Formatters.Binary.BinaryFormatter]::new();
-                $ss = [System.IO.MemoryStream]::new(); # SerializationStream
-                [void]$bf.Serialize($ss, $obj); # Serialise the graph
-                $bytes = $ss.ToArray();
-                [void]$ss.Dispose(); [void]$ss.Close();
-            } catch [System.Management.Automation.MethodInvocationException], [System.Runtime.Serialization.SerializationException] {
-                #Use Marshalling: https://docs.microsoft.com/en-us/dotnet/api/System.Runtime.InteropServices.Marshal?
-                Write-Verbose "Object can't be serialized, Lets try Marshalling ..."; $TypeName = $obj.GetType().Name; $obj = $obj -as $TypeName
-                if ($TypeName -in ("securestring", "Pscredential", "SecureCred")) { throw [System.Management.Automation.MethodInvocationException]::new("Cannot marshal an unmanaged structure") }
-                [int]$size = [System.Runtime.InteropServices.Marshal]::SizeOf($obj); $bytes = [byte[]]::new($size);
-                [IntPtr]$ptr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($size);
-                [void][System.Runtime.InteropServices.Marshal]::StructureToPtr($obj, $ptr, $false);
-                [void][System.Runtime.InteropServices.Marshal]::Copy($ptr, $bytes, 0, $size);
-                [void][System.Runtime.InteropServices.Marshal]::FreeHGlobal($ptr);
-            } catch {
-                throw $_.Exception
-            }
+            $bytes = [XConvert]::ToSerialized($obj)
         }
         if ($protect) {
             # Protecteddata: https://docs.microsoft.com/en-us/dotnet/api/system.security.cryptography.protecteddata.unprotect?
@@ -704,11 +737,52 @@ class XConvert {
         }
         return $bytes
     }
-    [object[]]static BytesToObject([byte[]]$Bytes) {
+    [Object[]]static BytesToObject([byte[]]$Bytes) {
         if ($null -eq $Bytes) { return $null }
+        # Deserialize the byte array
+        return [XConvert]::ToDeserialized($Bytes)
+    }
+    [Object[]]static BytesToObject([byte[]]$Bytes, [bool]$Unprotect) {
+        if ($Unprotect) {
+            $Bytes = [byte[]][xconvert]::ToUnProtected($Bytes)
+        }
+        return [XConvert]::BytesToObject($Bytes);
+    }
+    [byte[]]static ToSerialized($Obj) {
+        return [XConvert]::ToSerialized($Obj, $false)
+    }
+    [byte[]]static ToSerialized($Obj, [bool]$Force) {
+        $bytes = $null
+        try {
+            # Serialize the object using binaryFormatter: https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter?
+            $formatter = New-Object -TypeName System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            $stream = New-Object -TypeName System.IO.MemoryStream
+            $formatter.Serialize($stream, $Obj) # Serialise the graph
+            $bytes = $stream.ToArray(); $stream.Close(); $stream.Dispose()
+        } catch [System.Management.Automation.MethodInvocationException], [System.Runtime.Serialization.SerializationException] {
+            #Object can't be serialized, Lets try Marshalling: https://docs.microsoft.com/en-us/dotnet/api/System.Runtime.InteropServices.Marshal?
+            $TypeName = $obj.GetType().Name; $obj = $obj -as $TypeName
+            if ($obj -isnot [System.Runtime.Serialization.ISerializable] -and $TypeName -in ("securestring", "Pscredential", "CredManaged")) { throw [System.Management.Automation.MethodInvocationException]::new("Cannot serialize an unmanaged structure") }
+            if ($Force) {
+                # Import the System.Runtime.InteropServices.Marshal namespace
+                Add-Type -AssemblyName System.Runtime
+                [int]$size = [System.Runtime.InteropServices.Marshal]::SizeOf($obj); $bytes = [byte[]]::new($size);
+                [IntPtr]$ptr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($size);
+                [void][System.Runtime.InteropServices.Marshal]::StructureToPtr($obj, $ptr, $false);
+                [void][System.Runtime.InteropServices.Marshal]::Copy($ptr, $bytes, 0, $size);
+                [void][System.Runtime.InteropServices.Marshal]::FreeHGlobal($ptr); # Free the memory allocated for the serialized object
+            } else {
+                throw [System.Runtime.Serialization.SerializationException]::new("Serialization error. Make sure the object is marked with the [System.SerializableAttribute] or is Serializable.")
+            }
+        } catch {
+            throw $_.Exception
+        }
+        return $bytes
+    }
+    [Object[]]static ToDeserialized([byte[]]$data) {
         $bf = [System.Runtime.Serialization.Formatters.Binary.BinaryFormatter]::new()
         $ms = [System.IO.MemoryStream]::new(); $Obj = $null
-        $ms.Write($Bytes, 0, $Bytes.Length);
+        $ms.Write($data, 0, $data.Length);
         [void]$ms.Seek(0, [System.IO.SeekOrigin]::Begin);
         try {
             $Obj = [object]$bf.Deserialize($ms)
@@ -716,15 +790,11 @@ class XConvert {
             $Obj = $ms.ToArray()
         } catch {
             throw $_.Exception
+        } finally {
+            $ms.Dispose(); $ms.Close()
         }
-        $ms.Dispose(); $ms.Close()
+        # Output the deserialized object
         return $Obj
-    }
-    [object[]]static BytesToObject([byte[]]$Bytes, [bool]$Unprotect) {
-        if ($Unprotect) {
-            $Bytes = [byte[]][xconvert]::ToUnProtected($Bytes)
-        }
-        return [XConvert]::BytesToObject($Bytes);
     }
     [System.Collections.BitArray]static BinaryFromString([string]$string) {
         [string]$BinStR = [string]::Empty;
@@ -1040,17 +1110,25 @@ class NcObject {
 }
 #endregion Object
 
-#region    SecureCredential
-class SecureCred {
+#region    VaultStuff
+# A managed credential object. Makes it easy to protect, convert, save and stuff ..
+class CredManaged {
+    [string]$target
     [bool]hidden $IsProtected = $false;
     [ValidateNotNullOrEmpty()][string]$UserName = [Environment]::GetEnvironmentVariable('Username');
     [ValidateNotNullOrEmpty()][securestring]$Password = [securestring]::new();
     [ValidateNotNullOrEmpty()][string]hidden $Domain = [Environment]::GetEnvironmentVariable('USERDOMAIN');
     [ValidateSet('CurrentUser', 'LocalMachine')][ValidateNotNullOrEmpty()][string]hidden $Scope = 'CurrentUser';
 
-    SecureCred() {}
-    SecureCred([PSCredential]$PSCredential) {
+    CredManaged() {}
+    CredManaged([string]$target, [string]$username, [SecureString]$password) {
+        ($this.target, $this.username, $this.password) = ($target, $username, $password)
+    }
+    CredManaged([PSCredential]$PSCredential) {
         ($this.UserName, $this.Password) = ($PSCredential.UserName, $PSCredential.Password)
+    }
+    CredManaged([string]$target, [PSCredential]$PSCredential) {
+        ($this.target, $this.UserName, $this.Password) = ($target, $PSCredential.UserName, $PSCredential.Password)
     }
     [void]Protect() {
         $_scope_ = [ProtectionScope]$this.Scope
@@ -1086,14 +1164,214 @@ class SecureCred {
             )
         )
     }
-    [void]SaveToVault() {}
+    [void]SaveToVault() {
+        $CredMan = [CredentialManager]::new();
+        [void]$CredMan.SaveCredential($this.target, $this.UserName, $this.Password);
+    }
     [string]ToString() {
         $str = $this.UserName
         if ($str.Length -gt 9) { $str = $str.Substring(0, 6) + '...' }
         return $str
     }
 }
-#endregion SecureCredential
+class NativeCredential {
+    [System.Int32]$AttributeCount
+    [UInt32]$CredentialBlobSize
+    [IntPtr]$CredentialBlob
+    [IntPtr]$TargetAlias
+    [System.Int32]$Type
+    [IntPtr]$TargetName
+    [IntPtr]$Attributes
+    [IntPtr]$UserName
+    [UInt32]$Persist
+    [IntPtr]$Comment
+
+    NativeCredential([CredManaged]$Cr3dential) {
+        $this._init_();
+        $this.CredentialBlobSize = [UInt32](($Cr3dential.password.Length + 1) * 2)
+        $this.TargetName = [System.Runtime.InteropServices.Marshal]::StringToCoTaskMemUni($Cr3dential.target)
+        $this.CredentialBlob = [System.Runtime.InteropServices.Marshal]::SecureStringToCoTaskMemUnicode($Cr3dential.password)
+        $this.UserName = [System.Runtime.InteropServices.Marshal]::StringToCoTaskMemUni($Cr3dential.username)
+    }
+    NativeCredential([string]$target, [string]$username, [securestring]$password) {
+        $this._init_();
+        $this.CredentialBlobSize = [UInt32](($password.Length + 1) * 2);
+        $this.TargetName = [System.Runtime.InteropServices.Marshal]::StringToCoTaskMemUni($target);
+        $this.CredentialBlob = [System.Runtime.InteropServices.Marshal]::SecureStringToCoTaskMemUnicode($password);
+        $this.UserName = [System.Runtime.InteropServices.Marshal]::StringToCoTaskMemUni($username);
+    }
+    hidden _init_() {
+        $this.AttributeCount = 0
+        $this.Comment = [IntPtr]::Zero
+        $this.Attributes = [IntPtr]::Zero
+        $this.TargetAlias = [IntPtr]::Zero
+        $this.Type = 1 # same as CRED_TYPE_GENERIC
+        $this.Persist = [UInt32] [CredentialPersistence]::LocalComputer
+    }
+}
+
+# Static class for calling the native credential functions
+class Advapi32 {
+    $API
+    Advapi32() {
+        # Import native functions from Advapi32.dll
+        # I had no choice but to use Add-Type. ie: https://stackoverflow.com/questions/64405866/invoke-runtime-interopservices-dllimportattribute
+        # So CredentialManager.Advapi32+functionName it is!
+        if (![bool]('CredentialManager.Advapi32' -as 'type')) {
+            Add-Type -Namespace CredentialManager -Name Advapi32 -MemberDefinition @'
+    public enum CredType : uint {
+        Generic = 1, DomainPassword = 2, DomainCertificate = 3, DomainVisiblePassword = 4, GenericCertificate = 5, DomainExtended = 6, Maximum = 7, MaximumEx = (Maximum + 1000)
+    }
+    public enum CredPersist : uint {
+        Session = 1, LocalMachine = 2, Enterprise = 3
+    }
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct Credential{
+        public uint Flags; public CredType Type; public string TargetName; public string Comment; public DateTime LastWritten; public uint PaswordSize; public string Password; public System.Security.SecureString SecurePassword; public CredPersist Persist; public uint AttributeCount; public IntPtr Attributes; public string TargetAlias; public string UserName;
+    }
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct NativeCredential {
+        public uint Flags; public CredType Type; public IntPtr TargetName; public IntPtr Comment; public System.Runtime.InteropServices.ComTypes.FILETIME LastWritten; public uint CredentialBlobSize; public IntPtr CredentialBlob; public uint Persist; public uint AttributeCount; public IntPtr Attributes; public IntPtr TargetAlias; public IntPtr UserName;
+    }
+    [DllImport("Advapi32.dll", EntryPoint = "CredReadW", CharSet = CharSet.Unicode, SetLastError = true)] public static extern bool CredRead([In] string target, [In] CredType type, [In] int reservedFlag, out IntPtr credentialPtr);
+    [DllImport("Advapi32.dll", EntryPoint = "CredWriteW", CharSet = CharSet.Unicode, SetLastError = true)] public static extern bool CredWrite([In] ref NativeCredential userCredential, [In] UInt32 flags);
+    [DllImport("Advapi32.dll", EntryPoint = "CredFree", SetLastError = true)] public static extern bool CredFree([In] IntPtr credentialPointer);
+    [DllImport("Advapi32.dll", SetLastError = true, EntryPoint = "CredDeleteW", CharSet = CharSet.Unicode)] public static extern bool CredDelete([In] string target, [In] CredType type, [In] int reservedFlag);
+    [DllImport("Advapi32.dll", SetLastError = true, EntryPoint = "CredEnumerateW", CharSet = CharSet.Unicode)] public static extern bool CredEnumerate([In] string filter, [In] int flags, out int count, out IntPtr credentialPtrs);
+'@
+        }
+        $this.API = New-Object -TypeName CredentialManager.Advapi32;
+    }
+}
+
+class CredentialManager {
+    #  [ CONSTANTS ]
+    static hidden $ERROR_SUCCESS = 0
+    static hidden $CRED_TYPE_GENERIC = 1
+    static hidden $ERROR_NOT_FOUND = 1168
+    static hidden $ERROR_INVALID_FLAGS = 1004
+    static hidden $CRED_PERSIST_LOCAL_MACHINE = 2
+    static hidden $CRED_MAX_USERNAME_LENGTH = 514
+    static hidden $CRED_MAX_CREDENTIAL_BLOB_SIZE = 512
+    static hidden $CRED_MAX_GENERIC_TARGET_NAME_LEN = 32767
+    #  [ variables ]
+    static [System.Collections.ObjectModel.Collection[CredManaged]]$Credentials
+    static hidden $LastErrorCode
+    hidden $Advapi32
+
+    CredentialManager() {
+        $this::Credentials = [System.Collections.ObjectModel.Collection[CredManaged]]::new();
+        $this.Advapi32 = [Advapi32]::new().API
+    }
+    [void]SaveCredential([string]$target, [string]$username, [SecureString]$password) {
+        $this.SaveCredential([CredManaged]::new($target, $username, $password));
+    }
+    [void]SaveCredential([CredManaged]$Object) {
+        # Create the native credential object.
+        $NativeCredential = New-Object -TypeName CredentialManager.Advapi32+NativeCredential;
+        foreach ($prop in ([NativeCredential]::new($Object).PsObject.properties)) {
+            $NativeCredential."$($prop.Name)" = $prop.Value
+        }
+        # Save Generic credential to the Windows Credential Vault.
+        $result = $this.Advapi32::CredWrite([ref]$NativeCredential, 0)
+        if (!$result) {
+            throw [Exception]::new("Error saving credential: 0x" + "{0:X}" -f [CredentialManager]::LastErrorCode)
+        } else {
+            [void][CredentialManager]::Credentials.Add($Object);
+        }
+        # Clean up memory allocated for the native credential object.
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeCoTaskMemUnicode($NativeCredential.TargetName)
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeCoTaskMemUnicode($NativeCredential.CredentialBlob)
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeCoTaskMemUnicode($NativeCredential.UserName)
+    }
+    # Saving all credentials to the Windows Credential Vault.
+    [void]SaveAll() {
+        foreach ($object in [CredentialManager]::Credentials) {
+            $this.SaveCredential($object);
+        }
+    }
+    [object]GetCredential([string]$target) {
+        #uses the default $env:username
+        return $this.GetCredential($target, (Get-Item Env:\USERNAME).Value);
+    }
+    # Method for retrieving a saved credential from the Windows Credential Vault.
+    [object]GetCredential([string]$target, [string]$username) {
+        $NativeCredential = New-Object -TypeName CredentialManager.Advapi32+NativeCredential;
+        foreach ($prop in ([NativeCredential]::new($target, $username, [securestring]::new()).PsObject.properties)) {
+            $NativeCredential."$($prop.Name)" = $prop.Value
+        }
+        # Declare a variable to hold the retrieved native credential object.
+        $outCredential = [IntPtr]::Zero
+        # Try to retrieve the credential from the Windows Credential Vault.
+        $result = $this.Advapi32::CredRead($target, [CredentialManager]::CRED_TYPE_GENERIC, 0, [ref]$outCredential)
+        if (!$result) {
+            $errorCode = [CredentialManager]::LastErrorCode
+            if ($errorCode -eq [CredentialManager]::ERROR_NOT_FOUND) {
+                throw [Exception]::new("Credential not found in Windows Credential Vault")
+            } else {
+                throw [Exception]::new("Error reading credential: 0x" + "{0:X}" -f $errorCode)
+            }
+        }
+        # Convert the retrieved native credential object to a managed Credential object.
+        $NativeCredential = [System.Runtime.InteropServices.Marshal]::PtrToStructure($outCredential, [Type]"CredentialManager.Advapi32+NativeCredential")
+        $target = [System.Runtime.InteropServices.Marshal]::PtrToStringUni($NativeCredential.TargetName)
+        $password = [Runtime.InteropServices.Marshal]::PtrToStringUni($NativeCredential.CredentialBlob)
+        $targetuser = [System.Runtime.InteropServices.Marshal]::PtrToStringUni($NativeCredential.UserName)
+        $credential = New-Object -TypeName CredentialManager.Advapi32+Credential
+        $credential.TargetName = $target
+        $credential.UserName = $targetuser
+        $credential.SecurePassword = [xconvert]::ToSecurestring($password);
+        # Clean up memory allocated for the native credential object.
+        $this.Advapi32::CredFree($outCredential)
+        # Return the managed Credential object.
+        return $credential
+    }
+    [System.Collections.ArrayList]GetCredentials() {
+        # should return .. [System.Collections.ObjectModel.Collection[CredManaged]] ...
+        $credList = New-Object System.Collections.ArrayList
+        $count = 0
+        $credPtr = 0
+        $result = $this.Advapi32::CredEnumerate("*", 0, [ref]$count, [ref]$credPtr)
+        if ($result -eq $false) {
+            throw "Error while enumerating credentials: $($_.Exception.Message)"
+        }
+        for ($i = 0; $i -lt $count; $i++) {
+            $cred = [System.Runtime.InteropServices.Marshal]::PtrToStructure($credPtr, [type]('CredentialManager.Advapi32+Credential' -as 'type'));
+            $_CItem = (New-Object -TypeName System.Net.NetworkCredential -ArgumentList "", [System.Runtime.InteropServices.Marshal]::PtrToStringUni($cred.CredentialBlob), [System.Runtime.InteropServices.Marshal]::PtrToStringUni($cred.TargetName))
+            $credList.Add($_CItem)
+            $credPtr = [System.IntPtr]::Add($credPtr, [System.Runtime.InteropServices.Marshal]::SizeOf([type]('CredentialManager.Advapi32+Credential' -as 'type')))
+        }
+        # Call the CredFree function to free the memory allocated for the credentials
+        $this.Advapi32::CredFree($credPtr)
+        # Return the array list of credentials
+        # [CredType]::DomainCertificate -as 'CredentialManager.Advapi32+CredType'
+        return $credList
+        # return [CredentialManager]::Credentials
+    }
+}
+<# [CredentialManager] Usage Example:
+# Set the target name for the credentials. This is typically the name of the
+# application or resource for which the credentials are used.
+$targetName = "MyApp"
+
+# Set the credentials username and password.
+$username = "user1"
+$password = ConvertTo-SecureString "password" -AsPlainText -Force
+
+# Create a new Credential instance.
+$credential = New-Object -TypeName Credential -ArgumentList $targetName, $username, $password
+
+# Save the credential to the Windows Credential Vault.
+$credential.Save()
+
+# Retrieve the saved credential from the Windows Credential Vault.
+$retrievedCredential = $CredentialManager.GetCredential($targetName)
+
+# Print the retrieved credential's username and password.
+Write-Output "Username: $($retrievedCredential.username)"
+Write-Output "Password: $($retrievedCredential.password)"
+#>
+#endregion vaultStuff
 
 #region    securecodes~Expirity
 Class Expirity {
@@ -1890,7 +2168,7 @@ Class FileCrypt {
 #region    Custom_Cryptography_Wrapper
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingInvokeExpression", '')]
 class K3Y {
-    [ValidateNotNullOrEmpty()][SecureCred]$User;
+    [ValidateNotNullOrEmpty()][CredManaged]$User;
     [ValidateNotNullOrEmpty()][Expirity]$Expirity = [Expirity]::new(0, 1); # Default is 30 days
     [ValidateNotNullOrEmpty()][keyStoreMode]hidden $StorageMode = [KeyStoreMode]::Securestring;
     [ValidateNotNullOrEmpty()][int]hidden $_PID = $(Get-Variable -Name PID).value;
@@ -1898,21 +2176,21 @@ class K3Y {
     [ValidateNotNullOrEmpty()][byte[]]hidden $rgbSalt = [System.Text.Encoding]::UTF7.GetBytes('hR#ho"rK6FMu mdZFXp}JMY\?NC]9(.:6;>oB5U>.GkYC-JD;@;XRgXBgsEi|%MqU>_+w/RpUJ}Kt.>vWr[WZ;[e8GM@P@YKuT947Z-]ho>E2"c6H%_L2A:O5:E)6Fv^uVE; aN\4t\|(*;rPRndSOS(7& xXLRKX)VL\/+ZB4q.iY { %Ko^<!sW9n@r8ihj*=T $+Cca-Nvv#JnaZh');
 
     K3Y() {
-        $this.User = [SecureCred]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
+        $this.User = [CredManaged]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
         $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([Datetime]$Expirity) {
-        $this.User = [SecureCred]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
+        $this.User = [CredManaged]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
         $this.Expirity = [Expirity]::new($Expirity); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([pscredential]$User, [Datetime]$Expirity) {
-        ($this.User, $this.Expirity) = ([SecureCred]::new($User), [Expirity]::new($Expirity)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
+        ($this.User, $this.Expirity) = ([CredManaged]::new($User), [Expirity]::new($Expirity)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([string]$UserName, [securestring]$Password) {
-        $this.User = [SecureCred]::new([pscredential]::new($UserName, $Password)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
+        $this.User = [CredManaged]::new([pscredential]::new($UserName, $Password)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([string]$UserName, [securestring]$Password, [Datetime]$Expirity) {
-        ($this.User, $this.Expirity) = ([SecureCred]::new([pscredential]::new($UserName, $Password)), [Expirity]::new($Expirity)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
+        ($this.User, $this.Expirity) = ([CredManaged]::new([pscredential]::new($UserName, $Password)), [Expirity]::new($Expirity)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt) {
         return $this.Encrypt($bytesToEncrypt, [K3Y]::GetPassword());
@@ -2460,7 +2738,7 @@ public static string Encrypt(string stringToEncrypt)
         // Get the key from config file
 
         string key = (string)settingsReader.GetValue("SecurityKey", typeof(String));
-        
+
         //If hashing use get hashcode regards to your key
         MD5CryptoServiceProvider hashmd5 = new MD5CryptoServiceProvider();
         keyArray = hashmd5.ComputeHash(UTF8Encoding.UTF8.GetBytes(key));
@@ -2516,7 +2794,7 @@ public static string Decrypt(string cipherString)
         TripleDESCryptoServiceProvider tdes = new TripleDESCryptoServiceProvider();
         //set the secret key for the tripleDES algorithm
         tdes.Key = keyArray;
-        //mode of operation. there are other 4 modes. 
+        //mode of operation. there are other 4 modes.
         //We choose ECB(Electronic code Book)
 
         tdes.Mode = CipherMode.ECB;
@@ -2526,7 +2804,7 @@ public static string Decrypt(string cipherString)
         ICryptoTransform cTransform = tdes.CreateDecryptor();
         byte[] resultArray = cTransform.TransformFinalBlock(
                                 toEncryptArray, 0, toEncryptArray.Length);
-        //Release resources held by TripleDes Encryptor                
+        //Release resources held by TripleDes Encryptor
         tdes.Clear();
         //return the Clear decrypted TEXT
         return UTF8Encoding.UTF8.GetString(resultArray);
