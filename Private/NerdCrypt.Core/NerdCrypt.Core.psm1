@@ -20,7 +20,7 @@
 #>
 
 # Import the necessary assemblies
-Add-Type -AssemblyName System.Security
+Add-Type -AssemblyName System.Security;
 Add-Type -AssemblyName System.Runtime.InteropServices;
 
 #region    Helpers
@@ -1114,6 +1114,7 @@ class NcObject {
 # A managed credential object. Makes it easy to protect, convert, save and stuff ..
 class CredManaged {
     [string]$target
+    [CredType]hidden $type;
     [bool]hidden $IsProtected = $false;
     [ValidateNotNullOrEmpty()][string]$UserName = [Environment]::GetEnvironmentVariable('Username');
     [ValidateNotNullOrEmpty()][securestring]$Password = [securestring]::new();
@@ -1123,6 +1124,9 @@ class CredManaged {
     CredManaged() {}
     CredManaged([string]$target, [string]$username, [SecureString]$password) {
         ($this.target, $this.username, $this.password) = ($target, $username, $password)
+    }
+    CredManaged([string]$target, [string]$username, [SecureString]$password, [CredType]$type) {
+        ($this.target, $this.username, $this.password, $this.type) = ($target, $username, $password, $type)
     }
     CredManaged([PSCredential]$PSCredential) {
         ($this.UserName, $this.Password) = ($PSCredential.UserName, $PSCredential.Password)
@@ -1205,11 +1209,10 @@ class NativeCredential {
         $this.Comment = [IntPtr]::Zero
         $this.Attributes = [IntPtr]::Zero
         $this.TargetAlias = [IntPtr]::Zero
-        $this.Type = 1 # same as CRED_TYPE_GENERIC
+        $this.Type = [CredType]::Generic.value__
         $this.Persist = [UInt32] [CredentialPersistence]::LocalComputer
     }
 }
-
 # Static class for calling the native credential functions
 class Advapi32 {
     $API
@@ -1237,17 +1240,34 @@ class Advapi32 {
     [DllImport("Advapi32.dll", EntryPoint = "CredWriteW", CharSet = CharSet.Unicode, SetLastError = true)] public static extern bool CredWrite([In] ref NativeCredential userCredential, [In] UInt32 flags);
     [DllImport("Advapi32.dll", EntryPoint = "CredFree", SetLastError = true)] public static extern bool CredFree([In] IntPtr credentialPointer);
     [DllImport("Advapi32.dll", SetLastError = true, EntryPoint = "CredDeleteW", CharSet = CharSet.Unicode)] public static extern bool CredDelete([In] string target, [In] CredType type, [In] int reservedFlag);
-    [DllImport("Advapi32.dll", SetLastError = true, EntryPoint = "CredEnumerateW", CharSet = CharSet.Unicode)] public static extern bool CredEnumerate([In] string filter, [In] int flags, out int count, out IntPtr credentialPtrs);
 '@
         }
         $this.API = New-Object -TypeName CredentialManager.Advapi32;
     }
 }
+class SafeHandle : Microsoft.Win32.SafeHandles.CriticalHandleZeroOrMinusOneIsInvalid {
+    SafeHandle() {}
+    [bool]ReleaseHandle() {
+        if (!$this.IsInvalid) {
+            $this.SetHandleAsInvalid(); return $true
+        }
+        return $false
+    }
+}
 
+class CredentialNotFoundException : System.Exception, System.Runtime.Serialization.ISerializable {
+    [string]$Message; [Exception]$InnerException; hidden $Info; hidden $Context
+    CredentialNotFoundException() { }
+    CredentialNotFoundException([string]$message) { $this.Message = $message }
+    CredentialNotFoundException([string]$message, [Exception]$InnerException) { ($this.Message, $this.InnerException) = ($message, $InnerException) }
+    CredentialNotFoundException([System.Runtime.Serialization.SerializationInfo]$info, [System.Runtime.Serialization.StreamingContext]$context) { ($this.Info, $this.Context) = ($info, $context) }
+}
+
+
+# See Usage Example in the Wiki
 class CredentialManager {
     #  [ CONSTANTS ]
     static hidden $ERROR_SUCCESS = 0
-    static hidden $CRED_TYPE_GENERIC = 1
     static hidden $ERROR_NOT_FOUND = 1168
     static hidden $ERROR_INVALID_FLAGS = 1004
     static hidden $CRED_PERSIST_LOCAL_MACHINE = 2
@@ -1256,12 +1276,18 @@ class CredentialManager {
     static hidden $CRED_MAX_GENERIC_TARGET_NAME_LEN = 32767
     #  [ variables ]
     static [System.Collections.ObjectModel.Collection[CredManaged]]$Credentials
+    hidden [SafeHandle]$safeHandle
     static hidden $LastErrorCode
     hidden $Advapi32
 
     CredentialManager() {
+        # Load the Credentials and PasswordVault assemblies:
+        if (![bool]('Windows.Security.Credentials.PasswordVault' -as 'type')) {
+            [void][Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
+        }
         $this::Credentials = [System.Collections.ObjectModel.Collection[CredManaged]]::new();
-        $this.Advapi32 = [Advapi32]::new().API
+        $this.Advapi32 = [Advapi32]::new().API;
+        $this.safeHandle = [SafeHandle]::new();
     }
     [void]SaveCredential([string]$target, [string]$username, [SecureString]$password) {
         $this.SaveCredential([CredManaged]::new($target, $username, $password));
@@ -1274,8 +1300,9 @@ class CredentialManager {
         }
         # Save Generic credential to the Windows Credential Vault.
         $result = $this.Advapi32::CredWrite([ref]$NativeCredential, 0)
+        [CredentialManager]::LastErrorCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error();
         if (!$result) {
-            throw [Exception]::new("Error saving credential: 0x" + "{0:X}" -f [CredentialManager]::LastErrorCode)
+            throw [Exception]::new("Error saving credential: 0x" + "{0}" -f [CredentialManager]::LastErrorCode)
         } else {
             [void][CredentialManager]::Credentials.Add($Object);
         }
@@ -1290,12 +1317,31 @@ class CredentialManager {
             $this.SaveCredential($object);
         }
     }
-    [object]GetCredential([string]$target) {
+    [bool]Remove([string]$target, [CredType]$type) {
+        $Isdeleted = $this.Advapi32::CredDelete($target, $type, 0);
+        [CredentialManager]::LastErrorCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error();
+        if (!$Isdeleted) {
+            if ([CredentialManager]::LastErrorCode -eq 1168) {
+                throw [CredentialNotFoundException]::new("DeleteCred failed with the error code $([CredentialManager]::LastErrorCode) (credential not found).");
+            } else {
+                throw [Exception]::new("DeleteCred failed with the error code $([CredentialManager]::LastErrorCode).");
+            }
+        }
+        return $Isdeleted
+    }
+    [void]RemoveAll() {
+        # Should work same as the old skool batch cmdkey
+        # For /F "tokens=1,2 delims= " %%G in ('cmdkey /list ^| findstr Target') do  cmdkey /delete %%H
+    }
+    [CredManaged]GetCredential([string]$target) {
         #uses the default $env:username
         return $this.GetCredential($target, (Get-Item Env:\USERNAME).Value);
     }
+    [CredManaged]GetCredential([string]$target, [string]$username) {
+        return $this.GetCredential($target, [CredType]::Generic, $username);
+    }
     # Method for retrieving a saved credential from the Windows Credential Vault.
-    [object]GetCredential([string]$target, [string]$username) {
+    [CredManaged]GetCredential([string]$target, [CredType]$type, [string]$username) {
         $NativeCredential = New-Object -TypeName CredentialManager.Advapi32+NativeCredential;
         foreach ($prop in ([NativeCredential]::new($target, $username, [securestring]::new()).PsObject.properties)) {
             $NativeCredential."$($prop.Name)" = $prop.Value
@@ -1303,74 +1349,77 @@ class CredentialManager {
         # Declare a variable to hold the retrieved native credential object.
         $outCredential = [IntPtr]::Zero
         # Try to retrieve the credential from the Windows Credential Vault.
-        $result = $this.Advapi32::CredRead($target, [CredentialManager]::CRED_TYPE_GENERIC, 0, [ref]$outCredential)
+        $result = $this.Advapi32::CredRead($target, $type.value__, 0, [ref]$outCredential)
+        [CredentialManager]::LastErrorCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error();
         if (!$result) {
             $errorCode = [CredentialManager]::LastErrorCode
             if ($errorCode -eq [CredentialManager]::ERROR_NOT_FOUND) {
-                throw [Exception]::new("Credential not found in Windows Credential Vault")
+                $(Get-Variable host).value.UI.WriteErrorLine("`nERROR_NOT_FOUND: Credential '$target' not found in Windows Credential Vault.`n");
+                return [CredManaged]::new() #return an Empty obj
             } else {
-                throw [Exception]::new("Error reading credential: 0x" + "{0:X}" -f $errorCode)
+                throw [Exception]::new("Error reading '{0}' in Windows Credential Vault. ErrorCode: 0x{1}" -f $target, $errorCode)
             }
         }
         # Convert the retrieved native credential object to a managed Credential object.
-        $NativeCredential = [System.Runtime.InteropServices.Marshal]::PtrToStructure($outCredential, [Type]"CredentialManager.Advapi32+NativeCredential")
+        if (!$this.safeHandle.IsInvalid) {
+            throw [System.InvalidOperationException]::new("Invalid CriticalHandle!");
+        }
+        # Get the Credential from the mem location
+        $NativeCredential = [System.Runtime.InteropServices.Marshal]::PtrToStructure($outCredential, [Type]"CredentialManager.Advapi32+NativeCredential") -as 'CredentialManager.Advapi32+NativeCredential'
+        [System.GC]::Collect();
         $target = [System.Runtime.InteropServices.Marshal]::PtrToStringUni($NativeCredential.TargetName)
         $password = [Runtime.InteropServices.Marshal]::PtrToStringUni($NativeCredential.CredentialBlob)
         $targetuser = [System.Runtime.InteropServices.Marshal]::PtrToStringUni($NativeCredential.UserName)
-        $credential = New-Object -TypeName CredentialManager.Advapi32+Credential
-        $credential.TargetName = $target
-        $credential.UserName = $targetuser
-        $credential.SecurePassword = [xconvert]::ToSecurestring($password);
+        $credential = [CredManaged]::new($target, $targetuser, [xconvert]::ToSecurestring($password));
         # Clean up memory allocated for the native credential object.
-        $this.Advapi32::CredFree($outCredential)
+        [void]$this.Advapi32::CredFree($outCredential); [CredentialManager]::LastErrorCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error();
         # Return the managed Credential object.
         return $credential
     }
-    [System.Collections.ArrayList]GetCredentials() {
-        # should return .. [System.Collections.ObjectModel.Collection[CredManaged]] ...
-        $credList = New-Object System.Collections.ArrayList
-        $count = 0
-        $credPtr = 0
-        $result = $this.Advapi32::CredEnumerate("*", 0, [ref]$count, [ref]$credPtr)
-        if ($result -eq $false) {
-            throw "Error while enumerating credentials: $($_.Exception.Message)"
+    [System.Collections.ObjectModel.Collection[CredManaged]]GetCredentials() {
+        # CredEnumerate is slow af so, I ditched it.
+        $credList = [CredentialManager]::get_StoredCreds();
+        foreach ($cred in $credList) {
+            Write-Verbose "CredentialManager.GetCredential($($cred.Target))";
+            [CredentialManager]::Credentials.Add([CredManaged]($this.GetCredential($cred.Target, $cred.Type, $cred.User)));
         }
-        for ($i = 0; $i -lt $count; $i++) {
-            $cred = [System.Runtime.InteropServices.Marshal]::PtrToStructure($credPtr, [type]('CredentialManager.Advapi32+Credential' -as 'type'));
-            $_CItem = (New-Object -TypeName System.Net.NetworkCredential -ArgumentList "", [System.Runtime.InteropServices.Marshal]::PtrToStringUni($cred.CredentialBlob), [System.Runtime.InteropServices.Marshal]::PtrToStringUni($cred.TargetName))
-            $credList.Add($_CItem)
-            $credPtr = [System.IntPtr]::Add($credPtr, [System.Runtime.InteropServices.Marshal]::SizeOf([type]('CredentialManager.Advapi32+Credential' -as 'type')))
+        return [CredentialManager]::Credentials
+    }
+    [Psobject[]]static hidden get_StoredCreds() {
+        $outputLines = (cmdkey /list) -split "`n"
+        [CredentialManager]::LastErrorCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error();
+        if ($outputLines) {
+        } else {
+            throw $error[0].Exception.Message
         }
-        # Call the CredFree function to free the memory allocated for the credentials
-        $this.Advapi32::CredFree($credPtr)
-        # Return the array list of credentials
-        # [CredType]::DomainCertificate -as 'CredentialManager.Advapi32+CredType'
+        $credList = @(); $target = $type = $user = $perst = $null
+        foreach ($line in $outputLines) {
+            if ($line -match "^\s*Target:\s*(.+)$") {
+                $target = $matches[1]
+            } elseif ($line -match "^\s*Type:\s*(.+)$") {
+                $type = $matches[1]
+            } elseif ($line -match "^\s*User:\s*(.+)$") {
+                $user = $matches[1]
+            } elseif ($line -match "^\s*Local machine persistence$") {
+                $perst = "LocalComputer"
+            } elseif ($line -match "^\s*Enterprise persistence$") {
+                $perst = 'Enterprise'
+            }
+            if ($target -and $type -and $user -and ![string]::IsNullOrEmpty($perst)) {
+                $cred = [PSCustomObject]@{
+                    Target      = [string]$target
+                    Type        = [CredType]$type
+                    User        = [string]$user
+                    Persistence = [CredentialPersistence]$perst
+                }
+                $credList += $cred
+                $target = $type = $user = $perst = $null
+            }
+        }
+        $credList = $credList | Select-Object @{l = 'Target'; e = { $_.target.replace('LegacyGeneric:target=', '').replace('WindowsLive:target=', '') } }, Type, User, Persistence
         return $credList
-        # return [CredentialManager]::Credentials
     }
 }
-<# [CredentialManager] Usage Example:
-# Set the target name for the credentials. This is typically the name of the
-# application or resource for which the credentials are used.
-$targetName = "MyApp"
-
-# Set the credentials username and password.
-$username = "user1"
-$password = ConvertTo-SecureString "password" -AsPlainText -Force
-
-# Create a new Credential instance.
-$credential = New-Object -TypeName Credential -ArgumentList $targetName, $username, $password
-
-# Save the credential to the Windows Credential Vault.
-$credential.Save()
-
-# Retrieve the saved credential from the Windows Credential Vault.
-$retrievedCredential = $CredentialManager.GetCredential($targetName)
-
-# Print the retrieved credential's username and password.
-Write-Output "Username: $($retrievedCredential.username)"
-Write-Output "Password: $($retrievedCredential.password)"
-#>
 #endregion vaultStuff
 
 #region    securecodes~Expirity
