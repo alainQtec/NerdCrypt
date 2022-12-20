@@ -2744,10 +2744,11 @@ function New-K3Y {
     .SYNOPSIS
         Creates a new [k3y] object
     .DESCRIPTION
-        A longer description of the function, its purpose, common use cases, etc.
+        Creates a custom k3y object for encryption/decryption.
+        The K3Y can only be used to Once, and its 'UID' [ see .SetK3YUID() method ] is a fancy way of storing the version, user/owner credentials, Compression alg~tm used and Other Info
+        about the most recent use and the person who used it; so it can be analyzed later to verify some rules before being used again. this allows to create complex expiring encryptions.
     .EXAMPLE
         New-K3Y
-        Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = '')]
     [CmdletBinding(DefaultParameterSetName = 'default')]
@@ -2774,25 +2775,48 @@ function New-K3Y {
     begin {
         $k3y = $null
         $params = $PSCmdlet.MyInvocation.BoundParameters
+        $IsInteractive = [Environment]::UserInteractive -and [Environment]::GetCommandLineArgs().Where({ $_ -like '-NonI*' }).Count -eq 0
     }
     process {
         $k3y = $(if ($PSCmdlet.ParameterSetName -eq 'byPscredential') {
                 if ($params.ContainsKey('User') -and $params.ContainsKey('Expirity')) {
                     [K3Y]::New($User, $Expirity);
-                } elseif ($params.ContainsKey('User') -and !$params.ContainsKey('Expirity')) {
-                    [K3Y]::New($User, ([datetime]::Now + [Timespan]::new(30, 0, 0, 0))); # ie: expires in 30days
                 } else {
-                    [K3Y]::New();
+                    # It means: $params.ContainsKey('User') -and !$params.ContainsKey('Expirity')
+                    [datetime]$ExpiresOn = if ($IsInteractive) {
+                        [int]$days = Read-Host -Prompt "Expires In (replie num of days)"
+                        [datetime]::Now + [Timespan]::new($days, 0, 0, 0);
+                    } else {
+                        [datetime]::Now + [Timespan]::new(30, 0, 0, 0); # ie: expires in 30days
+                    }
+                    [K3Y]::New($User, $ExpiresOn);
                 }
             } elseif ($PSCmdlet.ParameterSetName -eq 'default') {
                 if ($params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and $params.ContainsKey('Expirity')) {
                     [K3Y]::New($UserName, $Password, $Expirity);
                 } elseif ($params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and !$params.ContainsKey('Expirity')) {
                     [K3Y]::New($UserName, $Password);
+                } elseif ($params.ContainsKey('UserName') -and !$params.ContainsKey('Password') -and !$params.ContainsKey('Expirity')) {
+                    $passwd = if ($IsInteractive) { Read-Host -AsSecureString -Prompt "Password" } else { [securestring]::new() }
+                    [K3Y]::New($UserName, $passwd);
+                } elseif (!$params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and !$params.ContainsKey('Expirity')) {
+                    $usrName = if ($IsInteractive) { Read-Host -Prompt "UserName" } else { [System.Environment]::GetEnvironmentVariable('UserName') }
+                    [K3Y]::New($usrName, $Password);
+                } elseif (!$params.ContainsKey('UserName') -and !$params.ContainsKey('Password') -and $params.ContainsKey('Expirity')) {
+                    if ($IsInteractive) {
+                        $usrName = Read-Host -Prompt "UserName"; $passwd = Read-Host -AsSecureString -Prompt "Password";
+                        [K3Y]::New($usrName, $passwd);
+                    } else {
+                        [K3Y]::New($Expirity);
+                    }
+                } elseif (!$params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and $params.ContainsKey('Expirity')) {
+                    $usrName = if ($IsInteractive) { Read-Host -Prompt "UserName" } else { [System.Environment]::GetEnvironmentVariable('UserName') }
+                    [K3Y]::New($usrName, $Password, $Expirity);
                 } else {
                     [K3Y]::New();
                 }
             } else {
+                Write-Debug "Unable to resolve parametersetName" -Debug
                 [K3Y]::New();
             }
         )
@@ -2840,20 +2864,20 @@ function New-Password {
 
     begin {
         $Pass = [string]::Empty
+        $params = $PSCmdlet.MyInvocation.BoundParameters
     }
 
     process {
         if ($PSCmdlet.ParameterSetName -eq 'ByLength') {
-            if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Length') -and $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Iterations')) {
+            if ($params.ContainsKey('Length') -and $params.ContainsKey('Iterations')) {
                 $Pass = [xgen]::Password($Iterations, $Length);
-            } elseif ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Length') -and !$PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Iterations')) {
+            } elseif ($params.ContainsKey('Length') -and !$params.ContainsKey('Iterations')) {
                 $Pass = [xgen]::Password(1, $Length);
             } else {
-                Write-Verbose $PSCmdlet.MyInvocation.BoundParameters
                 $Pass = [xgen]::Password();
             }
         } elseif ($PSCmdlet.ParameterSetName -eq 'ByMinMax') {
-            if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Iterations')) {
+            if ($params.ContainsKey('Iterations')) {
                 $pass = [xgen]::Password($Iterations, $minLength, $maxLength);
             } else {
                 $Pass = [xgen]::Password(1, $minLength, $maxLength);
