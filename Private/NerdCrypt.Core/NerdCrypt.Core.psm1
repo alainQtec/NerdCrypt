@@ -637,8 +637,8 @@ class XConvert {
         return [convert]::ToBase64String([XConvert]::ToCompressed([System.Text.Encoding]::UTF8.GetBytes($Plaintext)));
     }
     [byte[]]static ToCompressed([byte[]]$Bytes, [string]$Compression) {
-        if (![bool]("$Compression" -as 'Compression')) {
-            Throw [System.InvalidCastException]::new('Specified Compression is not valid.')
+        if (("$Compression" -as 'Compression') -isnot 'Compression') {
+            Throw [System.InvalidCastException]::new("Compression type '$Compression' is unknown! Valid values: $([Enum]::GetNames([compression]) -join ', ')");
         }
         $outstream = [System.IO.MemoryStream]::new()
         $Comstream = switch ($Compression) {
@@ -658,8 +658,8 @@ class XConvert {
         return [System.Text.Encoding]::UTF8.GetString([XConvert]::ToDecompressed([convert]::FromBase64String($Base64Text)));
     }
     [byte[]]static ToDeCompressed([byte[]]$Bytes, [string]$Compression) {
-        if (![bool]("$Compression" -as 'Compression')) {
-            Throw [System.InvalidCastException]::new('Specified Compression is not valid.')
+        if (("$Compression" -as 'Compression') -isnot 'Compression') {
+            Throw [System.InvalidCastException]::new("Compression type '$Compression' is unknown! Valid values: $([Enum]::GetNames([compression]) -join ', ')");
         }
         $inpStream = [System.IO.MemoryStream]::new($Bytes)
         $ComStream = switch ($Compression) {
@@ -2194,6 +2194,11 @@ Class FileCrypt {
 #endregion FileCrypter
 
 #region    Custom_Cryptography_Wrapper
+
+#region    _The_K3Y
+# The K3Y can only be used to Once, and its 'UID' [ see .SetK3YUID() method ] is a fancy way of storing the version, user/owner credentials, Compression alg~tm used and Other Info
+# about the most recent use and the person who used it; so it can be analyzed later to verify some rules before being used again. this allows to create complex expiring encryptions.
+# It doen't store the actual passwords, it keeps their hashes.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingInvokeExpression", '')]
 class K3Y {
     [ValidateNotNullOrEmpty()][CredManaged]$User;
@@ -2201,7 +2206,7 @@ class K3Y {
     [ValidateNotNullOrEmpty()][keyStoreMode]hidden $StorageMode = [KeyStoreMode]::Securestring;
     [ValidateNotNullOrEmpty()][int]hidden $_PID = $(Get-Variable -Name PID).value;
     [ValidateNotNullOrEmpty()][securestring]hidden $UID;
-    [ValidateNotNullOrEmpty()][byte[]]hidden $rgbSalt = [System.Text.Encoding]::UTF7.GetBytes('hR#ho"rK6FMu mdZFXp}JMY\?NC]9(.:6;>oB5U>.GkYC-JD;@;XRgXBgsEi|%MqU>_+w/RpUJ}Kt.>vWr[WZ;[e8GM@P@YKuT947Z-]ho>E2"c6H%_L2A:O5:E)6Fv^uVE; aN\4t\|(*;rPRndSOS(7& xXLRKX)VL\/+ZB4q.iY { %Ko^<!sW9n@r8ihj*=T $+Cca-Nvv#JnaZh');
+    [ValidateNotNullOrEmpty()][byte[]]hidden $rgbSalt = [System.Text.Encoding]::UTF7.GetBytes('hR#ho"rK6FMu mdZFXp}JMY\?NC]9(.:6;>oB5U>.GkYC-JD;@;XRgXBgsEi|%MqU>_+w/RpUJ}Kt.>vWr[WZ;[e8GM@P@YKuT947Z-]ho>E2"c6H%_L2A:O5:E)6Fv^uVE; aN\4t\|(*;rPRndSOS(7& xXLRKX)VL\/+ZB4q.iY { %Ko^<!sW9n@r8ihj*=T $+Cca-Nvv#JnaZh'); #this is the default salt, change it if you want.
 
     K3Y() {
         $this.User = [CredManaged]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
@@ -2246,12 +2251,12 @@ class K3Y {
         if ($Compression.Equals('')) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Invalid Compression.", [System.ArgumentNullException]::new('Compression')) };
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
-    [bool]HasUID() { return [K3Y]::HasUID($this, $false) }
-    [bool]HasUID([bool]$ThrowOnFailure) { return [K3Y]::HasUID($this, $ThrowOnFailure) }
-    [bool]static HasUID([K3Y]$k3y) { return [K3Y]::HasUID($k3y, $false) }
-    [bool]static HasUID([K3Y]$k3y, [bool]$ThrowOnFailure) {
+    [bool]IsUsed() { return [K3Y]::IsUsed($this, $false) }
+    [bool]IsUsed([bool]$ThrowOnFailure) { return [K3Y]::IsUsed($this, $ThrowOnFailure) }
+    [bool]static IsUsed([K3Y]$k3y) { return [K3Y]::IsUsed($k3y, $false) }
+    [bool]static IsUsed([K3Y]$k3y, [bool]$ThrowOnFailure) {
         # Verifies if The password has already been set.
-        $HasUID = $false; [bool]$SetValu3Exception = $false; [securestring]$kUID = $k3y.UID; $InnerException = [System.Exception]::new()
+        $IsUsed = $false; [bool]$SetValu3Exception = $false; [securestring]$kUID = $k3y.UID; $InnerException = [System.Exception]::new()
         try {
             $k3y.UID = [securestring]::new()
         } catch [System.Management.Automation.SetValueException] {
@@ -2260,22 +2265,21 @@ class K3Y {
             $InnerException = $_.Exception
         } finally {
             if ($SetValu3Exception) {
-                $HasUID = $true
+                $IsUsed = $true
             } else {
                 $k3y.UID = $kUID
             }
         }
-        if ($ThrowOnFailure -and !$HasUID) {
-            throw [System.InvalidOperationException]::new("The key Has No UID.`nEncrypt Something with this key at least once or Manually Call SetK3YUID method.", $InnerException)
+        if ($ThrowOnFailure -and !$IsUsed) {
+            throw [System.InvalidOperationException]::new("The key Hasn't been used!`nEncrypt Something with this key at least once or Manually Call SetK3YUID method.", $InnerException)
         }
-        return $HasUID
+        return $IsUsed
     }
     [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         $this.SetK3YUID($Password, $Expirity, $Compression, $_PID, $false);
     }
     [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID, [bool]$ThrowOnFailure) {
-        # The K3Y 'UID' is a fancy way of storing the Key version, user, Compressiontype and Other Information about the most recent encryption and the person who did it, so that it can be analyzed later to verify some rules before decryption.
-        if (!$this.HasUID()) {
+        if (!$this.IsUsed()) {
             Invoke-Command -InputObject $this.UID -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
                         $K3YIdSTR = [string]::Empty; Set-Variable -Name K3YIdSTR -Scope local -Visibility Private -Option Private -Value $([string][K3Y]::GetK3YIdSTR($Password, $Expirity, $Compression, $_PID));
                         Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('UID', { ConvertTo-SecureString -AsPlainText -String '$K3YIdSTR' -Force }))";
@@ -2516,7 +2520,7 @@ class K3Y {
         $this.Export($FilePath, $false);
     }
     [void]Export([string]$FilePath, [bool]$encrypt) {
-        $ThrowOnFailure = $true; [void]$this.HasUID($ThrowOnFailure)
+        $ThrowOnFailure = $true; [void]$this.IsUsed($ThrowOnFailure)
         $FilePath = [xgen]::ResolvedPath($FilePath)
         if (![IO.File]::Exists($FilePath)) { New-Item -Path $FilePath -ItemType File | Out-Null }
         Set-Content -Path $FilePath -Value ([xconvert]::Tostring($this)) -Encoding UTF8 -NoNewline;
@@ -2563,6 +2567,8 @@ class K3Y {
         $vault.Add($_Cred);
     }
 }
+#endregion _The_K3Y
+
 #endregion Custom_Cryptography_Wrapper
 
 #endregion Helpers
@@ -2743,17 +2749,57 @@ function New-K3Y {
         New-K3Y
         Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines
     #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'No system state is being changed')]
-    [CmdletBinding()]
-    param ()
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = '')]
+    [CmdletBinding(DefaultParameterSetName = 'default')]
+    param (
+        # Parameter help description
+        [Parameter(Position = 0, Mandatory = $false, ParameterSetName = 'byPscredential')]
+        [Alias('Owner')][ValidateNotNull()]
+        [pscredential]$User,
+
+        # Parameter help description
+        [Parameter(Position = 0, Mandatory = $false, ParameterSetName = 'default')]
+        [string]$UserName,
+
+        # Parameter help description
+        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'default')]
+        [securestring]$Password,
+
+        # Expiration date
+        [Parameter(Position = 2, Mandatory = $false, ParameterSetName = 'default')]
+        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'byPscredential')]
+        [datetime]$Expirity
+    )
 
     begin {
+        $k3y = $null
+        $params = $PSCmdlet.MyInvocation.BoundParameters
     }
-
     process {
+        $k3y = $(if ($PSCmdlet.ParameterSetName -eq 'byPscredential') {
+                if ($params.ContainsKey('User') -and $params.ContainsKey('Expirity')) {
+                    [K3Y]::New($User, $Expirity);
+                } elseif ($params.ContainsKey('User') -and !$params.ContainsKey('Expirity')) {
+                    [K3Y]::New($User, ([datetime]::Now + [Timespan]::new(30, 0, 0, 0))); # ie: expires in 30days
+                } else {
+                    [K3Y]::New();
+                }
+            } elseif ($PSCmdlet.ParameterSetName -eq 'default') {
+                if ($params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and $params.ContainsKey('Expirity')) {
+                    [K3Y]::New($UserName, $Password, $Expirity);
+                } elseif ($params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and !$params.ContainsKey('Expirity')) {
+                    [K3Y]::New($UserName, $Password);
+                } else {
+                    [K3Y]::New();
+                }
+            } else {
+                [K3Y]::New();
+            }
+        )
     }
 
     end {
+        return $k3y
     }
 }
 
