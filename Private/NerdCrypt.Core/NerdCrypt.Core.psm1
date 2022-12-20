@@ -1245,15 +1245,6 @@ class Advapi32 {
         $this.API = New-Object -TypeName CredentialManager.Advapi32;
     }
 }
-class SafeHandle : Microsoft.Win32.SafeHandles.CriticalHandleZeroOrMinusOneIsInvalid {
-    SafeHandle() {}
-    [bool]ReleaseHandle() {
-        if (!$this.IsInvalid) {
-            $this.SetHandleAsInvalid(); return $true
-        }
-        return $false
-    }
-}
 
 class CredentialNotFoundException : System.Exception, System.Runtime.Serialization.ISerializable {
     [string]$Message; [Exception]$InnerException; hidden $Info; hidden $Context
@@ -1275,8 +1266,6 @@ class CredentialManager {
     static hidden $CRED_MAX_CREDENTIAL_BLOB_SIZE = 512
     static hidden $CRED_MAX_GENERIC_TARGET_NAME_LEN = 32767
     #  [ variables ]
-    static [System.Collections.ObjectModel.Collection[CredManaged]]$Credentials
-    hidden [SafeHandle]$safeHandle
     static hidden $LastErrorCode
     hidden $Advapi32
 
@@ -1285,12 +1274,15 @@ class CredentialManager {
         if (![bool]('Windows.Security.Credentials.PasswordVault' -as 'type')) {
             [void][Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
         }
-        $this::Credentials = [System.Collections.ObjectModel.Collection[CredManaged]]::new();
         $this.Advapi32 = [Advapi32]::new().API;
-        $this.safeHandle = [SafeHandle]::new();
+        if (Get-Service vaultsvc -ErrorAction SilentlyContinue) { Start-Service vaultsvc }
     }
-    [void]SaveCredential([string]$target, [string]$username, [SecureString]$password) {
-        $this.SaveCredential([CredManaged]::new($target, $username, $password));
+    [void]SaveCredential([string]$title, [SecureString]$SecureString) {
+        $UserName = [System.Environment]::GetEnvironmentVariable('UserName');
+        $this.SaveCredential([CredManaged]::new($title, $UserName, $SecureString));
+    }
+    [void]SaveCredential([string]$title, [string]$UserName, [SecureString]$SecureString) {
+        $this.SaveCredential([CredManaged]::new($title, $UserName, $SecureString));
     }
     [void]SaveCredential([CredManaged]$Object) {
         # Create the native credential object.
@@ -1303,19 +1295,11 @@ class CredentialManager {
         [CredentialManager]::LastErrorCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error();
         if (!$result) {
             throw [Exception]::new("Error saving credential: 0x" + "{0}" -f [CredentialManager]::LastErrorCode)
-        } else {
-            [void][CredentialManager]::Credentials.Add($Object);
         }
         # Clean up memory allocated for the native credential object.
         [System.Runtime.InteropServices.Marshal]::ZeroFreeCoTaskMemUnicode($NativeCredential.TargetName)
         [System.Runtime.InteropServices.Marshal]::ZeroFreeCoTaskMemUnicode($NativeCredential.CredentialBlob)
         [System.Runtime.InteropServices.Marshal]::ZeroFreeCoTaskMemUnicode($NativeCredential.UserName)
-    }
-    # Saving all credentials to the Windows Credential Vault.
-    [void]SaveAll() {
-        foreach ($object in [CredentialManager]::Credentials) {
-            $this.SaveCredential($object);
-        }
     }
     [bool]Remove([string]$target, [CredType]$type) {
         $Isdeleted = $this.Advapi32::CredDelete($target, $type, 0);
@@ -1328,10 +1312,6 @@ class CredentialManager {
             }
         }
         return $Isdeleted
-    }
-    [void]RemoveAll() {
-        # Should work same as the old skool batch cmdkey
-        # For /F "tokens=1,2 delims= " %%G in ('cmdkey /list ^| findstr Target') do  cmdkey /delete %%H
     }
     [CredManaged]GetCredential([string]$target) {
         #uses the default $env:username
@@ -1354,16 +1334,13 @@ class CredentialManager {
         if (!$result) {
             $errorCode = [CredentialManager]::LastErrorCode
             if ($errorCode -eq [CredentialManager]::ERROR_NOT_FOUND) {
-                $(Get-Variable host).value.UI.WriteErrorLine("`nERROR_NOT_FOUND: Credential '$target' not found in Windows Credential Vault.`n");
-                return [CredManaged]::new() #return an Empty obj
+                $(Get-Variable host).value.UI.WriteErrorLine("`nERROR_NOT_FOUND: Credential '$target' not found in Windows Credential Vault. Returning Empty Object ...`n");
+                return [CredManaged]::new();
             } else {
                 throw [Exception]::new("Error reading '{0}' in Windows Credential Vault. ErrorCode: 0x{1}" -f $target, $errorCode)
             }
         }
         # Convert the retrieved native credential object to a managed Credential object.
-        if (!$this.safeHandle.IsInvalid) {
-            throw [System.InvalidOperationException]::new("Invalid CriticalHandle!");
-        }
         # Get the Credential from the mem location
         $NativeCredential = [System.Runtime.InteropServices.Marshal]::PtrToStructure($outCredential, [Type]"CredentialManager.Advapi32+NativeCredential") -as 'CredentialManager.Advapi32+NativeCredential'
         [System.GC]::Collect();
@@ -1376,47 +1353,49 @@ class CredentialManager {
         # Return the managed Credential object.
         return $credential
     }
-    [System.Collections.ObjectModel.Collection[CredManaged]]GetCredentials() {
+    [System.Collections.ObjectModel.Collection[CredManaged]]RetreiveAll() {
+        $Credentials = [System.Collections.ObjectModel.Collection[CredManaged]]::new();
         # CredEnumerate is slow af so, I ditched it.
         $credList = [CredentialManager]::get_StoredCreds();
         foreach ($cred in $credList) {
             Write-Verbose "CredentialManager.GetCredential($($cred.Target))";
-            [CredentialManager]::Credentials.Add([CredManaged]($this.GetCredential($cred.Target, $cred.Type, $cred.User)));
+            $Credentials.Add([CredManaged]($this.GetCredential($cred.Target, $cred.Type, $cred.User)));
         }
-        return [CredentialManager]::Credentials
+        return $Credentials
     }
     [Psobject[]]static hidden get_StoredCreds() {
-        $outputLines = (cmdkey /list) -split "`n"
+        $cmdkey = (Get-Command cmdkey -ErrorAction SilentlyContinue).Source
+        if ([string]::IsNullOrEmpty($cmdkey)) { throw [System.Exception]::new('get_StoredCreds() Failed.') }
+        $outputLines = (&$cmdkey /list) -split "`n"
         [CredentialManager]::LastErrorCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error();
         if ($outputLines) {
         } else {
             throw $error[0].Exception.Message
         }
-        $credList = @(); $target = $type = $user = $perst = $null
-        foreach ($line in $outputLines) {
-            if ($line -match "^\s*Target:\s*(.+)$") {
-                $target = $matches[1]
-            } elseif ($line -match "^\s*Type:\s*(.+)$") {
-                $type = $matches[1]
-            } elseif ($line -match "^\s*User:\s*(.+)$") {
-                $user = $matches[1]
-            } elseif ($line -match "^\s*Local machine persistence$") {
-                $perst = "LocalComputer"
-            } elseif ($line -match "^\s*Enterprise persistence$") {
-                $perst = 'Enterprise'
-            }
-            if ($target -and $type -and $user -and ![string]::IsNullOrEmpty($perst)) {
-                $cred = [PSCustomObject]@{
-                    Target      = [string]$target
-                    Type        = [CredType]$type
-                    User        = [string]$user
-                    Persistence = [CredentialPersistence]$perst
+        $target = $type = $user = $perst = $null
+        $credList = $(foreach ($line in $outputLines) {
+                if ($line -match "^\s*Target:\s*(.+)$") {
+                    $target = $matches[1]
+                } elseif ($line -match "^\s*Type:\s*(.+)$") {
+                    $type = $matches[1]
+                } elseif ($line -match "^\s*User:\s*(.+)$") {
+                    $user = $matches[1]
+                } elseif ($line -match "^\s*Local machine persistence$") {
+                    $perst = "LocalComputer"
+                } elseif ($line -match "^\s*Enterprise persistence$") {
+                    $perst = 'Enterprise'
                 }
-                $credList += $cred
-                $target = $type = $user = $perst = $null
+                if ($target -and $type -and $user -and ![string]::IsNullOrEmpty($perst)) {
+                    [PSCustomObject]@{
+                        Target      = [string]$target
+                        Type        = [CredType]$type
+                        User        = [string]$user
+                        Persistence = [CredentialPersistence]$perst
+                    }
+                    $target = $type = $user = $perst = $null
+                }
             }
-        }
-        $credList = $credList | Select-Object @{l = 'Target'; e = { $_.target.replace('LegacyGeneric:target=', '').replace('WindowsLive:target=', '') } }, Type, User, Persistence
+        ) | Select-Object @{l = 'Target'; e = { $_.target.replace('LegacyGeneric:target=', '').replace('WindowsLive:target=', '') } }, Type, User, Persistence | Where-Object { $_.target -ne 'virtualapp/didlogical' };
         return $credList
     }
 }
@@ -2755,25 +2734,248 @@ function New-NCobject {
     }
 }
 function New-K3Y {
-    [CmdletBinding(SupportsShouldProcess = $true)]
-    param (
-    )
+    <#
+    .SYNOPSIS
+        Creates a new [k3y] object
+    .DESCRIPTION
+        A longer description of the function, its purpose, common use cases, etc.
+    .EXAMPLE
+        New-K3Y
+        Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'No system state is being changed')]
+    [CmdletBinding()]
+    param ()
 
     begin {
     }
 
     process {
-        if ($PSCmdlet.ShouldProcess("Target", "Operation")) {
-            # "Do stuff here"
-        }
     }
 
     end {
     }
 }
+
+function New-Password {
+    <#
+    .SYNOPSIS
+        Creates a password string
+    .DESCRIPTION
+        Creates a password containing minimum of 8 characters, 1 lowercase, 1 uppercase, 1 numeric, and 1 special character.
+        Created password can not exceed 999 characters
+    .LINK
+        https://github.com/alainQtec/NerdCrypt/blob/main/Private/NerdCrypt.Core/NerdCrypt.Core.psm1
+    .EXAMPLE
+        New-Password
+        Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'No system state is being changed')]
+    [CmdletBinding(DefaultParameterSetName = 'ByLength')]
+    param (
+        # Exact password Length
+        [Parameter(Position = 0, Mandatory = $false, ParameterSetName = 'ByLength')]
+        [Alias('l')][ValidateRange(9, 999)]
+        [int]$Length,
+        # Minimum Length
+        [Parameter(Position = 0, Mandatory = $false, ParameterSetName = 'ByMinMax')]
+        [Alias('min')]
+        [int]$minLength,
+        # Minimum Length
+        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'ByMinMax')]
+        [Alias('max')]
+        [int]$maxLength,
+        # Retries / Iterations to randomise results
+        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'ByLength')]
+        [Parameter(Position = 2, Mandatory = $false, ParameterSetName = 'ByMinMax')]
+        [Alias('r')][ValidateRange(1, 100)][ValidateNotNullOrEmpty()]
+        [int]$Iterations
+    )
+
+    begin {
+        $Pass = [string]::Empty
+    }
+
+    process {
+        if ($PSCmdlet.ParameterSetName -eq 'ByLength') {
+            if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Length') -and $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Iterations')) {
+                $Pass = [xgen]::Password($Iterations, $Length);
+            } elseif ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Length') -and !$PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Iterations')) {
+                $Pass = [xgen]::Password(1, $Length);
+            } else {
+                Write-Verbose $PSCmdlet.MyInvocation.BoundParameters
+                $Pass = [xgen]::Password();
+            }
+        } elseif ($PSCmdlet.ParameterSetName -eq 'ByMinMax') {
+            if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Iterations')) {
+                $pass = [xgen]::Password($Iterations, $minLength, $maxLength);
+            } else {
+                $Pass = [xgen]::Password(1, $minLength, $maxLength);
+            }
+        }
+    }
+    end {
+        return $Pass
+    }
+}
+function Save-Credential {
+    <#
+    .SYNOPSIS
+        Saves credential to windows credential Manager
+    .DESCRIPTION
+        A longer description of the function, its purpose, common use cases, etc.
+    .NOTES
+        This function is supported on windows only
+    .LINK
+        https://github.com/alainQtec/NerdCrypt/blob/main/Private/NerdCrypt.Core/NerdCrypt.Core.ps1
+    .EXAMPLE
+        Save-Credential youtube.com/@memeL0rd memeL0rd $(Read-Host -AsSecureString -Prompt "memeLord's youtube password")
+    #>
+    [CmdletBinding(DefaultParameterSetName = 'uts')]
+    param (
+        # title aka TargetName of the credential you want to save
+        [Parameter(Position = 0, Mandatory = $true, ParameterSetName = 'uts')]
+        [ValidateScript({
+                if (![string]::IsNullOrWhiteSpace($_)) {
+                    return $true
+                }
+                throw 'Null or WhiteSpace targetName is not allowed.'
+            }
+        )][Alias('target')]
+        [string]$Title,
+        # UserName
+        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'uts')]
+        [Alias('UserName')]
+        [string]$User,
+
+        # Securestring / Password
+        [Parameter(Position = 2, Mandatory = $true, ParameterSetName = 'uts')]
+        [ValidateNotNull()]
+        [securestring]$SecureString,
+
+        # ManagedCredential Object you want to save
+        [Parameter(Mandatory = $true, ParameterSetName = 'MC')]
+        [Alias('Credential')][ValidateNotNull()]
+        [CredManaged]$Obj
+
+    )
+
+    process {
+        if ($PSCmdlet.ParameterSetName -eq 'uts') {
+            $CredentialManager = [CredentialManager]::new();
+            if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('User')) {
+                [void]$CredentialManager.SaveCredential($Title, $User, $SecureString);
+            } else {
+                [void]$CredentialManager.SaveCredential($Title, $SecureString);
+            }
+        } elseif ($PSCmdlet.ParameterSetName -eq 'MC') {
+            $CredentialManager = [CredentialManager]::new();
+            [void]$CredentialManager.SaveCredential($Obj);
+        }
+    }
+}
+function Remove-Credential {
+    <#
+    .SYNOPSIS
+        Deletes credential from Windows Credential Mandger
+    .DESCRIPTION
+        A longer description of the function, its purpose, common use cases, etc.
+    .NOTES
+        This function is supported on windows only
+    .LINK
+        Specify a URI to a help page, this will show when Get-Help -Online is used.
+    .EXAMPLE
+        Remove-Credential -Verbose
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param (
+        # TargetName
+        [Parameter(Mandatory = $true)][ValidateLength(1, 32767)]
+        [ValidateScript({
+                if (![string]::IsNullOrWhiteSpace($_)) {
+                    return $true
+                }
+                throw 'Null or WhiteSpace Inputs are not allowed.'
+            }
+        )][Alias('Title')]
+        [String]$Target,
+        [Parameter(Mandatory = $false)]
+        [ValidateSet("GENERIC", "DOMAIN_PASSWORD", "DOMAIN_CERTIFICATE", "DOMAIN_VISIBLE_PASSWORD", "GENERIC_CERTIFICATE", "DOMAIN_EXTENDED", "MAXIMUM", "MAXIMUM_EX")]
+        [String]$Type = "GENERIC"
+    )
+
+    begin {
+        $CredentialManager = [CredentialManager]::new();
+    }
+
+    process {
+        $CredType = [CredType]"$Type"
+        if ($PSCmdlet.ShouldProcess("Removing Credential, target: $Target", '', '')) {
+            $IsRemoved = $CredentialManager.Remove($Target, $CredType);
+            if (-not $IsRemoved) {
+                throw 'Remove-Credential Failed'
+            }
+        }
+    }
+}
+function Get-SavedCredentials {
+    <#
+    .SYNOPSIS
+        Retreives All strored credentials from credential Manager
+    .DESCRIPTION
+        Retreives All strored credentials and returns an [System.Collections.ObjectModel.Collection[CredManaged]] object
+    .NOTES
+        This function is supported on windows only
+    .LINK
+        https://github.com/alainQtec/NerdCrypt/blob/main/Private/NerdCrypt.Core/NerdCrypt.Core.ps1
+    .EXAMPLE
+        Get-SavedCredentials
+        Enumerates all SavedCredentials
+    #>
+    [CmdletBinding()]
+    [outputType([System.Collections.ObjectModel.Collection[CredManaged]])]
+    param ()
+
+    begin {
+        $Credentials = $null
+        $CredentialManager = [CredentialManager]::new();
+    }
+
+    process {
+        $Credentials = $CredentialManager.RetreiveAll();
+    }
+    end {
+        return $Credentials;
+    }
+}
+function Show-SavedCredentials {
+    <#
+    .SYNOPSIS
+        Retreives All strored credentials from credential Manager, but no securestrings. (Just showing)
+    .DESCRIPTION
+        Retreives All strored credentials and returns a PsObject[]
+    .NOTES
+        This function is supported on windows only
+    .LINK
+        https://github.com/alainQtec/NerdCrypt/blob/main/Private/NerdCrypt.Core/NerdCrypt.Core.ps1
+    .EXAMPLE
+        Show-SavedCredentials
+    #>
+    [CmdletBinding()]
+    [outputType([PsObject[]])]
+    [Alias('ShowCreds')]
+    param ()
+
+    end {
+        return [CredentialManager]::get_StoredCreds();
+    }
+}
+
 #Endregion Functions
 
-Export-ModuleMember -Function *-* -Alias *
+# Export-ModuleMember -Function *-* -Alias *
+
+
 
 <#
 public static string Encrypt(string stringToEncrypt)
