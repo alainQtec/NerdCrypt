@@ -2748,7 +2748,7 @@ function New-K3Y {
         The K3Y can only be used to Once, and its 'UID' [ see .SetK3YUID() method ] is a fancy way of storing the version, user/owner credentials, Compression alg~tm used and Other Info
         about the most recent use and the person who used it; so it can be analyzed later to verify some rules before being used again. this allows to create complex expiring encryptions.
     .EXAMPLE
-        New-K3Y
+        New-K3Y (Get-Credential)
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = '')]
     [CmdletBinding(DefaultParameterSetName = 'default')]
