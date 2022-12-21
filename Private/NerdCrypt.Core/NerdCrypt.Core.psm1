@@ -2195,8 +2195,8 @@ Class FileCrypt {
 
 #region    Custom_Cryptography_Wrapper
 
-#region    _The_K3Y
-# The K3Y can only be used to Once, and its 'UID' [ see .SetK3YUID() method ] is a fancy way of storing the version, user/owner credentials, Compression alg~tm used and Other Info
+#region    _The_KΣY
+# The K3Y can only be used to Once, and its 'UID' [ see .SetKΣYUID() method ] is a fancy way of storing the version, user/owner credentials, Compression alg~tm used and Other Info
 # about the most recent use and the person who used it; so it can be analyzed later to verify some rules before being used again. this allows to create complex expiring encryptions.
 # It doen't store the actual passwords, it keeps their hashes.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingInvokeExpression", '')]
@@ -2210,20 +2210,20 @@ class K3Y {
 
     K3Y() {
         $this.User = [CredManaged]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
-        $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
+        $this.UID = [securestring][xconvert]::ToSecurestring($this.GetKΣYIdSTR());
     }
     K3Y([Datetime]$Expirity) {
         $this.User = [CredManaged]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
-        $this.Expirity = [Expirity]::new($Expirity); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
+        $this.Expirity = [Expirity]::new($Expirity); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetKΣYIdSTR());
     }
     K3Y([pscredential]$User, [Datetime]$Expirity) {
-        ($this.User, $this.Expirity) = ([CredManaged]::new($User), [Expirity]::new($Expirity)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
+        ($this.User, $this.Expirity) = ([CredManaged]::new($User), [Expirity]::new($Expirity)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetKΣYIdSTR());
     }
     K3Y([string]$UserName, [securestring]$Password) {
-        $this.User = [CredManaged]::new([pscredential]::new($UserName, $Password)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
+        $this.User = [CredManaged]::new([pscredential]::new($UserName, $Password)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetKΣYIdSTR());
     }
     K3Y([string]$UserName, [securestring]$Password, [Datetime]$Expirity) {
-        ($this.User, $this.Expirity) = ([CredManaged]::new([pscredential]::new($UserName, $Password)), [Expirity]::new($Expirity)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
+        ($this.User, $this.Expirity) = ([CredManaged]::new([pscredential]::new($UserName, $Password)), [Expirity]::new($Expirity)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetKΣYIdSTR());
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt) {
         return $this.Encrypt($bytesToEncrypt, [K3Y]::GetPassword());
@@ -2235,7 +2235,7 @@ class K3Y {
         return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $Expirity);
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$Password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
-        $Password = [securestring]$this.ResolvePassword($Password); $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
+        $Password = [securestring]$this.ResolvePassword($Password); $this.SetKΣYUID($Password, $Expirity, $Compression, $this._PID)
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
@@ -2254,11 +2254,11 @@ class K3Y {
     [bool]IsUsed() { return [K3Y]::IsUsed($this, $false) }
     [bool]IsUsed([bool]$ThrowOnFailure) { return [K3Y]::IsUsed($this, $ThrowOnFailure) }
     [bool]static IsUsed([K3Y]$k3y) { return [K3Y]::IsUsed($k3y, $false) }
-    [bool]static IsUsed([K3Y]$k3y, [bool]$ThrowOnFailure) {
+    [bool]static IsUsed([K3Y]$KΣY, [bool]$ThrowOnFailure) {
         # Verifies if The password has already been set.
-        $IsUsed = $false; [bool]$SetValu3Exception = $false; [securestring]$kUID = $k3y.UID; $InnerException = [System.Exception]::new()
+        $IsUsed = $false; [bool]$SetValu3Exception = $false; [securestring]$kUID = $KΣY.UID; $InnerException = [System.Exception]::new()
         try {
-            $k3y.UID = [securestring]::new()
+            $KΣY.UID = [securestring]::new()
         } catch [System.Management.Automation.SetValueException] {
             $SetValu3Exception = $true
         } catch {
@@ -2267,21 +2267,21 @@ class K3Y {
             if ($SetValu3Exception) {
                 $IsUsed = $true
             } else {
-                $k3y.UID = $kUID
+                $KΣY.UID = $kUID
             }
         }
         if ($ThrowOnFailure -and !$IsUsed) {
-            throw [System.InvalidOperationException]::new("The key Hasn't been used!`nEncrypt Something with this key at least once or Manually Call SetK3YUID method.", $InnerException)
+            throw [System.InvalidOperationException]::new("The key Hasn't been used!`nEncrypt Something with this KΣY at least once or Manually Call SetKΣYUID method.", $InnerException)
         }
         return $IsUsed
     }
-    [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        $this.SetK3YUID($Password, $Expirity, $Compression, $_PID, $false);
+    [void]hidden SetKΣYUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+        $this.SetKΣYUID($Password, $Expirity, $Compression, $_PID, $false);
     }
-    [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID, [bool]$ThrowOnFailure) {
+    [void]hidden SetKΣYUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID, [bool]$ThrowOnFailure) {
         if (!$this.IsUsed()) {
             Invoke-Command -InputObject $this.UID -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-                        $K3YIdSTR = [string]::Empty; Set-Variable -Name K3YIdSTR -Scope local -Visibility Private -Option Private -Value $([string][K3Y]::GetK3YIdSTR($Password, $Expirity, $Compression, $_PID));
+                        $K3YIdSTR = [string]::Empty; Set-Variable -Name K3YIdSTR -Scope local -Visibility Private -Option Private -Value $([string][K3Y]::GetKΣYIdSTR($Password, $Expirity, $Compression, $_PID));
                         Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('UID', { ConvertTo-SecureString -AsPlainText -String '$K3YIdSTR' -Force }))";
                     }
                 )
@@ -2290,10 +2290,10 @@ class K3Y {
             if ($ThrowOnFailure) { throw [System.Management.Automation.SetValueException]::new('The Key already Has a UID.') }
         }
     }
-    [string]GetK3YIdSTR() {
-        return [K3Y]::GetK3YIdSTR($this.User.Password, $this.Expirity.Date, $(Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID)
+    [string]GetKΣYIdSTR() {
+        return [K3Y]::GetKΣYIdSTR($this.User.Password, $this.Expirity.Date, $(Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID)
     }
-    [string]static GetK3YIdSTR([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+    [string]static GetKΣYIdSTR([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         if ($null -eq $Password -or $([string]::IsNullOrWhiteSpace([xconvert]::ToString($Password)))) {
             throw [System.InvalidOperationException]::new("Please Provide a Password that isn't Null and not a WhiteSpace.", [System.ArgumentNullException]::new("Password"));
         }
@@ -2567,7 +2567,7 @@ class K3Y {
         $vault.Add($_Cred);
     }
 }
-#endregion _The_K3Y
+#endregion _The_KΣY
 
 #endregion Custom_Cryptography_Wrapper
 
@@ -2739,16 +2739,18 @@ function New-NCobject {
         return $Object
     }
 }
-function New-K3Y {
+function New-KΣY {
     <#
     .SYNOPSIS
-        Creates a new [k3y] object
+        Creates a new [KΣY] object
     .DESCRIPTION
         Creates a custom k3y object for encryption/decryption.
-        The K3Y can only be used to Once, and its 'UID' [ see .SetK3YUID() method ] is a fancy way of storing the version, user/owner credentials, Compression alg~tm used and Other Info
+        The K3Y can only be used to Once, and its 'UID' [ see .SetKΣYUID() method ] is a fancy way of storing the version, user/owner credentials, Compression alg~tm used and Other Info
         about the most recent use and the person who used it; so it can be analyzed later to verify some rules before being used again. this allows to create complex expiring encryptions.
     .EXAMPLE
-        New-K3Y (Get-Credential)
+        $K = New-KΣY (Get-Credential -UserName 'Alain Herve' -Message 'New-KΣY')
+    .NOTES
+        This is a private function, its not meant to be exported, or used alone
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = '')]
     [CmdletBinding(DefaultParameterSetName = 'default')]
@@ -2826,7 +2828,6 @@ function New-K3Y {
         return $k3y
     }
 }
-
 function New-Password {
     <#
     .SYNOPSIS
