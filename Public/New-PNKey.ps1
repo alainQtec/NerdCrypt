@@ -1,4 +1,4 @@
-﻿function New-PNKey {
+﻿function New-K3Y {
     <#
         .EXTERNALHELP NerdCrypt.psm1-Help.xml
     #>
