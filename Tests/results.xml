@@ -54,21 +54,21 @@
               </test-case>
             </results>
           </test-suite>
-          <test-suite type="TestFixture" name="New-PNKey" executed="True" result="Failure" success="False" time="0.3336" asserts="0" description="New-PNKey">
+          <test-suite type="TestFixture" name="New-K3Y" executed="True" result="Failure" success="False" time="0.3336" asserts="0" description="New-K3Y">
             <results>
-              <test-case description="should have command" name="New-PNKey.should have command" time="0.0563" asserts="0" success="False" result="Failure" executed="True">
+              <test-case description="should have command" name="New-K3Y.should have command" time="0.0563" asserts="0" success="False" result="Failure" executed="True">
                 <failure>
-                  <message>The term 'New-PNKey' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.</message>
+                  <message>The term 'New-K3Y' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.</message>
                   <stack-trace>at &lt;ScriptBlock&gt;, E:\_UserProfile_\Documents\GitHub\NerdCrypt\tests\Integration.Tests.ps1: line 27
-27:         Get-Command New-PNKey | Should -Not -BeNullOrEmpty
+27:         Get-Command New-K3Y | Should -Not -BeNullOrEmpty
 </stack-trace>
                 </failure>
               </test-case>
-              <test-case description="should work" name="New-PNKey.should work" time="0.1825" asserts="0" success="False" result="Failure" executed="True">
+              <test-case description="should work" name="New-K3Y.should work" time="0.1825" asserts="0" success="False" result="Failure" executed="True">
                 <failure>
-                  <message>The term 'New-PNKey' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.</message>
+                  <message>The term 'New-K3Y' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.</message>
                   <stack-trace>at &lt;ScriptBlock&gt;, E:\_UserProfile_\Documents\GitHub\NerdCrypt\tests\Integration.Tests.ps1: line 30
-30:         (New-PNKey -UserName $Env:USERNAME -Password $(
+30:         (New-K3Y -UserName $Env:USERNAME -Password $(
 </stack-trace>
                 </failure>
               </test-case>
