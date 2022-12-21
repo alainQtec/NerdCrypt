@@ -813,7 +813,7 @@ $dec = Decrypt-Object $enc -Password $([K3Y]::GetPassword()) -PublicKey $(cat .\
 	</command:command>
 	<command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10">
 		<command:details>
-			<command:name>New-PNKey</command:name>
+			<command:name>New-K3Y</command:name>
 			<maml:description>
 				<maml:para>Create [K3Y] Object and Outputs it as a string.</maml:para>
 
@@ -831,7 +831,7 @@ $dec = Decrypt-Object $enc -Password $([K3Y]::GetPassword()) -PublicKey $(cat .\
 		</maml:description>
 		<command:syntax>
 			<command:syntaxItem parametersetname="Params">
-				<maml:name>New-PNKey</maml:name>
+				<maml:name>New-K3Y</maml:name>
 				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="0">
 					<maml:name>UserName</maml:name>
 					<maml:description>
@@ -862,7 +862,7 @@ $dec = Decrypt-Object $enc -Password $([K3Y]::GetPassword()) -PublicKey $(cat .\
 				</command:parameter>
 			</command:syntaxItem>
 			<command:syntaxItem parametersetname="FromK3Y">
-				<maml:name>New-PNKey</maml:name>
+				<maml:name>New-K3Y</maml:name>
 				<command:parameter required="true" variableLength="false" globbing="false" pipelineInput="false" position="0">
 					<maml:name>K3YoBJ</maml:name>
 					<maml:description>
