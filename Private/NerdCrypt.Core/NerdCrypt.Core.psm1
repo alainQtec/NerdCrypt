@@ -1248,12 +1248,11 @@ class Advapi32 {
 
 class CredentialNotFoundException : System.Exception, System.Runtime.Serialization.ISerializable {
     [string]$Message; [Exception]$InnerException; hidden $Info; hidden $Context
-    CredentialNotFoundException() { }
+    CredentialNotFoundException() { $this.Message = 'CredentialNotFound' }
     CredentialNotFoundException([string]$message) { $this.Message = $message }
     CredentialNotFoundException([string]$message, [Exception]$InnerException) { ($this.Message, $this.InnerException) = ($message, $InnerException) }
     CredentialNotFoundException([System.Runtime.Serialization.SerializationInfo]$info, [System.Runtime.Serialization.StreamingContext]$context) { ($this.Info, $this.Context) = ($info, $context) }
 }
-
 
 # See Usage Example in the Wiki
 class CredentialManager {
@@ -2195,8 +2194,8 @@ Class FileCrypt {
 
 #region    Custom_Cryptography_Wrapper
 
-#region    _The_KΣY
-# The K3Y can only be used to Once, and its 'UID' [ see .SetKΣYUID() method ] is a fancy way of storing the version, user/owner credentials, Compression alg~tm used and Other Info
+#region    _The_K3Y
+# The K3Y can only be used to Once, and its 'UID' [ see .SetK3YUID() method ] is a fancy way of storing the version, user/owner credentials, Compression alg~tm used and Other Info
 # about the most recent use and the person who used it; so it can be analyzed later to verify some rules before being used again. this allows to create complex expiring encryptions.
 # It doen't store the actual passwords, it keeps their hashes.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingInvokeExpression", '')]
@@ -2210,20 +2209,20 @@ class K3Y {
 
     K3Y() {
         $this.User = [CredManaged]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
-        $this.UID = [securestring][xconvert]::ToSecurestring($this.GetKΣYIdSTR());
+        $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([Datetime]$Expirity) {
         $this.User = [CredManaged]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
-        $this.Expirity = [Expirity]::new($Expirity); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetKΣYIdSTR());
+        $this.Expirity = [Expirity]::new($Expirity); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([pscredential]$User, [Datetime]$Expirity) {
-        ($this.User, $this.Expirity) = ([CredManaged]::new($User), [Expirity]::new($Expirity)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetKΣYIdSTR());
+        ($this.User, $this.Expirity) = ([CredManaged]::new($User), [Expirity]::new($Expirity)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([string]$UserName, [securestring]$Password) {
-        $this.User = [CredManaged]::new([pscredential]::new($UserName, $Password)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetKΣYIdSTR());
+        $this.User = [CredManaged]::new([pscredential]::new($UserName, $Password)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([string]$UserName, [securestring]$Password, [Datetime]$Expirity) {
-        ($this.User, $this.Expirity) = ([CredManaged]::new([pscredential]::new($UserName, $Password)), [Expirity]::new($Expirity)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetKΣYIdSTR());
+        ($this.User, $this.Expirity) = ([CredManaged]::new([pscredential]::new($UserName, $Password)), [Expirity]::new($Expirity)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt) {
         return $this.Encrypt($bytesToEncrypt, [K3Y]::GetPassword());
@@ -2235,7 +2234,7 @@ class K3Y {
         return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $Expirity);
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$Password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
-        $Password = [securestring]$this.ResolvePassword($Password); $this.SetKΣYUID($Password, $Expirity, $Compression, $this._PID)
+        $Password = [securestring]$this.ResolvePassword($Password); $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
@@ -2254,11 +2253,11 @@ class K3Y {
     [bool]IsUsed() { return [K3Y]::IsUsed($this, $false) }
     [bool]IsUsed([bool]$ThrowOnFailure) { return [K3Y]::IsUsed($this, $ThrowOnFailure) }
     [bool]static IsUsed([K3Y]$k3y) { return [K3Y]::IsUsed($k3y, $false) }
-    [bool]static IsUsed([K3Y]$KΣY, [bool]$ThrowOnFailure) {
+    [bool]static IsUsed([K3Y]$K3Y, [bool]$ThrowOnFailure) {
         # Verifies if The password has already been set.
-        $IsUsed = $false; [bool]$SetValu3Exception = $false; [securestring]$kUID = $KΣY.UID; $InnerException = [System.Exception]::new()
+        $IsUsed = $false; [bool]$SetValu3Exception = $false; [securestring]$kUID = $K3Y.UID; $InnerException = [System.Exception]::new()
         try {
-            $KΣY.UID = [securestring]::new()
+            $K3Y.UID = [securestring]::new()
         } catch [System.Management.Automation.SetValueException] {
             $SetValu3Exception = $true
         } catch {
@@ -2267,21 +2266,21 @@ class K3Y {
             if ($SetValu3Exception) {
                 $IsUsed = $true
             } else {
-                $KΣY.UID = $kUID
+                $K3Y.UID = $kUID
             }
         }
         if ($ThrowOnFailure -and !$IsUsed) {
-            throw [System.InvalidOperationException]::new("The key Hasn't been used!`nEncrypt Something with this KΣY at least once or Manually Call SetKΣYUID method.", $InnerException)
+            throw [System.InvalidOperationException]::new("The key Hasn't been used!`nEncrypt Something with this K3Y at least once or Manually Call SetK3YUID method.", $InnerException)
         }
         return $IsUsed
     }
-    [void]hidden SetKΣYUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        $this.SetKΣYUID($Password, $Expirity, $Compression, $_PID, $false);
+    [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+        $this.SetK3YUID($Password, $Expirity, $Compression, $_PID, $false);
     }
-    [void]hidden SetKΣYUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID, [bool]$ThrowOnFailure) {
+    [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID, [bool]$ThrowOnFailure) {
         if (!$this.IsUsed()) {
             Invoke-Command -InputObject $this.UID -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-                        $K3YIdSTR = [string]::Empty; Set-Variable -Name K3YIdSTR -Scope local -Visibility Private -Option Private -Value $([string][K3Y]::GetKΣYIdSTR($Password, $Expirity, $Compression, $_PID));
+                        $K3YIdSTR = [string]::Empty; Set-Variable -Name K3YIdSTR -Scope local -Visibility Private -Option Private -Value $([string][K3Y]::GetK3YIdSTR($Password, $Expirity, $Compression, $_PID));
                         Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('UID', { ConvertTo-SecureString -AsPlainText -String '$K3YIdSTR' -Force }))";
                     }
                 )
@@ -2290,10 +2289,10 @@ class K3Y {
             if ($ThrowOnFailure) { throw [System.Management.Automation.SetValueException]::new('The Key already Has a UID.') }
         }
     }
-    [string]GetKΣYIdSTR() {
-        return [K3Y]::GetKΣYIdSTR($this.User.Password, $this.Expirity.Date, $(Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID)
+    [string]GetK3YIdSTR() {
+        return [K3Y]::GetK3YIdSTR($this.User.Password, $this.Expirity.Date, $(Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID)
     }
-    [string]static GetKΣYIdSTR([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+    [string]static GetK3YIdSTR([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         if ($null -eq $Password -or $([string]::IsNullOrWhiteSpace([xconvert]::ToString($Password)))) {
             throw [System.InvalidOperationException]::new("Please Provide a Password that isn't Null and not a WhiteSpace.", [System.ArgumentNullException]::new("Password"));
         }
@@ -2567,7 +2566,7 @@ class K3Y {
         $vault.Add($_Cred);
     }
 }
-#endregion _The_KΣY
+#endregion _The_K3Y
 
 #endregion Custom_Cryptography_Wrapper
 
@@ -2739,16 +2738,16 @@ function New-NCobject {
         return $Object
     }
 }
-function New-KΣY {
+function New-K3Y {
     <#
     .SYNOPSIS
-        Creates a new [KΣY] object
+        Creates a new [K3Y] object
     .DESCRIPTION
         Creates a custom k3y object for encryption/decryption.
-        The K3Y can only be used to Once, and its 'UID' [ see .SetKΣYUID() method ] is a fancy way of storing the version, user/owner credentials, Compression alg~tm used and Other Info
+        The K3Y can only be used to Once, and its 'UID' [ see .SetK3YUID() method ] is a fancy way of storing the version, user/owner credentials, Compression alg~tm used and Other Info
         about the most recent use and the person who used it; so it can be analyzed later to verify some rules before being used again. this allows to create complex expiring encryptions.
     .EXAMPLE
-        $K = New-KΣY (Get-Credential -UserName 'Alain Herve' -Message 'New-KΣY')
+        $K = New-K3Y (Get-Credential -UserName 'Alain Herve' -Message 'New-K3Y')
     .NOTES
         This is a private function, its not meant to be exported, or used alone
     #>
@@ -2954,7 +2953,7 @@ function Remove-Credential {
     .NOTES
         This function is supported on windows only
     .LINK
-        Specify a URI to a help page, this will show when Get-Help -Online is used.
+        https://github.com/alainQtec/NerdCrypt/blob/main/Private/NerdCrypt.Core/NerdCrypt.Core.psm1
     .EXAMPLE
         Remove-Credential -Verbose
     #>
@@ -2971,7 +2970,7 @@ function Remove-Credential {
         )][Alias('Title')]
         [String]$Target,
         [Parameter(Mandatory = $false)]
-        [ValidateSet("GENERIC", "DOMAIN_PASSWORD", "DOMAIN_CERTIFICATE", "DOMAIN_VISIBLE_PASSWORD", "GENERIC_CERTIFICATE", "DOMAIN_EXTENDED", "MAXIMUM", "MAXIMUM_EX")]
+        [ValidateSet('Generic', 'DomainPassword', 'DomainCertificate', 'DomainVisiblePassword', 'GenericCertificate', 'DomainExtended', 'Maximum', 'MaximumEx')]
         [String]$Type = "GENERIC"
     )
 
@@ -2984,9 +2983,92 @@ function Remove-Credential {
         if ($PSCmdlet.ShouldProcess("Removing Credential, target: $Target", '', '')) {
             $IsRemoved = $CredentialManager.Remove($Target, $CredType);
             if (-not $IsRemoved) {
-                throw 'Remove-Credential Failed'
+                throw 'Remove-Credential Failed. ErrorCode: 0x' + [CredentialManager]::LastErrorCode
             }
         }
+    }
+}
+function Get-SavedCredential {
+    <#
+    .SYNOPSIS
+        Get SavedCredential
+    .DESCRIPTION
+        Gets Saved Credential from credential vault
+    .NOTES
+        This function is not supported on Linux
+    .LINK
+        https://github.com/alainQtec/NerdCrypt/blob/main/Private/NerdCrypt.Core/NerdCrypt.Core.ps1
+    .EXAMPLE
+        Get-SavedCredential 'My App'
+        Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines
+    #>
+    [CmdletBinding(DefaultParameterSetName = 'default')]
+    [OutputType([CredManaged])]
+    param (
+        # Target /title /name of the saved credential
+        [Parameter(Position = 0, Mandatory = $false, ParameterSetName = '__AllParameterSets')]
+        [Alias('Name', 'TargetName')][ValidateNotNullOrEmpty()]
+        [string]$Target,
+
+        # Username / Owner
+        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'default')]
+        [Parameter(Position = 2, Mandatory = $false, ParameterSetName = 'byCrtyp')]
+        [Alias('usrnm')][ValidateNotNullOrEmpty()]
+        [string]$UserName,
+
+        # Credential type.
+        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'byCrtyp')]
+        [ValidateSet('Generic', 'DomainPassword', 'DomainCertificate', 'DomainVisiblePassword', 'GenericCertificate', 'DomainExtended', 'Maximum', 'MaximumEx')]
+        [Alias('CredType')][ValidateNotNullOrEmpty()]
+        [string]$Type = 'Generic'
+    )
+
+    begin {
+        $CredentialManager = [CredentialManager]::new(); $Savd_Cred = $null
+        $params = $PSCmdlet.MyInvocation.BoundParameters;
+        $GetTargetName = [scriptblock]::Create({
+                if ([Environment]::UserInteractive -and [Environment]::GetCommandLineArgs().Where({ $_ -like '-NonI*' }).Count -eq 0) {
+                    $t = Read-Host -Prompt "TargetName"
+                    if ([string]::IsNullOrWhiteSpace($t)) {
+                        throw 'Null Or WhiteSpace targetName is not valid'
+                    }
+                    $t
+                } else {
+                    throw 'Please Input valid Name'
+                }
+            }
+        )
+    }
+
+    process {
+        $_Target = $(if ($params.ContainsKey('Target') -and [string]::IsNullOrWhiteSpace($Target)) {
+                Invoke-Command -ScriptBlock $GetTargetName
+            } elseif (!$params.ContainsKey('Target')) {
+                Invoke-Command -ScriptBlock $GetTargetName
+            } else {
+                $Target
+            }
+        )
+        $Savd_Cred = $(if ($PSCmdlet.ParameterSetName -eq 'default') {
+                $CredentialManager.GetCredential($_Target, $UserName)
+            } elseif ($PSCmdlet.ParameterSetName -eq 'byCrtyp') {
+                if ($params.ContainsKey('type')) {
+                    $CredentialManager.GetCredential($_Target, $Type, $UserName)
+                } else {
+                    $CredentialManager.GetCredential($_Target, $Type, $UserName)
+                }
+            }
+        )
+        if ([CredentialManager]::LastErrorCode.Equals([CredentialManager]::ERROR_NOT_FOUND)) {
+            throw [CredentialNotFoundException]::new("$_Target not found.", [System.Exception]::new("Exception of type 'ERROR_NOT_FOUND' was thrown."))
+        }
+        if ([string]::IsNullOrWhiteSpace($Savd_Cred.target)) {
+            Write-Warning "Could not resolve the target Name for: $_Target"
+        }
+    }
+
+    end {
+        return $Savd_Cred
     }
 }
 function Get-SavedCredentials {
