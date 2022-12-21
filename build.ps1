@@ -11,8 +11,22 @@
 # [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingInvokeExpression", '')]
 [cmdletbinding(DefaultParameterSetName = 'task')]
 param(
-    [parameter(ParameterSetName = 'task', Position = 0)]
-    [ValidateSet('Init', 'Clean', 'Compile', 'Import', 'Test', 'Deploy')]
+    # $Tasks = @('Init', 'Clean', 'Compile', 'Import', 'Test', 'Deploy')
+    [parameter(Position = 0, ParameterSetName = 'task')]
+    [ValidateScript({
+            $task_seq = [string[]]$_; $IsValid = $true
+            $Tasks = @('Init', 'Clean', 'Compile', 'Import', 'Test', 'Deploy')
+            foreach ($name in $task_seq) {
+                $IsValid = $IsValid -and ($name -in $Tasks)
+            }
+            if ($IsValid) {
+                return $true
+            } else {
+                throw "ValidSet: $($Tasks -join ', ')."
+            }
+        }
+    )
+    ][ValidateNotNullOrEmpty()]
     [string[]]$Task = @('Init', 'Clean', 'Compile', 'Import'),
 
     [parameter(ParameterSetName = 'help')]
@@ -103,7 +117,6 @@ Begin {
                     foreach ($Item in @(
                             "bin"
                             "en-US"
-                            "NerdCrypt.Core"
                             "Private"
                             "Public"
                             "LICENSE"
@@ -119,7 +132,7 @@ Begin {
                     throw $_
                 }
                 # Create Class
-                $_NC_File = [IO.Path]::Combine($([Environment]::GetEnvironmentVariable($BuildId + 'PSModulePath')), "NerdCrypt.Core", "NerdCrypt.Core.psm1")
+                $_NC_File = [IO.Path]::Combine($([Environment]::GetEnvironmentVariable($BuildId + 'PSModulePath')), "Private", "NerdCrypt.Core", "NerdCrypt.Core.psm1")
                 $NC_Class = Get-Item $_NC_File
                 if ($PSVersionTable.PSEdition -ne "Core" -and $PSVersionTable.PSVersion.Major -le 5.1) {
                     if ([IO.File]::Exists($NC_Class)) {
@@ -128,8 +141,8 @@ Begin {
                         Throw [System.IO.FileNotFoundException]::new('Unable to find the specified file.', "$_NC_File")
                     }
                 }
-                Write-Verbose -Message 'Creating psm1 ...'
-                $psm1 = New-Item -Path ([IO.Path]::Combine($outputModVerDir, "$($([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName'))).psm1")) -ItemType File -Force
+                $Psm1Path = [IO.Path]::Combine($outputModVerDir, "$($([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName'))).psm1")
+                $psm1 = New-Item -Path $Psm1Path -ItemType File -Force
                 $functionsToExport = @()
                 $publicFunctionsPath = [IO.Path]::Combine($([Environment]::GetEnvironmentVariable($BuildId + 'ProjectPath')), "Public")
                 if (Test-Path $publicFunctionsPath -PathType Container -ErrorAction SilentlyContinue) {
@@ -140,6 +153,7 @@ Begin {
                 $manifestContent = Get-Content -Path $([Environment]::GetEnvironmentVariable($BuildId + 'PSModuleManifest')) -Raw
                 $PsModuleContent = Get-Content -Path ([IO.Path]::Combine($([Environment]::GetEnvironmentVariable($BuildId + 'ProjectPath')), "$([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName')).psm1" )) -Raw
                 $PsModuleContent = $PsModuleContent.Replace("'<Aliases>'", "'Encrypt', 'Decrypt'")
+                Write-Verbose -Message "Editing $((Get-Item $Psm1Path).BaseName) ..."
                 $PsModuleContent | Add-Content -Path $psm1 -Encoding UTF8
                 $publicFunctionNames = Get-ChildItem -Path $publicFunctionsPath -Filter "*.ps1" | Select-Object -ExpandProperty BaseName
 
@@ -428,7 +442,7 @@ Begin {
                     Write-Verbose "[GetdotEnv] Skipping comment: $line"
                     continue
                 }
-                ($m, $d )= switch -Wildcard ($line) {
+            ($m, $d ) = switch -Wildcard ($line) {
                     "*:=*" { "Prefix", ($line -split ":=", 2); Break }
                     "*=:*" { "Suffix", ($line -split "=:", 2); Break }
                     "*=*" { "Assign", ($line -split "=", 2); Break }
@@ -440,26 +454,18 @@ Begin {
             }
             return $res_Obj
         }
-        [void]static Write([string]$EnvFile) {}
-        [void]static Set([string]$EnvFile) {
-            [dotEnv]::Set($EnvFile, (Get-Location).path, $false)
-        }
-        [void]static Set([string]$EnvFile, [string]$RootDir) {
-            [dotEnv]::Set($EnvFile, $RootDir, $false)
-        }
-        [void]static Set([string]$EnvFile, [System.IO.FileInfo]$RootDir) {
-            [dotEnv]::Set($EnvFile, $RootDir.FullName, $false)
-        }
-        [void]static Set([string]$EnvFile, [string]$RootDir, [bool]$Force) {
-            if ($(Get-Variable -Name PreviousDir -Scope Global -ErrorAction SilentlyContinue).Value -eq $RootDir) {
-                if (-not $Force) {
-                    Write-Verbose "[setdotEnv] Skipping same dir"
-                    return
-                }
-            } else {
-                Set-Variable -Name PreviousDir -Scope Global -Value $RootDir
+        [void]static Update([string]$EnvFile, [string]$Key, [string]$Value) {
+            [void]($d = [dotenv]::Read($EnvFile) | Select-Object @{l = 'key'; e = { $_[0] } }, @{l = 'value'; e = { $_[1] } }, @{l = 'method'; e = { $_[2] } })
+            $Entry = $d | Where-Object { $_.key -eq $Key }
+            if ([string]::IsNullOrEmpty($Entry)) {
+                throw [System.Exception]::new("key: $Key not found.")
             }
+            $Entry.value = $Value; $ms = [PSObject]@{ Assign = '='; Prefix = ":="; Suffix = "=:" };
+            Remove-Item $EnvFile -Force; New-Item $EnvFile -ItemType File | Out-Null;
+            foreach ($e in $d) { "{0} {1} {2}" -f $e.key, $ms[$e.method], $e.value | Out-File $EnvFile -Append -Encoding utf8 }
+        }
 
+        [void]static Set([string]$EnvFile) {
             #return if no env file
             if (!(Test-Path $EnvFile)) {
                 Write-Verbose "[setdotEnv] No .env file"
@@ -468,18 +474,18 @@ Begin {
 
             #read the local env file
             $content = [dotEnv]::Read($EnvFile)
-            Write-Verbose "[setdotEnv] Parsed .env file"
+            Write-Verbose "[setdotEnv] Parsed .env file: $EnvFile"
             foreach ($value in $content) {
                 switch ($value[2]) {
                     "Assign" {
                         [Environment]::SetEnvironmentVariable($value[0], $value[1], "Process") | Out-Null
                     }
                     "Prefix" {
-                        $value[1] = "{0};{1}" -f  $value[1], [System.Environment]::GetEnvironmentVariable($value[0])
+                        $value[1] = "{0};{1}" -f $value[1], [System.Environment]::GetEnvironmentVariable($value[0])
                         [Environment]::SetEnvironmentVariable($value[0], $value[1], "Process") | Out-Null
                     }
                     "Suffix" {
-                        $value[1] = "{1};{0}" -f  $value[1], [System.Environment]::GetEnvironmentVariable($value[0])
+                        $value[1] = "{1};{0}" -f $value[1], [System.Environment]::GetEnvironmentVariable($value[0])
                         [Environment]::SetEnvironmentVariable($value[0], $value[1], "Process") | Out-Null
                     }
                     Default {
@@ -506,23 +512,19 @@ Begin {
         Process {
             $ScriptRoot = $(if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) { (Get-Location).Path }else { $PSScriptRoot })
             $LocEnvFile = [IO.Path]::Combine($ScriptRoot, '.env')
-            # Default /Preset Env: variables:
+            # Set all Default/Preset Env: variables from the .env
             if ([IO.File]::Exists($LocEnvFile)) {
-                [dotEnv]::Set($LocEnvFile, $ScriptRoot)
+                [dotEnv]::Set($LocEnvFile, $ScriptRoot);
             } else {
                 throw [System.Management.Automation.ItemNotFoundException]::new("No .env file")
             }
-            Exit 0
-
-            Set-Variable -Name Last_Build_Id -Value $() -Force -Option AllScope -Scope Global
-            $VersionFile = [IO.Path]::Combine($ScriptRoot, 'Version.txt')
-            Set-Variable -Name BuildId -Value $VarNamePrefix -Force -Option AllScope -Scope Global
-            [Environment]::SetEnvironmentVariable('BuildId', $BuildId)
-            New-Variable -Name IsAC -Value $($IsAC -or (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('GITHUB_ACTION_PATH')))) -Scope Global -Force -Option AllScope
-            New-Variable -Name IsCI -Value $($IsCI -or (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('TF_BUILD')))) -Scope Global -Force -Option AllScope
-            if ([IO.File]::Exists($LastIdFile)) { Remove-Item $LastIdFile -Force }
-            $BuildId | Out-File $LastIdFile -Force;
-            Get-Item $LastIdFile -Force | ForEach-Object { $_.Attributes = $_.Attributes -bor "Hidden" }
+            Set-Variable -Name Last_Build_Id -Value $env:Last_Build_Id -Force -Option AllScope -Scope Global
+            Set-Variable -Name VersionFile -Value ([IO.Path]::Combine($ScriptRoot, 'Version.txt'))
+            Set-Variable -Name BuildId -Value $VarNamePrefix -Force -Option AllScope -Scope Global; [Environment]::SetEnvironmentVariable('BuildId', $BuildId);
+            Set-Variable -Name IsAC -Value $($IsAC -or (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('GITHUB_ACTION_PATH')))) -Scope Global -Force -Option AllScope
+            Set-Variable -Name IsCI -Value $($IsCI -or (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('TF_BUILD')))) -Scope Global -Force -Option AllScope
+            [dotEnv]::Update($LocEnvFile, 'Last_Build_Id', $BuildId);
+            Get-Item $LocEnvFile -Force | ForEach-Object { $_.Attributes = $_.Attributes -bor "Hidden" }
             New-Variable -Name BuildScriptPath -Value ([Environment]::GetEnvironmentVariable($VarNamePrefix + 'BuildScriptPath')) -Scope Local -Force
             if ([IO.File]::Exists($VersionFile)) {
                 New-Variable -Name BuildVersion -Value $(Get-Content $VersionFile) -Scope Global -Force -Option AllScope
@@ -827,8 +829,7 @@ Begin {
         # Write-Debug "FindHashKeyValue: $SearchPath -eq $($CurrentPath -Join '.')"
         if ($SearchPath -eq ($CurrentPath -Join '.') -or $SearchPath -eq $CurrentPath[-1]) {
             return $Ast |
-                Add-Member NoteProperty HashKeyPath ($CurrentPath -join '.') -PassThru -Force |
-                Add-Member NoteProperty HashKeyName ($CurrentPath[-1]) -PassThru -Force
+                Add-Member NoteProperty HashKeyPath ($CurrentPath -join '.') -PassThru -Force | Add-Member NoteProperty HashKeyName ($CurrentPath[-1]) -PassThru -Force
         }
 
         if ($Ast.PipelineElements.Expression -is [System.Management.Automation.Language.HashtableAst] ) {
