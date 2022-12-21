@@ -1,5 +1,5 @@
 $Private = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -Filter "*.ps1" -ErrorAction SilentlyContinue
-$Public = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Public')) -Filter "*.ps1" -ErrorAction SilentlyContinue
+$Public = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Public')) -Recurse -Filter "*.ps1" -ErrorAction SilentlyContinue
 
 # Load dependencies
 $PrivateModules = [string[]](Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -ErrorAction SilentlyContinue | Where-Object { $_.PSIsContainer } | Select-Object -ExpandProperty FullName)
