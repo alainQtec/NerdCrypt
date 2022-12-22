@@ -533,7 +533,7 @@ Begin {
                     Invoke-Command $Clean_EnvBuildvariables -ArgumentList $Last_Build_Id
                 }
             }
-            Write-Heading "Set BuildEnv Variables" # dynamic var~s
+            Write-Heading "Set Build Variables" # Dynamic variables
             Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildStart') -Value $(Get-Date -Format o)
             Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildScriptPath') -Value $(if ([string]::IsNullOrWhiteSpace($BuildScriptPath)) { $ScriptRoot }else { $BuildScriptPath })
             Set-Variable -Name BuildScriptPath -Value ([Environment]::GetEnvironmentVariable($BuildId + 'BuildScriptPath')) -Scope Local -Force
@@ -541,7 +541,7 @@ Begin {
             Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'ProjectPath') -Value $(if ($IsCI) { $Env:SYSTEM_DEFAULTWORKINGDIRECTORY }else { $BuildScriptPath })
             Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BranchName') -Value $(if ($IsCI) { $Env:BUILD_SOURCEBRANCHNAME }else { $(Push-Location $BuildScriptPath; (git rev-parse --abbrev-ref HEAD).Trim(); Pop-Location) })
             Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'CommitMessage') -Value $(if ($IsCI) { $Env:BUILD_SOURCEVERSIONMESSAGE }else { $(Push-Location $BuildScriptPath; (git log --format=%B -n 1).Trim(); Pop-Location) })
-            Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildNumber') -Value $(if ($IsCI) { $Env:BUILD_BUILDNUMBER } else { $(if ($buildVersion) { $buildVersion }else { "0.0.0" }) })
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildNumber') -Value $(if ($IsCI) { $Env:BUILD_BUILDNUMBER } else { $(if ($buildVersion) { $buildVersion }else { '1.0.0.1' }) })
             Set-Variable -Name BuildNumber -Value ([Environment]::GetEnvironmentVariable($BuildId + 'BuildNumber')) -Scope Local -Force
             Set-EnvironmentVariable -Name ('{0}{1}' -f $BuildId, 'BuildOutput') -Value $([IO.path]::Combine($BuildScriptPath, "BuildOutput"))
             Set-Variable -Name BuildOutput -Value ([Environment]::GetEnvironmentVariable($BuildId + 'BuildOutput')) -Scope Local -Force

@@ -304,7 +304,7 @@ class xgen {
 }
 #endregion Custom_Stuff_generators
 
-#region    Custom_Converters
+#region    Custom_ObjectConverter
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingInvokeExpression", '')]
 class XConvert {
     XConvert() {}
@@ -947,7 +947,7 @@ class XConvert {
         return [String]::new($array);
     }
 }
-#endregion Custom_Converters
+#endregion Custom_ObjectConverter
 
 #region    PBKDF2_Hashing
 <#
@@ -2762,5 +2762,898 @@ public static string Decrypt(string cipherString)
     }
     return "";
 }
-
 #>
+
+#region    Functions
+#region    Encrpt-Decrpt_Functions
+# (Functions to encrypt and protect stuff)
+function Encrypt-Object {
+    <#
+        .EXTERNALHELP NerdCrypt.psm1-Help.xml
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '', Justification = 'Prefer verb usage')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingConvertSecurestringWithPlainText", '')]
+    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'WithSecureKey')]
+    [Alias('Encrypt')]
+    [OutputType([byte[]])]
+    param (
+        # The Object you want to encrypt
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = '__AllParameterSets')]
+        [Alias('InputObj')]
+        $Object,
+
+        # Use a strong password. It will be used Lock Your local Key (ConvertTo-SecureString -String "Message" -SecureKey [System.Security.SecureString]) before storing in vault.
+        # Add this if you want 3rd layer of security. Useful when someone(Ex: Hacker) has somehow gained admin priviledges of your PC;
+        # With a locked local Password vault it will require much more than just guessing The password, or any BruteForce tool.
+        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithSecureKey')]
+        [Alias('Password', 'Securestring')]
+        [SecureString]$PrivateKey = [K3Y]::GetPassword(),
+
+        [Parameter(Mandatory = $false, Position = 2, ParameterSetName = '__AllParameterSets')]
+        [ValidateNotNullOrEmpty()]
+        [string]$PublicKey,
+
+        # Source or the Encryption Key. Full/Path of the keyfile you already have. It will be used to lock your keys. (ConvertTo-SecureString -String "Message" -Key [Byte[]])
+        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithKey')]
+        [ValidateNotNullOrEmpty()]
+        [Byte[]]$Key,
+
+        # Path OF the KeyFile (Containing You saved key base64String Key)
+        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithKeyFile')]
+        [ValidateNotNullOrEmpty()]
+        [string]$KeyFile,
+
+        # FilePath to store your keys. Saves keys as base64 in an enrypted file. Ex: some_random_Name.key (Not recomended)
+        [Parameter(Mandatory = $false, Position = 3, ParameterSetName = '__AllParameterSets')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('ExportFile')]
+        [string]$KeyOutFile,
+
+        # How long you want the encryption to last. Default to one month (!Caution Your data will be LOST Forever if you do not decrypt before the expirity date!)
+        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithVault')]
+        [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WithKey')]
+        [Parameter(Mandatory = $false, Position = 3, ParameterSetName = 'WithPlainKey')]
+        [Parameter(Mandatory = $false, Position = 3, ParameterSetName = 'WithSecureKey')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('KeyExpirity')]
+        [datetime]$Expirity = ([Datetime]::Now + [TimeSpan]::new(30, 0, 0, 0)),
+
+        [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WithSecureKey')]
+        [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WithPlainKey')]
+        [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WithVault')]
+        [Parameter(Mandatory = $false, Position = 5, ParameterSetName = 'WithKey')]
+        [ValidateNotNullOrEmpty()]
+        [int]$Iterations = 2
+    )
+
+    DynamicParam {
+        $DynamicParams = [System.Management.Automation.RuntimeDefinedParameterDictionary]::new()
+        [bool]$IsPossiblefileType = $false
+        [bool]$IsArrayObject = $false
+        [int]$P = 6 #(Position)
+        try {
+            if ($Object.count -gt 1) {
+                $InputType = @()
+                $IsArrayObject = $true
+                foreach ($Obj in $Object) {
+                    $InputType += $Obj.GetType()
+                }
+                $InputType = $InputType | Sort-Object -Unique
+            } else {
+                $InputType = $Object.GetType()
+            }
+        } catch { $InputType = [string]::Empty }
+        $IsPossiblefileTypes = @('string', 'string[]', 'System.IO.FileInfo', 'System.IO.FileInfo[]', 'System.Object', 'System.Object[]')
+        if ($IsArrayObject) {
+            foreach ($type in $InputType) {
+                $IsPossiblefileType = [bool]($type -in $IsPossiblefileTypes) -or $IsPossiblefileType
+            }
+        } else {
+            $IsPossiblefileType = [bool]($InputType -in $IsPossiblefileTypes)
+        }
+        #region OutFile
+        if ($IsPossiblefileType) {
+            $attributeCollection = [System.Collections.ObjectModel.Collection[System.Attribute]]::new()
+            $attributes = [System.Management.Automation.ParameterAttribute]::new(); $attHash = @{
+                Position                        = $P
+                ParameterSetName                = '__AllParameterSets'
+                Mandatory                       = $False
+                ValueFromPipeline               = $false
+                ValueFromPipelineByPropertyName = $false
+                ValueFromRemainingArguments     = $false
+                HelpMessage                     = 'Use to specify Output File, if inputObject is a file.'
+                DontShow                        = $False
+            }; $attHash.Keys | ForEach-Object { $attributes.$_ = $attHash.$_ }
+            $attributeCollection.Add($attributes);
+            $attributeCollection.Add([System.Management.Automation.ValidateNotNullOrEmptyAttribute]::new())
+            $attributeCollection.Add([System.Management.Automation.AliasAttribute]::new([System.String[]]('OutPutFile', 'DestinationFile')))
+            $RuntimeParam = [System.Management.Automation.RuntimeDefinedParameter]::new("OutFile", [Object], $attributeCollection)
+            $DynamicParams.Add("OutFile", $RuntimeParam)
+            $P++
+        }
+        #endregion OutFile
+
+        #region IgnoredArguments
+        $attributeCollection = [System.Collections.ObjectModel.Collection[System.Attribute]]::new()
+        $attributes = [System.Management.Automation.ParameterAttribute]::new(); $attHash = @{
+            Position                        = $P
+            ParameterSetName                = '__AllParameterSets'
+            Mandatory                       = $False
+            ValueFromPipeline               = $true
+            ValueFromPipelineByPropertyName = $true
+            ValueFromRemainingArguments     = $true
+            HelpMessage                     = 'Allows splatting with arguments that do not apply. Do not use directly.'
+            DontShow                        = $False
+        }; $attHash.Keys | ForEach-Object { $attributes.$_ = $attHash.$_ }
+        $attributeCollection.Add($attributes)
+        $RuntimeParam = [System.Management.Automation.RuntimeDefinedParameter]::new("IgnoredArguments", [Object[]], $attributeCollection)
+        $DynamicParams.Add("IgnoredArguments", $RuntimeParam)
+        #endregion IgnoredArguments
+        return $DynamicParams
+    }
+
+    begin {
+        $eap = $ErrorActionPreference; $ErrorActionPreference = "SilentlyContinue"
+        $PsCmdlet.MyInvocation.BoundParameters.GetEnumerator() | ForEach-Object { New-Variable -Name $_.Key -Value $_.Value -ea 'SilentlyContinue' }
+        $PsW = [securestring]::new(); $nc = $null;
+        $fxn = ('[' + $MyInvocation.MyCommand.Name + ']')
+        $ExportsPNK = $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile') -and ![string]::IsNullOrEmpty($KeyOutFile)
+        if ($PsCmdlet.ParameterSetName -ne 'WithKey' -and !$ExportsPNK) {
+            throw 'Plese specify PublicKey "ExportFile/Outfile" Parameter.'
+        }
+        # Write-Invocation $MyInvocation
+    }
+
+    process {
+        Write-Verbose "[+] $fxn $($PsCmdlet.ParameterSetName) ..."
+        Set-Variable -Name PsW -Scope Local -Visibility Private -Option Private -Value $(switch ($PsCmdlet.ParameterSetName) {
+                'WithKey' {  }
+                'WithVault' {  }
+                'WithSecureKey' { $PrivateKey }
+                Default {
+                    throw 'Error!'
+                }
+            }
+        );
+        Set-Variable -Name nc -Scope Local -Visibility Private -Option Private -Value $([nerdcrypt]::new($Object));
+        if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('Expirity')) { $nc.key.Expirity = [Expirity]::new($Expirity) }
+        if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('PublicKey')) {
+            $nc.SetPNKey($PublicKey);
+        } else {
+            Write-Verbose "[+] Create PublicKey (K3Y) ...";
+            $PNK = New-K3Y -UserName $nc.key.User.UserName -Password $PsW -Expirity $nc.key.Expirity.date -AsString -Protect
+            $nc.SetPNKey($PNK);
+        }
+        $bytes = $nc.Object.Bytes
+        [void]$nc.Encrypt($PsW, $Iterations)
+        if ($ExportsPNK) {
+            Write-Verbose "[i] Export PublicKey (PNK) to $KeyOutFile ..."
+            $nc.key.Export($KeyOutFile, $true);
+        }
+        $bytes = $(if ($bytes.Equals($nc.Object.Bytes)) { $null }else { $nc.Object.Bytes })
+    }
+
+    end {
+        $ErrorActionPreference = $eap
+        return $bytes
+    }
+}
+function Decrypt-Object {
+    <#
+        .EXTERNALHELP NerdCrypt.psm1-Help.xml
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '', Justification = 'Prefer verb usage')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingConvertSecurestringWithPlainText", '')]
+    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'WithSecureKey')]
+    [Alias('Decrypt')]
+    [OutputType([byte[]])]
+    param (
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = '__AllParameterSets')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('Bytes')]
+        [byte[]]$InputBytes,
+
+        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithSecureKey')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('Password')]
+        [SecureString]$PrivateKey = [K3Y]::GetPassword(),
+
+        [Parameter(Mandatory = $true, Position = 2, ParameterSetName = '__AllParameterSets')]
+        [ValidateNotNullOrEmpty()]
+        [string]$PublicKey,
+
+        # Source or the Encryption Key. Full/Path of the keyfile you already have. It will be used to lock your keys. (ConvertTo-SecureString -String "Message" -Key [Byte[]])
+        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithKey')]
+        [ValidateNotNullOrEmpty()]
+        [Byte[]]$Key,
+
+        # Path OF the KeyFile (Containing You saved key base64String Key)
+        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithKeyFile')]
+        [ValidateNotNullOrEmpty()]
+        [string]$KeyFile,
+
+        [Parameter(Mandatory = $false, Position = 4, ParameterSetName = '__AllParameterSets')]
+        [ValidateNotNullOrEmpty()]
+        [int]$Iterations = 2
+    )
+
+    begin {
+        $eap = $ErrorActionPreference; $ErrorActionPreference = "SilentlyContinue"
+        $fxn = ('[' + $MyInvocation.MyCommand.Name + ']');
+        # Write-Invocation $MyInvocation
+    }
+
+    process {
+        Write-Verbose "[+] $fxn $($PsCmdlet.ParameterSetName) ..."
+        $PsW = switch ($PsCmdlet.ParameterSetName) {
+            'WithKey' {  }
+            'WithVault' {  }
+            'WithSecureKey' { $PrivateKey }
+            Default {
+                throw 'Error!'
+            }
+        }
+        $nc = [nerdcrypt]::new($InputBytes, $PublicKey);
+        $bytes = $nc.Object.Bytes
+        [void]$nc.Decrypt($PsW, $Iterations)
+        if ($PsCmdlet.ParameterSetName -ne 'WithKey' -and $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('KeyOutFile')) {
+            if (![string]::IsNullOrEmpty($KeyOutFile)) {
+                Write-Verbose "[i] Export PublicKey (PNK) to $KeyOutFile ..."
+                $nc.key.Export($KeyOutFile, $true)
+            }
+        }
+        $bytes = $(if ($bytes.Equals($nc.Object.Bytes)) { $null }else { $nc.Object.Bytes })
+    }
+
+    end {
+        $ErrorActionPreference = $eap
+        return $bytes
+    }
+}
+function Protect-Data {
+    <#
+        .EXTERNALHELP NerdCrypt.psm1-Help.xml
+    #>
+    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'String', SupportsShouldProcess = $true)]
+    [Alias('Protect')]
+    [OutputType([Object[]])]
+    param (
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'String')]
+        [ValidateNotNullOrEmpty()]
+        [string]$MSG,
+
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'SecureString')]
+        [ValidateNotNullOrEmpty()]
+        [securestring]$SecureMSG,
+
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Bytes')]
+        [ValidateNotNullOrEmpty()]
+        [byte[]]$Bytes,
+
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Xml')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('XmlDoc')]
+        [xml]$InputXml,
+
+        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = '__AllParameterSets')]
+        [ValidateSet('CurrentUser', 'LocalMachine')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('ProtectionScope')]
+        [string]$Scope = 'CurrentUser',
+
+        [Parameter(Mandatory = $false, Position = 2, ParameterSetName = '__AllParameterSets')]
+        [ValidateNotNullOrEmpty()]
+        [byte[]]$Entropy
+    )
+
+    begin {
+        #Load The Assemblies
+        if (!("System.Security.Cryptography.ProtectedData" -is 'Type')) { Add-Type -AssemblyName System.Security }
+        [bool]$UseCustomEntropy = $null -ne $Entropy -and $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('Entropy')
+    }
+
+    process {
+        $ProtectedD = switch ($PsCmdlet.ParameterSetName) {
+            'Xml' {
+                if ($PSCmdlet.ShouldProcess("Xml", "Protect")) {
+                    if ($UseCustomEntropy) {
+                        [xconvert]::ToProtected($([xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))), $Entropy, [ProtectionScope]$Scope)
+                    } else {
+                        [xconvert]::ToProtected($([xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))), [ProtectionScope]$Scope)
+                    }
+                }
+            }
+            'string' {
+                if ($PSCmdlet.ShouldProcess("String", "Protect")) {
+                    if ($UseCustomEntropy) {
+                        [xconvert]::ToProtected($Msg, $Entropy, [ProtectionScope]$Scope)
+                    } else {
+                        [xconvert]::ToProtected($Msg, [ProtectionScope]$Scope)
+                    }
+                }
+            }
+            'Bytes' {
+                if ($PSCmdlet.ShouldProcess("Bytes", "Protect")) {
+                    if ($UseCustomEntropy) {
+                        [xconvert]::ToProtected($Bytes, $Entropy, [ProtectionScope]$Scope)
+                    } else {
+                        [xconvert]::ToProtected($Bytes, [ProtectionScope]$Scope)
+                    }
+                }
+            }
+            'SecureString' { throw 'Yeet!' }
+            Default {
+                throw 'Error!'
+            }
+        }
+    }
+
+    end {
+        return $ProtectedD
+    }
+}
+function UnProtect-Data {
+    <#
+        .EXTERNALHELP NerdCrypt.psm1-Help.xml
+    #>
+    [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'string', SupportsShouldProcess = $true)]
+    [Alias('UnProtect')]
+    [OutputType([byte[]])]
+    param (
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'String')]
+        [ValidateNotNullOrEmpty()]
+        [string]$MSG,
+
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'SecureString')]
+        [ValidateNotNullOrEmpty()]
+        [securestring]$SecureMSG,
+
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Bytes')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('Bytes')]
+        [byte[]]$InputBytes,
+
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Xml')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('XmlDoc')]
+        [xml]$InputXml,
+
+        [Parameter(Mandatory = $false, Position = 1, ParameterSetName = '__A llParameterSets')]
+        [ValidateSet('CurrentUser', 'LocalMachine')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('ProtectionScope')]
+        [string]$Scope = 'CurrentUser',
+
+        [Parameter(Mandatory = $false, Position = 2, ParameterSetName = '__AllParameterSets')]
+        [ValidateNotNullOrEmpty()]
+        [byte[]]$Entropy
+    )
+
+    begin {
+        #Load The Assemblies
+        if (!("System.Security.Cryptography.ProtectedData" -is 'Type')) { Add-Type -AssemblyName System.Security }
+        [bool]$UseCustomEntropy = $null -ne $Entropy -and $PsCmdlet.MyInvocation.BoundParameters.ContainsKey('Entropy')
+    }
+
+    process {
+        $UnProtected = switch ($PsCmdlet.ParameterSetName) {
+            'Xml' {
+                if ($PSCmdlet.ShouldProcess("Xml", "Protect")) {
+                    if ($UseCustomEntropy) {
+                        [xconvert]::ToUnProtected($([xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))), $Entropy, [ProtectionScope]$Scope)
+                    } else {
+                        [xconvert]::ToUnProtected($([xconvert]::BytesFromObject([xconvert]::ToPSObject($InputXml))), [ProtectionScope]$Scope)
+                    }
+                }
+            }
+            'string' {
+                if ($PSCmdlet.ShouldProcess("String", "Protect")) {
+                    if ($UseCustomEntropy) {
+                        [xconvert]::ToUnProtected($Msg, $Entropy, [ProtectionScope]$Scope)
+                    } else {
+                        [xconvert]::ToUnProtected($Msg, [ProtectionScope]$Scope)
+                    }
+                }
+            }
+            'Bytes' {
+                if ($PSCmdlet.ShouldProcess("Bytes", "Protect")) {
+                    if ($UseCustomEntropy) {
+                        [xconvert]::ToUnProtected($Bytes, $Entropy, [ProtectionScope]$Scope)
+                    } else {
+                        [xconvert]::ToUnProtected($Bytes, [ProtectionScope]$Scope)
+                    }
+                }
+            }
+            'SecureString' { throw 'Yeet!' }
+            Default {
+                throw 'Error!'
+            }
+        }
+    }
+
+    end {
+        return $UnProtected
+    }
+}
+#endregion Encrpt-Decrpt_Functions
+
+#region    LocalVault_Functions
+function Save-Credential {
+    <#
+    .SYNOPSIS
+        Saves credential to windows credential Manager
+    .DESCRIPTION
+        A longer description of the function, its purpose, common use cases, etc.
+    .NOTES
+        This function is supported on windows only
+    .LINK
+        https://github.com/alainQtec/NerdCrypt/blob/main/Private/NerdCrypt.Core/NerdCrypt.Core.ps1
+    .EXAMPLE
+        Save-Credential youtube.com/@memeL0rd memeL0rd $(Read-Host -AsSecureString -Prompt "memeLord's youtube password")
+    #>
+    [CmdletBinding(DefaultParameterSetName = 'uts')]
+    param (
+        # title aka TargetName of the credential you want to save
+        [Parameter(Position = 0, Mandatory = $true, ParameterSetName = 'uts')]
+        [ValidateScript({
+                if (![string]::IsNullOrWhiteSpace($_)) {
+                    return $true
+                }
+                throw 'Null or WhiteSpace targetName is not allowed.'
+            }
+        )][Alias('target')]
+        [string]$Title,
+        # UserName
+        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'uts')]
+        [Alias('UserName')]
+        [string]$User,
+
+        # Securestring / Password
+        [Parameter(Position = 2, Mandatory = $true, ParameterSetName = 'uts')]
+        [ValidateNotNull()]
+        [securestring]$SecureString,
+
+        # ManagedCredential Object you want to save
+        [Parameter(Mandatory = $true, ParameterSetName = 'MC')]
+        [Alias('Credential')][ValidateNotNull()]
+        [CredManaged]$Obj
+
+    )
+
+    process {
+        if ($PSCmdlet.ParameterSetName -eq 'uts') {
+            $CredentialManager = [CredentialManager]::new();
+            if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('User')) {
+                [void]$CredentialManager.SaveCredential($Title, $User, $SecureString);
+            } else {
+                [void]$CredentialManager.SaveCredential($Title, $SecureString);
+            }
+        } elseif ($PSCmdlet.ParameterSetName -eq 'MC') {
+            $CredentialManager = [CredentialManager]::new();
+            [void]$CredentialManager.SaveCredential($Obj);
+        }
+    }
+}
+function Get-SavedCredential {
+    <#
+    .SYNOPSIS
+        Get SavedCredential
+    .DESCRIPTION
+        Gets Saved Credential from credential vault
+    .NOTES
+        This function is not supported on Linux
+    .LINK
+        https://github.com/alainQtec/NerdCrypt/blob/main/Private/NerdCrypt.Core/NerdCrypt.Core.ps1
+    .EXAMPLE
+        Get-SavedCredential 'My App'
+        Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines
+    #>
+    [CmdletBinding(DefaultParameterSetName = 'default')]
+    [OutputType([CredManaged])]
+    param (
+        # Target /title /name of the saved credential
+        [Parameter(Position = 0, Mandatory = $false, ParameterSetName = '__AllParameterSets')]
+        [Alias('Name', 'TargetName')][ValidateNotNullOrEmpty()]
+        [string]$Target,
+
+        # Username / Owner
+        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'default')]
+        [Parameter(Position = 2, Mandatory = $false, ParameterSetName = 'byCrtyp')]
+        [Alias('usrnm')][ValidateNotNullOrEmpty()]
+        [string]$UserName,
+
+        # Credential type.
+        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'byCrtyp')]
+        [ValidateSet('Generic', 'DomainPassword', 'DomainCertificate', 'DomainVisiblePassword', 'GenericCertificate', 'DomainExtended', 'Maximum', 'MaximumEx')]
+        [Alias('CredType')][ValidateNotNullOrEmpty()]
+        [string]$Type = 'Generic'
+    )
+
+    begin {
+        $CredentialManager = [CredentialManager]::new(); $Savd_Cred = $null
+        $params = $PSCmdlet.MyInvocation.BoundParameters;
+        $GetTargetName = [scriptblock]::Create({
+                if ([Environment]::UserInteractive -and [Environment]::GetCommandLineArgs().Where({ $_ -like '-NonI*' }).Count -eq 0) {
+                    $t = Read-Host -Prompt "TargetName"
+                    if ([string]::IsNullOrWhiteSpace($t)) {
+                        throw 'Null Or WhiteSpace targetName is not valid'
+                    }
+                    $t
+                } else {
+                    throw 'Please Input valid Name'
+                }
+            }
+        )
+    }
+
+    process {
+        $_Target = $(if ($params.ContainsKey('Target') -and [string]::IsNullOrWhiteSpace($Target)) {
+                Invoke-Command -ScriptBlock $GetTargetName
+            } elseif (!$params.ContainsKey('Target')) {
+                Invoke-Command -ScriptBlock $GetTargetName
+            } else {
+                $Target
+            }
+        )
+        $Savd_Cred = $(if ($PSCmdlet.ParameterSetName -eq 'default') {
+                $CredentialManager.GetCredential($_Target, $UserName)
+            } elseif ($PSCmdlet.ParameterSetName -eq 'byCrtyp') {
+                if ($params.ContainsKey('type')) {
+                    $CredentialManager.GetCredential($_Target, $Type, $UserName)
+                } else {
+                    $CredentialManager.GetCredential($_Target, $Type, $UserName)
+                }
+            }
+        )
+        if ([CredentialManager]::LastErrorCode.Equals([CredentialManager]::ERROR_NOT_FOUND)) {
+            throw [CredentialNotFoundException]::new("$_Target not found.", [System.Exception]::new("Exception of type 'ERROR_NOT_FOUND' was thrown."))
+        }
+        if ([string]::IsNullOrWhiteSpace($Savd_Cred.target)) {
+            Write-Warning "Could not resolve the target Name for: $_Target"
+        }
+    }
+
+    end {
+        return $Savd_Cred
+    }
+}
+function Get-SavedCredentials {
+    <#
+    .SYNOPSIS
+        Retreives All strored credentials from credential Manager
+    .DESCRIPTION
+        Retreives All strored credentials and returns an [System.Collections.ObjectModel.Collection[CredManaged]] object
+    .NOTES
+        This function is supported on windows only
+    .LINK
+        https://github.com/alainQtec/NerdCrypt/blob/main/Private/NerdCrypt.Core/NerdCrypt.Core.ps1
+    .EXAMPLE
+        Get-SavedCredentials
+        Enumerates all SavedCredentials
+    #>
+    [CmdletBinding()]
+    [outputType([System.Collections.ObjectModel.Collection[CredManaged]])]
+    param ()
+
+    begin {
+        $Credentials = $null
+        $CredentialManager = [CredentialManager]::new();
+    }
+
+    process {
+        $Credentials = $CredentialManager.RetreiveAll();
+    }
+    end {
+        return $Credentials;
+    }
+}
+function Remove-Credential {
+    <#
+    .SYNOPSIS
+        Deletes credential from Windows Credential Mandger
+    .DESCRIPTION
+        A longer description of the function, its purpose, common use cases, etc.
+    .NOTES
+        This function is supported on windows only
+    .LINK
+        https://github.com/alainQtec/NerdCrypt/blob/main/Private/NerdCrypt.Core/NerdCrypt.Core.psm1
+    .EXAMPLE
+        Remove-Credential -Verbose
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param (
+        # TargetName
+        [Parameter(Mandatory = $true)][ValidateLength(1, 32767)]
+        [ValidateScript({
+                if (![string]::IsNullOrWhiteSpace($_)) {
+                    return $true
+                }
+                throw 'Null or WhiteSpace Inputs are not allowed.'
+            }
+        )][Alias('Title')]
+        [String]$Target,
+        [Parameter(Mandatory = $false)]
+        [ValidateSet('Generic', 'DomainPassword', 'DomainCertificate', 'DomainVisiblePassword', 'GenericCertificate', 'DomainExtended', 'Maximum', 'MaximumEx')]
+        [String]$Type = "GENERIC"
+    )
+
+    begin {
+        $CredentialManager = [CredentialManager]::new();
+    }
+
+    process {
+        $CredType = [CredType]"$Type"
+        if ($PSCmdlet.ShouldProcess("Removing Credential, target: $Target", '', '')) {
+            $IsRemoved = $CredentialManager.Remove($Target, $CredType);
+            if (-not $IsRemoved) {
+                throw 'Remove-Credential Failed. ErrorCode: 0x' + [CredentialManager]::LastErrorCode
+            }
+        }
+    }
+}
+function Show-SavedCredentials {
+    <#
+    .SYNOPSIS
+        Retreives All strored credentials from credential Manager, but no securestrings. (Just showing)
+    .DESCRIPTION
+        Retreives All strored credentials and returns a PsObject[]
+    .NOTES
+        This function is supported on windows only
+    .LINK
+        https://github.com/alainQtec/NerdCrypt/blob/main/Private/NerdCrypt.Core/NerdCrypt.Core.ps1
+    .EXAMPLE
+        Show-SavedCredentials
+    #>
+    [CmdletBinding()]
+    [outputType([PsObject[]])]
+    [Alias('ShowCreds')]
+    param ()
+
+    end {
+        return [CredentialManager]::get_StoredCreds();
+    }
+}
+#endregion LocalVault_Functions
+
+#region       PasswordManagment_Functions
+function New-Password {
+    <#
+    .SYNOPSIS
+        Creates a password string
+    .DESCRIPTION
+        Creates a password containing minimum of 8 characters, 1 lowercase, 1 uppercase, 1 numeric, and 1 special character.
+        Created password can not exceed 999 characters
+    .LINK
+        https://github.com/alainQtec/NerdCrypt/blob/main/Private/NerdCrypt.Core/NerdCrypt.Core.psm1
+    .EXAMPLE
+        New-Password
+        Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'No system state is being changed')]
+    [CmdletBinding(DefaultParameterSetName = 'ByLength')]
+    param (
+        # Exact password Length
+        [Parameter(Position = 0, Mandatory = $false, ParameterSetName = 'ByLength')]
+        [Alias('l')][ValidateRange(9, 999)]
+        [int]$Length,
+        # Minimum Length
+        [Parameter(Position = 0, Mandatory = $false, ParameterSetName = 'ByMinMax')]
+        [Alias('min')]
+        [int]$minLength,
+        # Minimum Length
+        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'ByMinMax')]
+        [Alias('max')]
+        [int]$maxLength,
+        # Retries / Iterations to randomise results
+        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'ByLength')]
+        [Parameter(Position = 2, Mandatory = $false, ParameterSetName = 'ByMinMax')]
+        [Alias('r')][ValidateRange(1, 100)][ValidateNotNullOrEmpty()]
+        [int]$Iterations
+    )
+
+    begin {
+        $Pass = [string]::Empty
+        $params = $PSCmdlet.MyInvocation.BoundParameters
+    }
+
+    process {
+        if ($PSCmdlet.ParameterSetName -eq 'ByLength') {
+            if ($params.ContainsKey('Length') -and $params.ContainsKey('Iterations')) {
+                $Pass = [xgen]::Password($Iterations, $Length);
+            } elseif ($params.ContainsKey('Length') -and !$params.ContainsKey('Iterations')) {
+                $Pass = [xgen]::Password(1, $Length);
+            } else {
+                $Pass = [xgen]::Password();
+            }
+        } elseif ($PSCmdlet.ParameterSetName -eq 'ByMinMax') {
+            if ($params.ContainsKey('Iterations')) {
+                $pass = [xgen]::Password($Iterations, $minLength, $maxLength);
+            } else {
+                $Pass = [xgen]::Password(1, $minLength, $maxLength);
+            }
+        } else {
+            throw [System.Management.Automation.ParameterBindingException]::new("Could Not Resolve ParameterSetname.");
+        }
+    }
+    end {
+        return $Pass
+    }
+}
+#endregion    PasswordManagment_Functions
+
+#region    ClassExport
+function New-K3Y {
+    <#
+    .SYNOPSIS
+        Creates a new [K3Y] object
+    .DESCRIPTION
+        Creates a custom k3y object for encryption/decryption.
+        The K3Y can only be used to Once, and its 'UID' [ see .SetK3YUID() method ] is a fancy way of storing the version, user/owner credentials, Compression alg~tm used and Other Info
+        about the most recent use and the person who used it; so it can be analyzed later to verify some rules before being used again. this allows to create complex expiring encryptions.
+    .EXAMPLE
+        $K = New-K3Y (Get-Credential -UserName 'Alain Herve' -Message 'New-K3Y')
+    .NOTES
+        This is a private function, its not meant to be exported, or used alone
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = '')]
+    [CmdletBinding(DefaultParameterSetName = 'default')]
+    param (
+        # Parameter help description
+        [Parameter(Position = 0, Mandatory = $false, ParameterSetName = 'byPscredential')]
+        [Alias('Owner')][ValidateNotNull()]
+        [pscredential]$User,
+
+        # Parameter help description
+        [Parameter(Position = 0, Mandatory = $false, ParameterSetName = 'default')]
+        [string]$UserName,
+
+        # Parameter help description
+        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'default')]
+        [securestring]$Password,
+
+        # Expiration date
+        [Parameter(Position = 2, Mandatory = $false, ParameterSetName = 'default')]
+        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'byPscredential')]
+        [datetime]$Expirity,
+
+        # Convert to string (sharable)
+        [Parameter(Mandatory = $false, ParameterSetName = '__AllParameterSets')]
+        [switch]$AsString,
+
+        [Parameter(Mandatory = $false, ParameterSetName = '__AllParameterSets')]
+        [switch]$Protect
+    )
+
+    begin {
+        $k3y = $null
+        $params = $PSCmdlet.MyInvocation.BoundParameters
+        $IsInteractive = [Environment]::UserInteractive -and [Environment]::GetCommandLineArgs().Where({ $_ -like '-NonI*' }).Count -eq 0
+    }
+    process {
+        $k3y = $(if ($PSCmdlet.ParameterSetName -eq 'byPscredential') {
+                if ($params.ContainsKey('User') -and $params.ContainsKey('Expirity')) {
+                    [K3Y]::New($User, $Expirity);
+                } else {
+                    # It means: $params.ContainsKey('User') -and !$params.ContainsKey('Expirity')
+                    [datetime]$ExpiresOn = if ($IsInteractive) {
+                        [int]$days = Read-Host -Prompt "Expires In (replie num of days)"
+                        [datetime]::Now + [Timespan]::new($days, 0, 0, 0);
+                    } else {
+                        [datetime]::Now + [Timespan]::new(30, 0, 0, 0); # ie: expires in 30days
+                    }
+                    [K3Y]::New($User, $ExpiresOn);
+                }
+            } elseif ($PSCmdlet.ParameterSetName -eq 'default') {
+                if ($params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and $params.ContainsKey('Expirity')) {
+                    [K3Y]::New($UserName, $Password, $Expirity);
+                } elseif ($params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and !$params.ContainsKey('Expirity')) {
+                    [K3Y]::New($UserName, $Password);
+                } elseif ($params.ContainsKey('UserName') -and !$params.ContainsKey('Password') -and !$params.ContainsKey('Expirity')) {
+                    $passwd = if ($IsInteractive) { Read-Host -AsSecureString -Prompt "Password" } else { [securestring]::new() }
+                    [K3Y]::New($UserName, $passwd);
+                } elseif (!$params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and !$params.ContainsKey('Expirity')) {
+                    $usrName = if ($IsInteractive) { Read-Host -Prompt "UserName" } else { [System.Environment]::GetEnvironmentVariable('UserName') }
+                    [K3Y]::New($usrName, $Password);
+                } elseif (!$params.ContainsKey('UserName') -and !$params.ContainsKey('Password') -and $params.ContainsKey('Expirity')) {
+                    if ($IsInteractive) {
+                        $usrName = Read-Host -Prompt "UserName"; $passwd = Read-Host -AsSecureString -Prompt "Password";
+                        [K3Y]::New($usrName, $passwd);
+                    } else {
+                        [K3Y]::New($Expirity);
+                    }
+                } elseif (!$params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and $params.ContainsKey('Expirity')) {
+                    $usrName = if ($IsInteractive) { Read-Host -Prompt "UserName" } else { [System.Environment]::GetEnvironmentVariable('UserName') }
+                    [K3Y]::New($usrName, $Password, $Expirity);
+                } else {
+                    [K3Y]::New();
+                }
+            } else {
+                Write-Verbose "System.Management.Automation.ParameterBindingException: Could Not Resolve ParameterSetname."
+                [K3Y]::New();
+            }
+        )
+        if ($Protect.IsPresent) { $k3y.User.Protect() };
+    }
+
+    end {
+        if ($AsString.IsPresent) {
+            return [xconvert]::Tostring($k3y)
+        }
+        return $k3y
+    }
+}
+function New-NCobject {
+    [CmdletBinding(SupportsShouldProcess = $true, DefaultParameterSetName = 'default')]
+    [outputType([NerdCrypt])]
+    [Alias('NewNC')]
+    param (
+        [Parameter(Mandatory = $false, Position = 0)]
+        [ValidateNotNullOrEmpty()]
+        [Object]$Object,
+
+        [Parameter(Mandatory = $false, Position = 1)]
+        [ValidateNotNullOrEmpty()]
+        [string]$User,
+
+        [Parameter(Mandatory = $false, Position = 2)]
+        [ValidateNotNullOrEmpty()]
+        [securestring]$PrivateKey,
+
+        [Parameter(Mandatory = $false, Position = 3)]
+        [ValidateNotNullOrEmpty()]
+        [string]$PublicKey,
+
+        [switch]$Passthru
+    )
+
+    process {
+        $Object = $null
+        if ($PSCmdlet.ShouldProcess("Performing Operation Create NCobject", '', '')) {
+            $Object = if (
+                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Object') -and
+                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('User') -and
+                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('PrivateKey') -and
+                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('PublicKey')
+            ) {
+                [NerdCrypt]::New($Object, $User, $PrivateKey, $PublicKey)
+            } elseif (
+                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Object') -and
+                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('User') -and
+                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('PublicKey')
+            ) {
+                [NerdCrypt]::New($Object, $User, $PublicKey)
+            } elseif (
+                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Object') -and
+                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('PublicKey')
+            ) {
+                [NerdCrypt]::New($Object, $PublicKey)
+            } elseif ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Object')) {
+                [NerdCrypt]::New($Object)
+            } else {
+                [NerdCrypt]::New()
+            }
+        }
+    }
+    End {
+        return $Object
+    }
+}
+function New-Converter {
+    <#
+    .SYNOPSIS
+        Creates a new [XConvert] object
+    .DESCRIPTION
+        Creates a custom Converter object.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = '')]
+    [CmdletBinding()]
+    [OutputType([XConvert])]
+    param ()
+
+    end {
+        return [XConvert]::new()
+    }
+}
+#endregion ClassExport
+#endregion Functions
+Export-ModuleMember -Function *-* -Alias *
