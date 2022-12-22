@@ -508,7 +508,7 @@ Begin {
             [Parameter(Position = 0)]
             [ValidateNotNullOrEmpty()]
             [Alias('RootPath')]
-            [string]$Path = (Get-Location).Path,
+            [string]$Path,
 
             [Parameter(Position = 1)]
             [ValidatePattern('\w*')]
@@ -532,15 +532,15 @@ Begin {
                     }
                 }
             }
-            Set-Variable -Name VersionFile -Value (Join-Path -Path $Path -ChildPath 'Version.txt')
+            Write-Heading "Set Build Variables" # Dynamic variables
+            $VersionFile = Join-Path -Path $Path -ChildPath 'Version.txt'
             if (Test-Path -Path $VersionFile -PathType Leaf -ErrorAction SilentlyContinue) {
                 New-Variable -Name BuildVersion -Value $(Get-Content $VersionFile) -Scope Global -Force -Option AllScope
             } else {
                 throw 'Could not Find Version File' # Big deal!
             }
-            Write-Heading "Set Build Variables" # Dynamic variables
             Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'BuildStart') -Value $(Get-Date -Format o)
-            Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'BuildScriptPath') -Value $(if ([string]::IsNullOrWhiteSpace($BuildScriptPath)) { $Path }else { $BuildScriptPath })
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'BuildScriptPath') -Value $Path
             Set-Variable -Name BuildScriptPath -Value ([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildScriptPath')) -Scope Local -Force
             Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'BuildSystem') -Value $(if ([bool][int]$env:IsCI) { "VSTS" }else { [System.Environment]::MachineName })
             Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'ProjectPath') -Value $(if ([bool][int]$env:IsCI) { $Env:SYSTEM_DEFAULTWORKINGDIRECTORY }else { $BuildScriptPath })
@@ -994,7 +994,7 @@ Begin {
     #endregion BuildHelper_Functions
 }
 Process {
-    Set-BuildVariables -Prefix $env:RUN_ID
+    Set-BuildVariables -Path $PSScriptRoot -Prefix $env:RUN_ID
     Write-EnvironmentSummary "Build started"
     Write-Heading "Setting package feeds"
     $PKGRepoHash = @{
