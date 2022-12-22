@@ -1269,10 +1269,10 @@ class CredentialManager {
     hidden $Advapi32
 
     CredentialManager() {
-        # Load the Credentials and PasswordVault assemblies:
-        if (![bool]('Windows.Security.Credentials.PasswordVault' -as 'type')) {
-            [void][Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
-        }
+        # Load the Credentials and PasswordVault assemblies (!not tested!)
+        # if (![bool]('Windows.Security.Credentials.PasswordVault' -as 'type')) {
+        #     [void][Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
+        # }
         $this.Advapi32 = [Advapi32]::new().API;
         if (Get-Service vaultsvc -ErrorAction SilentlyContinue) { Start-Service vaultsvc }
     }
@@ -2555,15 +2555,11 @@ class K3Y {
     }
     [void]SaveToVault() {
         $ThrowOnFailure = $true; [void]$this.HasHashedPassword($ThrowOnFailure)
-        if (-not [bool]("Windows.Security.Credentials.PasswordVault" -as 'Type')) {
-            New-Object "Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime" | Out-Null
-        }
         $_Hash = [xconvert]::ToString($this.User.Password); $RName = 'PNKey' + $_Hash
-        $vault = New-Object Windows.Security.Credentials.PasswordVault
-        $_Cred = New-Object Windows.Security.Credentials.PasswordCredential -ArgumentList ($RName, $this.User.UserName, [xconvert]::Tostring($this))
+        $_Cred = New-Object -TypeName CredManaged -ArgumentList ($RName, $this.User.UserName, [xconvert]::Tostring($this))
         Write-Verbose "[i] Saving $RName To Vault .."
         # Note: Make sure file size does not exceed the limit allowed and cannot be saved.
-        $vault.Add($_Cred);
+        $_Cred.SaveToVault()
     }
 }
 #endregion _The_K3Y
