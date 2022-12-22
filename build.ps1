@@ -994,6 +994,7 @@ Begin {
     #endregion BuildHelper_Functions
 }
 Process {
+    Write-Heading "Setting variabes -RootPath $PSScriptRoot -Prefix $env:RUN_ID"
     Set-BuildVariables -Path $PSScriptRoot -Prefix $env:RUN_ID
     Write-EnvironmentSummary "Build started"
     Write-Heading "Setting package feeds"
