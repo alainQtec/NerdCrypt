@@ -541,11 +541,11 @@ Begin {
             Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'BuildStart') -Value $(Get-Date -Format o)
             Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'BuildScriptPath') -Value $(if ([string]::IsNullOrWhiteSpace($BuildScriptPath)) { $Path }else { $BuildScriptPath })
             Set-Variable -Name BuildScriptPath -Value ([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildScriptPath')) -Scope Local -Force
-            Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'BuildSystem') -Value $(if ($env:IsCI) { "VSTS" }else { [System.Environment]::MachineName })
-            Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'ProjectPath') -Value $(if ($env:IsCI) { $Env:SYSTEM_DEFAULTWORKINGDIRECTORY }else { $BuildScriptPath })
-            Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'BranchName') -Value $(if ($env:IsCI) { $Env:BUILD_SOURCEBRANCHNAME }else { $(Push-Location $BuildScriptPath; (git rev-parse --abbrev-ref HEAD).Trim(); Pop-Location) })
-            Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'CommitMessage') -Value $(if ($env:IsCI) { $Env:BUILD_SOURCEVERSIONMESSAGE }else { $(Push-Location $BuildScriptPath; (git log --format=%B -n 1).Trim(); Pop-Location) })
-            Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'BuildNumber') -Value $(if ($env:IsCI) { $Env:BUILD_BUILDNUMBER } else { $(if ($buildVersion) { $buildVersion }else { '1.0.0.1' }) })
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'BuildSystem') -Value $(if ([bool][int]$env:IsCI) { "VSTS" }else { [System.Environment]::MachineName })
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'ProjectPath') -Value $(if ([bool][int]$env:IsCI) { $Env:SYSTEM_DEFAULTWORKINGDIRECTORY }else { $BuildScriptPath })
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'BranchName') -Value $(if ([bool][int]$env:IsCI) { $Env:BUILD_SOURCEBRANCHNAME }else { $(Push-Location $BuildScriptPath; (git rev-parse --abbrev-ref HEAD).Trim(); Pop-Location) })
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'CommitMessage') -Value $(if ([bool][int]$env:IsCI) { $Env:BUILD_SOURCEVERSIONMESSAGE }else { $(Push-Location $BuildScriptPath; (git log --format=%B -n 1).Trim(); Pop-Location) })
+            Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'BuildNumber') -Value $(if ([bool][int]$env:IsCI) { $Env:BUILD_BUILDNUMBER } else { $(if ($buildVersion) { $buildVersion }else { '1.0.0.1' }) })
             Set-Variable -Name BuildNumber -Value ([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildNumber')) -Scope Local -Force
             Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'BuildOutput') -Value $([IO.path]::Combine($BuildScriptPath, "BuildOutput"))
             Set-Variable -Name BuildOutput -Value ([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildOutput')) -Scope Local -Force
@@ -560,7 +560,7 @@ Begin {
     function Get-Elapsed {
         $buildstart = [Environment]::GetEnvironmentVariable($ENV:RUN_ID + 'BuildStart')
         $build_date = if ([string]::IsNullOrWhiteSpace($buildstart)) { Get-Date }else { Get-Date $buildstart }
-        $elapse_msg = if ($env:IsCI) {
+        $elapse_msg = if ([bool][int]$env:IsCI) {
             "[ + $(((Get-Date) - $build_date).ToString())]"
         } else {
             "[$((Get-Date).ToString("HH:mm:ss")) + $(((Get-Date) - $build_date).ToString())]"
@@ -740,7 +740,7 @@ Begin {
             [System.String]$Message
         )
         Process {
-            if ($env:IsCI) {
+            if ([bool][int]$env:IsCI) {
                 Write-Host "##vso[task.logissue type=warning; ]$Message"
             } else {
                 Write-Warning $Message
@@ -753,7 +753,7 @@ Begin {
             [System.String]$Message
         )
         Process {
-            if ($env:IsCI) {
+            if ([bool][int]$env:IsCI) {
                 Write-Host "##vso[task.logissue type=error; ]$Message"
             }
             Write-Error $Message
@@ -771,9 +771,6 @@ Begin {
         $FullVal = $Value -join " "
         Write-BuildLog "Setting env variable '$Name' to '$fullVal'"
         Set-Item -Path Env:\$Name -Value $FullVal -Force
-        if ($env:IsCI) {
-            "##vso[Task.Setvariable variable=$Name]$FullVal" | Write-Host
-        }
     }
     function Invoke-CommandWithLog {
         [CmdletBinding()]
