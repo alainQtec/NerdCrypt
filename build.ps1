@@ -371,14 +371,11 @@ Begin {
         }
     )
     $script:PSake_Build = [ScriptBlock]::Create({
-            Write-BuildLog "Resolving dependencies ..."
             $DePendencies = @(
                 "Psake"
                 "Pester"
                 "PSScriptAnalyzer"
-                "Microsoft.PowerShell.SecretStore"
                 "SecretManagement.Hashicorp.Vault.KV"
-                "Microsoft.PowerShell.SecretManagement"
             )
             foreach ($ModuleName in $DePendencies) {
                 $ModuleName | Resolve-Module @update -Verbose
@@ -514,7 +511,7 @@ Begin {
             $LocEnvFile = [IO.Path]::Combine($ScriptRoot, '.env')
             # Set all Default/Preset Env: variables from the .env
             if ([IO.File]::Exists($LocEnvFile)) {
-                [dotEnv]::Set($LocEnvFile, $ScriptRoot);
+                [dotEnv]::Set($LocEnvFile);
             } else {
                 throw [System.Management.Automation.ItemNotFoundException]::new("No .env file")
             }
@@ -559,11 +556,12 @@ Begin {
     function Get-Elapsed {
         $buildstart = [Environment]::GetEnvironmentVariable($script:BuildId + 'BuildStart')
         $build_date = if ([string]::IsNullOrWhiteSpace($buildstart)) { Get-Date }else { Get-Date $buildstart }
-        if ($IsCI) {
+        $elapse_msg = if ($IsCI) {
             "[ + $(((Get-Date) - $build_date).ToString())]"
         } else {
             "[$((Get-Date).ToString("HH:mm:ss")) + $(((Get-Date) - $build_date).ToString())]"
         }
+        "$elapse_msg{0}" -f (' ' * (30 - $elapse_msg.Length))
     }
     function Get-LatestModuleVersion($Name) {
         # access the main module page, and add a random number to trick proxies
@@ -645,7 +643,7 @@ Begin {
                     $versionToImport = (Get-Module -Name $moduleName -ListAvailable | Measure-Object -Property Version -Maximum).Maximum
                 }
 
-                Write-Verbose -Message "$($moduleName) installed. Importing..."
+                Write-Verbose -Message "$($moduleName) was installed Succesfully. Now Importing..."
                 if (![string]::IsNullOrEmpty($versionToImport)) {
                     Import-Module $moduleName -RequiredVersion $versionToImport
                 } else {
@@ -686,23 +684,23 @@ Begin {
                 } else {
                     'Gray'
                 }
-                $lvl = '##[verbose] '
+                $lvl = '##[Verbose] '
             } elseif ($Severe) {
                 $fg = 'Red'
-                $lvl = '##[error]   '
+                $lvl = '##[Error]   '
             } elseif ($Warning) {
                 $fg = 'Yellow'
-                $lvl = '##[warning] '
+                $lvl = '##[Warning] '
             } elseif ($Cmd) {
                 $fg = 'Magenta'
-                $lvl = '##[command] '
+                $lvl = '##[Command] '
             } else {
                 $fg = if ($Host.UI.RawUI.ForegroundColor -eq 'Gray') {
                     'White'
                 } else {
                     'Gray'
                 }
-                $lvl = '##[info]    '
+                $lvl = '##[Info]    '
             }
         }
         Process {
@@ -808,7 +806,7 @@ Begin {
             [parameter(Position = 0, ValueFromRemainingArguments)]
             [String]$State
         )
-        Write-Heading -Title "Build Environment Summary:"
+        Write-Heading -Title "Build Environment Summary:`n"
         @(
             $(if ($([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName'))) { "Project : $([Environment]::GetEnvironmentVariable($BuildId + 'ProjectName'))" })
             $(if ($State) { "State   : $State" })
@@ -1047,7 +1045,7 @@ Process {
         'psake' | Resolve-Module @update -Verbose
         Get-PSakeScriptTasks -buildFile $Psake_BuildFile.FullName | Sort-Object -Property Name | Format-Table -Property Name, Description, Alias, DependsOn
     } else {
-        Write-Heading "Finalizing build Prerequisites"
+        Write-Heading "Finalizing build Prerequisites and Resolving dependencies ..."
         if ($([Environment]::GetEnvironmentVariable($BuildId + 'BuildSystem')) -eq 'VSTS') {
             if ($Task -eq 'Deploy') {
                 $MSG = "Task is 'Deploy' and conditions for deployment are:`n" +
