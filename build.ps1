@@ -39,8 +39,7 @@ Begin {
     #Requires -RunAsAdministrator
     if ($null -ne ${env:=::}) { Throw 'Please Run this as Administrator' }
     #region    Variables
-    [Environment]::SetEnvironmentVariable('IsAC', $(if (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('GITHUB_ACTION_PATH'))) { '1' } else { '0' }), [System.EnvironmentVariableTarget]::Process)
-    [Environment]::SetEnvironmentVariable('IsCI', $(if (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('TF_BUILD'))) { '1' }else { '0' }), [System.EnvironmentVariableTarget]::Process)
+    [Environment]::SetEnvironmentVariable('IsAC', $(if (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('GITHUB_WORKFLOW'))) { '1' } else { '0' }), [System.EnvironmentVariableTarget]::Process)
     Set-Variable -Name RUN_ID -Value $(if ([bool][int]$env:IsAC) { [Environment]::GetEnvironmentVariable('GITHUB_RUN_ID') }else { [Guid]::NewGuid().Guid.substring(0, 21).replace('-', [string]::Join('', (0..9 | Get-Random -Count 1))) + '_' }) -Force -Option AllScope -Scope Global; [Environment]::SetEnvironmentVariable('RUN_ID', $RUN_ID);
     #region    ScriptBlocks
     $script:PSake_ScriptBlock = [scriptblock]::Create({
@@ -300,7 +299,7 @@ Begin {
                                 "    [SKIPPED] Deployment of version [$($versionToDeploy)] to PSGallery"
                             }
                             $commitId = git rev-parse --verify HEAD
-                            if (-not [String]::IsNullOrEmpty($Env:GitHubPAT) -and [bool][int]$env:IsAC) {
+                            if (![string]::IsNullOrWhiteSpace($Env:GitHubPAT) -and [bool][int]$env:IsAC) {
                                 $Project_Name = [Environment]::GetEnvironmentVariable($RUN_ID + 'ProjectName')
                                 "    Creating Release ZIP..."
                                 $zipPath = [System.IO.Path]::Combine($PSScriptRoot, "$($([Environment]::GetEnvironmentVariable($RUN_ID + 'ProjectName'))).zip")
@@ -517,7 +516,7 @@ Begin {
 
         Process {
             $ScriptRoot = $(if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) { (Get-Location).Path }else { $PSScriptRoot })
-            if (![bool][int]$env:IsAC -and ![bool][int]$env:IsCI) {
+            if (![bool][int]$env:IsAC) {
                 $LocEnvFile = [IO.Path]::Combine($ScriptRoot, '.env')
                 if (![IO.File]::Exists($LocEnvFile)) {
                     throw [System.Management.Automation.ItemNotFoundException]::new("No .env file")
