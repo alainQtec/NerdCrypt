@@ -415,11 +415,12 @@ Begin {
                         Write-BuildLog "Remove env variable $Name"
                         [Environment]::SetEnvironmentVariable($Name, $null)
                     }
+                    [Console]::WriteLine()
                 } else {
-                    Write-BuildLog "No old Env variables to remove; Move on ..."
+                    Write-BuildLog "No old Env variables to remove; Move on ...`n"
                 }
             } else {
-                Write-Warning "Invalid RUN_ID! Skipping ..."
+                Write-Warning "Invalid RUN_ID! Skipping ...`n"
             }
         }
     )
