@@ -144,6 +144,7 @@ x86/
 # Repo specific
 BuildOutput
 Testing
+*.TempPoint*/
 *.TempPoint.*
 *.Export.*
 *.psprojs
@@ -151,3 +152,4 @@ Testing
 *.Run.ps1
 *.Package.ps1
 CustomMenu.inf
+.env
