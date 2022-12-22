@@ -532,8 +532,8 @@ Begin {
                     }
                 }
             }
-            Set-Variable -Name VersionFile -Value ([IO.Path]::Combine($Path, 'Version.txt'))
-            if ([IO.File]::Exists($VersionFile)) {
+            Set-Variable -Name VersionFile -Value (Join-Path -Path $Path -ChildPath 'Version.txt')
+            if (Test-Path -Path $VersionFile -PathType Leaf -ErrorAction SilentlyContinue) {
                 New-Variable -Name BuildVersion -Value $(Get-Content $VersionFile) -Scope Global -Force -Option AllScope
             } else {
                 throw 'Could not Find Version File' # Big deal!
