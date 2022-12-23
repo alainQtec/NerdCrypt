@@ -1,16 +1,15 @@
 $Private = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -Filter "*.ps1" -ErrorAction SilentlyContinue
 $Public = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Public')) -Recurse -Filter "*.ps1" -ErrorAction SilentlyContinue
-
 # Load dependencies
-$PrivateModules = [string[]](Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -ErrorAction SilentlyContinue | Where-Object { $_.PSIsContainer } | Select-Object -ExpandProperty FullName)
+$PrivateModules = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -ErrorAction SilentlyContinue | Where-Object { $_.PSIsContainer }
 
 # Import Private modules
 if ($PrivateModules.Count -gt 0) {
     foreach ($Module in $PrivateModules) {
         Try {
-            Import-Module $Module -ErrorAction Stop
+            Import-Module ("{0}.psd1" -f [IO.Path]::Combine($Module.FullName, $Module.BaseName)) -ErrorAction Stop
         } Catch {
-            Write-Error "Failed to import module $Module : $_"
+            Write-Error "Failed to import module $($Module.BaseName) : $_"
         }
     }
 }
