@@ -64,9 +64,23 @@ Or
 Install-Module NerdCrypt -Scope CurrentUser -Repository PSGallery
 ```
 
-To build the module, run `build.ps1`.
+---
 
-Want to run the Pester tests locally? Pass `Test` as the value to the `Task` script parameter like so:
+Another option is to build the module from source using `build.ps1`.
+
+```PowerShell
+git clone https://github.com/alainQtec/NerdCrypt.git $clonePath
+cd $clonePath
+build.ps1
+```
+
+Then you can manually import the module from  the BuildOutput Folder
+
+```PowerShell
+Import-Module BuildOutput\$version\NerdCrypt\NerdCrypt.psd1
+```
+
+If you Only want to run the Pester tests locally? Pass `Test` as the value to the `Task` script parameter like so:
 
 ```powershell
 .\build.ps1 -Task Test
@@ -75,7 +89,7 @@ Want to run the Pester tests locally? Pass `Test` as the value to the `Task` scr
 To Run all Tests:
 
 ```PowerShell
-.\Test-Module.ps1 -Module $Module_Path -Tests ".\tests"
+.\Test-Module.ps1 -Module BuildOutput\$version\NerdCrypt -Tests ".\tests"
 ```
 
 ## 📚 **Wikis**
