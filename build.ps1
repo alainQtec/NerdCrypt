@@ -532,9 +532,8 @@ Begin {
                     }
                 }
             }
-            $VersionFile = [IO.Path]::Combine($Path, 'Version.txt');
+            $VersionFile = Get-ChildItem $Path -File -Force | Where-Object { $_.Name -eq "version.txt" } | Select-Object -ExpandProperty FullName
             Write-Heading "Set Build Variables. VersionFile: $VersionFile" # Dynamic variables
-            Get-ChildItem -File -Force -Name
             if (!(Test-Path -Path $VersionFile -PathType Leaf -ErrorAction SilentlyContinue)) {
                 throw 'Could not Find Version File' # Big deal!
             }; $Version = Get-Content $VersionFile -ErrorAction SilentlyContinue
