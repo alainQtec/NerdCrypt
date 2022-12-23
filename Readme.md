@@ -52,12 +52,6 @@ However, since cryptography is an important and fascinating field with a wide ra
 
 This Module's features focus mainly on **Data encryption**, **Data protection**, **Secure communication** and **User authentication**
 
-## Usage
-
-Here is a basic usage guide for NerdCrypt
-
-For Extended usage read the [Wiki](https://github.com/alainQtec/NerdCrypt/wiki)
-
 ## 🧑‍💻 **How to install**
 
 ```powershell
@@ -86,7 +80,7 @@ To Run all Tests:
 
 ## 📚 **Wikis**
 
-Everything is explained in the [wiki pages](https://github.com/alainQtec/NerdCrypt/wiki)... read it it's important ! you'll find tips and many other things... there is nothing here in the readme.
+For an extended usage guide, read the [Wiki](https://github.com/alainQtec/NerdCrypt/wiki)
 
 ### 🚀 **GitHub Releases**
 
