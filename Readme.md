@@ -2,7 +2,7 @@
 
 <img align="right" alt="logo" src="https://user-images.githubusercontent.com/79479952/190868846-075673ee-44f8-4a3d-9640-2a254b27cbb6.png">
 
-NerdCrypt, is an all in one Encryption Decryption Powershell module. It contains tools to ease the work with nerdy cryptography.
+NerdCrypt, is an all in one Cryptography Powershell module.
 
 <br />
 <div align="Left">
@@ -44,9 +44,13 @@ NerdCrypt, is an all in one Encryption Decryption Powershell module. It contains
 
 ## 📖 **Description**
 
-    AIO PowerShell module to do all things encryption-decryption.
+Cryptography is the study of techniques for secure communication in the presence of adversaries. It is a field of computer science that requires a strong foundation in mathematical and computational concepts. Some people who are interested in cryptography may be considered "nerdy" due to their deep knowledge and interest in the subject.
 
-NerdCrypt is a cross-platform PowerShell module handling string encryption and decryption using RSA keys only. It enables strings to be encrypted when the client only has the public key available, in the event the encrypted string is being sent to a secure endpoint housing the private key where it will be decrypted for further use. The same module can be implemented on the receiving endpoint to decrypt the strings as well, if desired.
+<img align="right" alt="logo" height="319" src="https://github.com/alainQtec/NerdCrypt/blob/main/docs/images/CryptographyNerd.png">
+
+However, since cryptography is an important and fascinating field with a wide range of practical applications, anyone with an interest in security or computer science can find something interesting and worthwhile in the study of cryptography.
+
+This Module's features focus mainly on **Data encryption**, **Data protection**, **Secure communication** and **User authentication**
 
 ## 🧑‍💻 **How to install**
 
@@ -60,9 +64,21 @@ Or
 Install-Module NerdCrypt -Scope CurrentUser -Repository PSGallery
 ```
 
-To build the module, run `build.ps1`.
+Another option is to build the module from source using `build.ps1`.
 
-Want to run the Pester tests locally? Pass `Test` as the value to the `Task` script parameter like so:
+```PowerShell
+git clone https://github.com/alainQtec/NerdCrypt.git $clonePath
+cd $clonePath
+build.ps1
+```
+
+Then you can manually import the module from  the BuildOutput Folder
+
+```PowerShell
+Import-Module BuildOutput\$version\NerdCrypt\NerdCrypt.psd1
+```
+
+If you Only want to run the Pester tests locally? Pass `Test` as the value to the `Task` script parameter like so:
 
 ```powershell
 .\build.ps1 -Task Test
@@ -71,12 +87,12 @@ Want to run the Pester tests locally? Pass `Test` as the value to the `Task` scr
 To Run all Tests:
 
 ```PowerShell
-.\Test-Module.ps1 -Module $Module_Path -Tests ".\tests"
+.\Test-Module.ps1 -Module BuildOutput\$version\NerdCrypt -Tests ".\tests"
 ```
 
 ## 📚 **Wikis**
 
-Everything is explained in the [wiki pages](https://github.com/alainQtec/NerdCrypt/wiki)... read it it's important ! you'll find tips and many other things... there is nothing here in the readme.
+For an extended usage guide, read the [Wiki](https://github.com/alainQtec/NerdCrypt/wiki)
 
 ### 🚀 **GitHub Releases**
 

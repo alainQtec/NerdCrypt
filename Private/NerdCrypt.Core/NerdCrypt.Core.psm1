@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    AIO PowerShell Module to do all things encryption-decryption.
+    PowerShell classes and functions for Cryptography.
 .DESCRIPTION
     Nerdcrypt is an all in one Encryption Decryption Powerhell Class.
     All functions in ./Nerdcrypt.core.psm1 are built based on it.
@@ -11,14 +11,13 @@
     https://gist.github.com/alainQtec/217860de99e8ddb89a8820add6f6980f
 .EXAMPLE
     PS C:\> # Try this:
-    PS C:\> iex $((Invoke-RestMethod -Method Get https://api.github.com/gists/217860de99e8ddb89a8820add6f6980f).files.'Nerdcrypt.ps1'.content)
+    PS C:\> iex $((Invoke-RestMethod -Method Get https://api.github.com/gists/217860de99e8ddb89a8820add6f6980f).files.'Nerdcrypt.Core.ps1'.content)
     PS C:\> $n = [NerdCrypt]::new("H3llo W0rld!");
     PS C:\> $e = $n.Encrypt(3);
     PS C:\> $d = $n.Decrypt(3);
     PS C:\> [xconvert]::BytesToObject($d);
     H3llo W0rld!
 #>
-
 # Import the necessary assemblies
 Add-Type -AssemblyName System.Security;
 Add-Type -AssemblyName System.Runtime.InteropServices;
@@ -1363,6 +1362,7 @@ class CredentialManager {
         return $Credentials
     }
     [Psobject[]]static hidden get_StoredCreds() {
+        # until I know the existance of a [wrapper module](https://learn.microsoft.com/en-us/powershell/utility-modules/crescendo/overview?view=ps-modules), I'll stick to this Hack.
         $cmdkey = (Get-Command cmdkey -ErrorAction SilentlyContinue).Source
         if ([string]::IsNullOrEmpty($cmdkey)) { throw [System.Exception]::new('get_StoredCreds() Failed.') }
         $outputLines = (&$cmdkey /list) -split "`n"
@@ -2677,96 +2677,125 @@ class NerdCrypt {
 }
 #endregion MainClass
 
-<#
-public static string Encrypt(string stringToEncrypt)
-{
-    if (!string.IsNullOrEmpty(stringToEncrypt))
-    {
-        byte[] keyArray;
-        byte[] toEncryptArray = UTF8Encoding.UTF8.GetBytes(stringToEncrypt);
+#region   Functions
+function New-K3Y {
+    <#
+    .SYNOPSIS
+        Creates a new [K3Y] object
+    .DESCRIPTION
+        Creates a custom k3y object for encryption/decryption.
+        The K3Y can only be used to Once, and its 'UID' [ see .SetK3YUID() method ] is a fancy way of storing the version, user/owner credentials, Compression alg~tm used and Other Info
+        about the most recent use and the person who used it; so it can be analyzed later to verify some rules before being used again. this allows to create complex expiring encryptions.
+    .EXAMPLE
+        $K = New-K3Y (Get-Credential -UserName 'Alain Herve' -Message 'New-K3Y')
+    .NOTES
+        This is a private function, its not meant to be exported, or used alone
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = '')]
+    [CmdletBinding(DefaultParameterSetName = 'default')]
+    [OutputType([K3Y], [string])]
+    param (
+        # Parameter help description
+        [Parameter(Position = 0, Mandatory = $false, ParameterSetName = 'byPscredential')]
+        [Alias('Owner')][ValidateNotNull()]
+        [pscredential]$User,
 
-        System.Configuration.AppSettingsReader settingsReader = new AppSettingsReader();
-        // Get the key from config file
+        # Parameter help description
+        [Parameter(Position = 0, Mandatory = $false, ParameterSetName = 'default')]
+        [string]$UserName,
 
-        string key = (string)settingsReader.GetValue("SecurityKey", typeof(String));
+        # Parameter help description
+        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'default')]
+        [securestring]$Password,
 
-        //If hashing use get hashcode regards to your key
-        MD5CryptoServiceProvider hashmd5 = new MD5CryptoServiceProvider();
-        keyArray = hashmd5.ComputeHash(UTF8Encoding.UTF8.GetBytes(key));
-        //Always release the resources and flush data
-        // of the Cryptographic service provide. Best Practice
+        # Expiration date
+        [Parameter(Position = 2, Mandatory = $false, ParameterSetName = 'default')]
+        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'byPscredential')]
+        [datetime]$Expirity,
 
-        hashmd5.Clear();
+        # Convert to string (sharable)
+        [Parameter(Mandatory = $false, ParameterSetName = '__AllParameterSets')]
+        [switch]$AsString,
 
-        TripleDESCryptoServiceProvider tdes = new TripleDESCryptoServiceProvider();
-        //set the secret key for the tripleDES algorithm
-        tdes.Key = keyArray;
-        //mode of operation. there are other 4 modes.
-        //We choose ECB(Electronic code Book)
-        tdes.Mode = CipherMode.ECB;
-        //padding mode(if any extra byte added)
+        [Parameter(Mandatory = $false, ParameterSetName = '__AllParameterSets')]
+        [switch]$Protect
+    )
 
-        tdes.Padding = PaddingMode.PKCS7;
-
-        ICryptoTransform cTransform = tdes.CreateEncryptor();
-        //transform the specified region of bytes array to resultArray
-        byte[] resultArray =
-            cTransform.TransformFinalBlock(toEncryptArray, 0,
-            toEncryptArray.Length);
-        //Release resources held by TripleDes Encryptor
-        tdes.Clear();
-        //Return the encrypted data into unreadable string format
-        return Convert.ToBase64String(resultArray, 0, resultArray.Length);
+    begin {
+        $k3y = $null
+        $params = $PSCmdlet.MyInvocation.BoundParameters
+        $IsInteractive = [Environment]::UserInteractive -and [Environment]::GetCommandLineArgs().Where({ $_ -like '-NonI*' }).Count -eq 0
     }
-    return "";
-}
-
-
-public static string Decrypt(string cipherString)
-{
-    if(!string.IsNullOrEmpty(cipherString))
-    {
-        byte[] keyArray;
-        //get the byte code of the string
-
-        byte[] toEncryptArray = Convert.FromBase64String(cipherString.Replace(" ", "+"));
-
-        System.Configuration.AppSettingsReader settingsReader = new AppSettingsReader();
-        //Get your key from config file to open the lock!
-        string key = (string)settingsReader.GetValue("SecurityKey", typeof(String));
-
-        //if hashing was used get the hash code with regards to your key
-        MD5CryptoServiceProvider hashmd5 = new MD5CryptoServiceProvider();
-        keyArray = hashmd5.ComputeHash(UTF8Encoding.UTF8.GetBytes(key));
-        //release any resource held by the MD5CryptoServiceProvider
-
-        hashmd5.Clear();
-
-        TripleDESCryptoServiceProvider tdes = new TripleDESCryptoServiceProvider();
-        //set the secret key for the tripleDES algorithm
-        tdes.Key = keyArray;
-        //mode of operation. there are other 4 modes.
-        //We choose ECB(Electronic code Book)
-
-        tdes.Mode = CipherMode.ECB;
-        //padding mode(if any extra byte added)
-        tdes.Padding = PaddingMode.PKCS7;
-
-        ICryptoTransform cTransform = tdes.CreateDecryptor();
-        byte[] resultArray = cTransform.TransformFinalBlock(
-                                toEncryptArray, 0, toEncryptArray.Length);
-        //Release resources held by TripleDes Encryptor
-        tdes.Clear();
-        //return the Clear decrypted TEXT
-        return UTF8Encoding.UTF8.GetString(resultArray);
+    process {
+        $k3y = $(if ($PSCmdlet.ParameterSetName -eq 'byPscredential') {
+                if ($params.ContainsKey('User') -and $params.ContainsKey('Expirity')) {
+                    [K3Y]::New($User, $Expirity);
+                } else {
+                    # It means: $params.ContainsKey('User') -and !$params.ContainsKey('Expirity')
+                    [datetime]$ExpiresOn = if ($IsInteractive) {
+                        [int]$days = Read-Host -Prompt "Expires In (replie num of days)"
+                        [datetime]::Now + [Timespan]::new($days, 0, 0, 0);
+                    } else {
+                        [datetime]::Now + [Timespan]::new(30, 0, 0, 0); # ie: expires in 30days
+                    }
+                    [K3Y]::New($User, $ExpiresOn);
+                }
+            } elseif ($PSCmdlet.ParameterSetName -eq 'default') {
+                if ($params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and $params.ContainsKey('Expirity')) {
+                    [K3Y]::New($UserName, $Password, $Expirity);
+                } elseif ($params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and !$params.ContainsKey('Expirity')) {
+                    [K3Y]::New($UserName, $Password);
+                } elseif ($params.ContainsKey('UserName') -and !$params.ContainsKey('Password') -and !$params.ContainsKey('Expirity')) {
+                    $passwd = if ($IsInteractive) { Read-Host -AsSecureString -Prompt "Password" } else { [securestring]::new() }
+                    [K3Y]::New($UserName, $passwd);
+                } elseif (!$params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and !$params.ContainsKey('Expirity')) {
+                    $usrName = if ($IsInteractive) { Read-Host -Prompt "UserName" } else { [System.Environment]::GetEnvironmentVariable('UserName') }
+                    [K3Y]::New($usrName, $Password);
+                } elseif (!$params.ContainsKey('UserName') -and !$params.ContainsKey('Password') -and $params.ContainsKey('Expirity')) {
+                    if ($IsInteractive) {
+                        $usrName = Read-Host -Prompt "UserName"; $passwd = Read-Host -AsSecureString -Prompt "Password";
+                        [K3Y]::New($usrName, $passwd);
+                    } else {
+                        [K3Y]::New($Expirity);
+                    }
+                } elseif (!$params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and $params.ContainsKey('Expirity')) {
+                    $usrName = if ($IsInteractive) { Read-Host -Prompt "UserName" } else { [System.Environment]::GetEnvironmentVariable('UserName') }
+                    [K3Y]::New($usrName, $Password, $Expirity);
+                } else {
+                    [K3Y]::New();
+                }
+            } else {
+                Write-Verbose "System.Management.Automation.ParameterBindingException: Could Not Resolve ParameterSetname."
+                [K3Y]::New();
+            }
+        )
+        if ($Protect.IsPresent) { $k3y.User.Protect() };
     }
-    return "";
-}
-#>
 
-#region    Functions
-#region    Encrpt-Decrpt_Functions
-# (Functions to encrypt and protect stuff)
+    end {
+        if ($AsString.IsPresent) {
+            return [xconvert]::Tostring($k3y)
+        }
+        return $k3y
+    }
+}
+function New-Converter {
+    <#
+    .SYNOPSIS
+        Creates a new [XConvert] object
+    .DESCRIPTION
+        Creates a custom Converter object.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = '')]
+    [CmdletBinding()]
+    [OutputType([XConvert])]
+    param ()
+
+    end {
+        return [XConvert]::new()
+    }
+}
+#region     Encrpt-Decrp
 function Encrypt-Object {
     <#
         .EXTERNALHELP NerdCrypt.psm1-Help.xml
@@ -3175,65 +3204,9 @@ function UnProtect-Data {
         return $UnProtected
     }
 }
-#endregion Encrpt-Decrpt_Functions
+#endregion  Encrpt-Decrp
 
-#region    LocalVault_Functions
-function Save-Credential {
-    <#
-    .SYNOPSIS
-        Saves credential to windows credential Manager
-    .DESCRIPTION
-        A longer description of the function, its purpose, common use cases, etc.
-    .NOTES
-        This function is supported on windows only
-    .LINK
-        https://github.com/alainQtec/NerdCrypt/blob/main/Private/NerdCrypt.Core/NerdCrypt.Core.ps1
-    .EXAMPLE
-        Save-Credential youtube.com/@memeL0rd memeL0rd $(Read-Host -AsSecureString -Prompt "memeLord's youtube password")
-    #>
-    [CmdletBinding(DefaultParameterSetName = 'uts')]
-    param (
-        # title aka TargetName of the credential you want to save
-        [Parameter(Position = 0, Mandatory = $true, ParameterSetName = 'uts')]
-        [ValidateScript({
-                if (![string]::IsNullOrWhiteSpace($_)) {
-                    return $true
-                }
-                throw 'Null or WhiteSpace targetName is not allowed.'
-            }
-        )][Alias('target')]
-        [string]$Title,
-        # UserName
-        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'uts')]
-        [Alias('UserName')]
-        [string]$User,
-
-        # Securestring / Password
-        [Parameter(Position = 2, Mandatory = $true, ParameterSetName = 'uts')]
-        [ValidateNotNull()]
-        [securestring]$SecureString,
-
-        # ManagedCredential Object you want to save
-        [Parameter(Mandatory = $true, ParameterSetName = 'MC')]
-        [Alias('Credential')][ValidateNotNull()]
-        [CredManaged]$Obj
-
-    )
-
-    process {
-        if ($PSCmdlet.ParameterSetName -eq 'uts') {
-            $CredentialManager = [CredentialManager]::new();
-            if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('User')) {
-                [void]$CredentialManager.SaveCredential($Title, $User, $SecureString);
-            } else {
-                [void]$CredentialManager.SaveCredential($Title, $SecureString);
-            }
-        } elseif ($PSCmdlet.ParameterSetName -eq 'MC') {
-            $CredentialManager = [CredentialManager]::new();
-            [void]$CredentialManager.SaveCredential($Obj);
-        }
-    }
-}
+#region    Local_Vault
 function Get-SavedCredential {
     <#
     .SYNOPSIS
@@ -3391,6 +3364,62 @@ function Remove-Credential {
         }
     }
 }
+function Save-Credential {
+    <#
+    .SYNOPSIS
+        Saves credential to windows credential Manager
+    .DESCRIPTION
+        A longer description of the function, its purpose, common use cases, etc.
+    .NOTES
+        This function is supported on windows only
+    .LINK
+        https://github.com/alainQtec/NerdCrypt/blob/main/Private/NerdCrypt.Core/NerdCrypt.Core.ps1
+    .EXAMPLE
+        Save-Credential youtube.com/@memeL0rd memeL0rd $(Read-Host -AsSecureString -Prompt "memeLord's youtube password")
+    #>
+    [CmdletBinding(DefaultParameterSetName = 'uts')]
+    param (
+        # title aka TargetName of the credential you want to save
+        [Parameter(Position = 0, Mandatory = $true, ParameterSetName = 'uts')]
+        [ValidateScript({
+                if (![string]::IsNullOrWhiteSpace($_)) {
+                    return $true
+                }
+                throw 'Null or WhiteSpace targetName is not allowed.'
+            }
+        )][Alias('target')]
+        [string]$Title,
+        # UserName
+        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'uts')]
+        [Alias('UserName')]
+        [string]$User,
+
+        # Securestring / Password
+        [Parameter(Position = 2, Mandatory = $true, ParameterSetName = 'uts')]
+        [ValidateNotNull()]
+        [securestring]$SecureString,
+
+        # ManagedCredential Object you want to save
+        [Parameter(Mandatory = $true, ParameterSetName = 'MC')]
+        [Alias('Credential')][ValidateNotNull()]
+        [CredManaged]$Obj
+
+    )
+
+    process {
+        if ($PSCmdlet.ParameterSetName -eq 'uts') {
+            $CredentialManager = [CredentialManager]::new();
+            if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('User')) {
+                [void]$CredentialManager.SaveCredential($Title, $User, $SecureString);
+            } else {
+                [void]$CredentialManager.SaveCredential($Title, $SecureString);
+            }
+        } elseif ($PSCmdlet.ParameterSetName -eq 'MC') {
+            $CredentialManager = [CredentialManager]::new();
+            [void]$CredentialManager.SaveCredential($Obj);
+        }
+    }
+}
 function Show-SavedCredentials {
     <#
     .SYNOPSIS
@@ -3413,9 +3442,9 @@ function Show-SavedCredentials {
         return [CredentialManager]::get_StoredCreds();
     }
 }
-#endregion LocalVault_Functions
+#endregion Local_Vault
 
-#region       PasswordManagment_Functions
+#region    PasswordManagment
 function New-Password {
     <#
     .SYNOPSIS
@@ -3479,181 +3508,93 @@ function New-Password {
         return $Pass
     }
 }
-#endregion    PasswordManagment_Functions
+#endregion PasswordManagment
 
-#region    ClassExport
-function New-K3Y {
-    <#
-    .SYNOPSIS
-        Creates a new [K3Y] object
-    .DESCRIPTION
-        Creates a custom k3y object for encryption/decryption.
-        The K3Y can only be used to Once, and its 'UID' [ see .SetK3YUID() method ] is a fancy way of storing the version, user/owner credentials, Compression alg~tm used and Other Info
-        about the most recent use and the person who used it; so it can be analyzed later to verify some rules before being used again. this allows to create complex expiring encryptions.
-    .EXAMPLE
-        $K = New-K3Y (Get-Credential -UserName 'Alain Herve' -Message 'New-K3Y')
-    .NOTES
-        This is a private function, its not meant to be exported, or used alone
-    #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = '')]
-    [CmdletBinding(DefaultParameterSetName = 'default')]
-    param (
-        # Parameter help description
-        [Parameter(Position = 0, Mandatory = $false, ParameterSetName = 'byPscredential')]
-        [Alias('Owner')][ValidateNotNull()]
-        [pscredential]$User,
-
-        # Parameter help description
-        [Parameter(Position = 0, Mandatory = $false, ParameterSetName = 'default')]
-        [string]$UserName,
-
-        # Parameter help description
-        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'default')]
-        [securestring]$Password,
-
-        # Expiration date
-        [Parameter(Position = 2, Mandatory = $false, ParameterSetName = 'default')]
-        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'byPscredential')]
-        [datetime]$Expirity,
-
-        # Convert to string (sharable)
-        [Parameter(Mandatory = $false, ParameterSetName = '__AllParameterSets')]
-        [switch]$AsString,
-
-        [Parameter(Mandatory = $false, ParameterSetName = '__AllParameterSets')]
-        [switch]$Protect
-    )
-
-    begin {
-        $k3y = $null
-        $params = $PSCmdlet.MyInvocation.BoundParameters
-        $IsInteractive = [Environment]::UserInteractive -and [Environment]::GetCommandLineArgs().Where({ $_ -like '-NonI*' }).Count -eq 0
-    }
-    process {
-        $k3y = $(if ($PSCmdlet.ParameterSetName -eq 'byPscredential') {
-                if ($params.ContainsKey('User') -and $params.ContainsKey('Expirity')) {
-                    [K3Y]::New($User, $Expirity);
-                } else {
-                    # It means: $params.ContainsKey('User') -and !$params.ContainsKey('Expirity')
-                    [datetime]$ExpiresOn = if ($IsInteractive) {
-                        [int]$days = Read-Host -Prompt "Expires In (replie num of days)"
-                        [datetime]::Now + [Timespan]::new($days, 0, 0, 0);
-                    } else {
-                        [datetime]::Now + [Timespan]::new(30, 0, 0, 0); # ie: expires in 30days
-                    }
-                    [K3Y]::New($User, $ExpiresOn);
-                }
-            } elseif ($PSCmdlet.ParameterSetName -eq 'default') {
-                if ($params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and $params.ContainsKey('Expirity')) {
-                    [K3Y]::New($UserName, $Password, $Expirity);
-                } elseif ($params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and !$params.ContainsKey('Expirity')) {
-                    [K3Y]::New($UserName, $Password);
-                } elseif ($params.ContainsKey('UserName') -and !$params.ContainsKey('Password') -and !$params.ContainsKey('Expirity')) {
-                    $passwd = if ($IsInteractive) { Read-Host -AsSecureString -Prompt "Password" } else { [securestring]::new() }
-                    [K3Y]::New($UserName, $passwd);
-                } elseif (!$params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and !$params.ContainsKey('Expirity')) {
-                    $usrName = if ($IsInteractive) { Read-Host -Prompt "UserName" } else { [System.Environment]::GetEnvironmentVariable('UserName') }
-                    [K3Y]::New($usrName, $Password);
-                } elseif (!$params.ContainsKey('UserName') -and !$params.ContainsKey('Password') -and $params.ContainsKey('Expirity')) {
-                    if ($IsInteractive) {
-                        $usrName = Read-Host -Prompt "UserName"; $passwd = Read-Host -AsSecureString -Prompt "Password";
-                        [K3Y]::New($usrName, $passwd);
-                    } else {
-                        [K3Y]::New($Expirity);
-                    }
-                } elseif (!$params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and $params.ContainsKey('Expirity')) {
-                    $usrName = if ($IsInteractive) { Read-Host -Prompt "UserName" } else { [System.Environment]::GetEnvironmentVariable('UserName') }
-                    [K3Y]::New($usrName, $Password, $Expirity);
-                } else {
-                    [K3Y]::New();
-                }
-            } else {
-                Write-Verbose "System.Management.Automation.ParameterBindingException: Could Not Resolve ParameterSetname."
-                [K3Y]::New();
-            }
-        )
-        if ($Protect.IsPresent) { $k3y.User.Protect() };
-    }
-
-    end {
-        if ($AsString.IsPresent) {
-            return [xconvert]::Tostring($k3y)
-        }
-        return $k3y
-    }
-}
-function New-NCobject {
-    [CmdletBinding(SupportsShouldProcess = $true, DefaultParameterSetName = 'default')]
-    [outputType([NerdCrypt])]
-    [Alias('NewNC')]
-    param (
-        [Parameter(Mandatory = $false, Position = 0)]
-        [ValidateNotNullOrEmpty()]
-        [Object]$Object,
-
-        [Parameter(Mandatory = $false, Position = 1)]
-        [ValidateNotNullOrEmpty()]
-        [string]$User,
-
-        [Parameter(Mandatory = $false, Position = 2)]
-        [ValidateNotNullOrEmpty()]
-        [securestring]$PrivateKey,
-
-        [Parameter(Mandatory = $false, Position = 3)]
-        [ValidateNotNullOrEmpty()]
-        [string]$PublicKey,
-
-        [switch]$Passthru
-    )
-
-    process {
-        $Object = $null
-        if ($PSCmdlet.ShouldProcess("Performing Operation Create NCobject", '', '')) {
-            $Object = if (
-                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Object') -and
-                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('User') -and
-                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('PrivateKey') -and
-                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('PublicKey')
-            ) {
-                [NerdCrypt]::New($Object, $User, $PrivateKey, $PublicKey)
-            } elseif (
-                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Object') -and
-                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('User') -and
-                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('PublicKey')
-            ) {
-                [NerdCrypt]::New($Object, $User, $PublicKey)
-            } elseif (
-                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Object') -and
-                $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('PublicKey')
-            ) {
-                [NerdCrypt]::New($Object, $PublicKey)
-            } elseif ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Object')) {
-                [NerdCrypt]::New($Object)
-            } else {
-                [NerdCrypt]::New()
-            }
-        }
-    }
-    End {
-        return $Object
-    }
-}
-function New-Converter {
-    <#
-    .SYNOPSIS
-        Creates a new [XConvert] object
-    .DESCRIPTION
-        Creates a custom Converter object.
-    #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = '')]
-    [CmdletBinding()]
-    [OutputType([XConvert])]
-    param ()
-
-    end {
-        return [XConvert]::new()
-    }
-}
-#endregion ClassExport
 #endregion Functions
-Export-ModuleMember -Function *-* -Alias *
+
+<#
+public static string Encrypt(string stringToEncrypt)
+{
+    if (!string.IsNullOrEmpty(stringToEncrypt))
+    {
+        byte[] keyArray;
+        byte[] toEncryptArray = UTF8Encoding.UTF8.GetBytes(stringToEncrypt);
+
+        System.Configuration.AppSettingsReader settingsReader = new AppSettingsReader();
+        // Get the key from config file
+
+        string key = (string)settingsReader.GetValue("SecurityKey", typeof(String));
+
+        //If hashing use get hashcode regards to your key
+        MD5CryptoServiceProvider hashmd5 = new MD5CryptoServiceProvider();
+        keyArray = hashmd5.ComputeHash(UTF8Encoding.UTF8.GetBytes(key));
+        //Always release the resources and flush data
+        // of the Cryptographic service provide. Best Practice
+
+        hashmd5.Clear();
+
+        TripleDESCryptoServiceProvider tdes = new TripleDESCryptoServiceProvider();
+        //set the secret key for the tripleDES algorithm
+        tdes.Key = keyArray;
+        //mode of operation. there are other 4 modes.
+        //We choose ECB(Electronic code Book)
+        tdes.Mode = CipherMode.ECB;
+        //padding mode(if any extra byte added)
+
+        tdes.Padding = PaddingMode.PKCS7;
+
+        ICryptoTransform cTransform = tdes.CreateEncryptor();
+        //transform the specified region of bytes array to resultArray
+        byte[] resultArray =
+            cTransform.TransformFinalBlock(toEncryptArray, 0,
+            toEncryptArray.Length);
+        //Release resources held by TripleDes Encryptor
+        tdes.Clear();
+        //Return the encrypted data into unreadable string format
+        return Convert.ToBase64String(resultArray, 0, resultArray.Length);
+    }
+    return "";
+}
+
+
+public static string Decrypt(string cipherString)
+{
+    if(!string.IsNullOrEmpty(cipherString))
+    {
+        byte[] keyArray;
+        //get the byte code of the string
+
+        byte[] toEncryptArray = Convert.FromBase64String(cipherString.Replace(" ", "+"));
+
+        System.Configuration.AppSettingsReader settingsReader = new AppSettingsReader();
+        //Get your key from config file to open the lock!
+        string key = (string)settingsReader.GetValue("SecurityKey", typeof(String));
+
+        //if hashing was used get the hash code with regards to your key
+        MD5CryptoServiceProvider hashmd5 = new MD5CryptoServiceProvider();
+        keyArray = hashmd5.ComputeHash(UTF8Encoding.UTF8.GetBytes(key));
+        //release any resource held by the MD5CryptoServiceProvider
+
+        hashmd5.Clear();
+
+        TripleDESCryptoServiceProvider tdes = new TripleDESCryptoServiceProvider();
+        //set the secret key for the tripleDES algorithm
+        tdes.Key = keyArray;
+        //mode of operation. there are other 4 modes.
+        //We choose ECB(Electronic code Book)
+
+        tdes.Mode = CipherMode.ECB;
+        //padding mode(if any extra byte added)
+        tdes.Padding = PaddingMode.PKCS7;
+
+        ICryptoTransform cTransform = tdes.CreateDecryptor();
+        byte[] resultArray = cTransform.TransformFinalBlock(
+                                toEncryptArray, 0, toEncryptArray.Length);
+        //Release resources held by TripleDes Encryptor
+        tdes.Clear();
+        //return the Clear decrypted TEXT
+        return UTF8Encoding.UTF8.GetString(resultArray);
+    }
+    return "";
+}
+#>
