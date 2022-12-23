@@ -532,8 +532,8 @@ Begin {
                     }
                 }
             }
-            Write-Heading "Set Build Variables" # Dynamic variables
             $VersionFile = [IO.Path]::Combine($Path, 'Version.txt');
+            Write-Heading "Set Build Variables. VersionFile: $VersionFile" # Dynamic variables
             if (!(Test-Path -Path $VersionFile -PathType Leaf -ErrorAction SilentlyContinue)) {
                 throw 'Could not Find Version File' # Big deal!
             }; $Version = Get-Content $VersionFile -ErrorAction SilentlyContinue
