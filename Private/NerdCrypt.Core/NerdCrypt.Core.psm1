@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    AIO PowerShell Module to do all things encryption-decryption.
+    PowerShell classes and functions for Cryptography.
 .DESCRIPTION
     Nerdcrypt is an all in one Encryption Decryption Powerhell Class.
     All functions in ./Nerdcrypt.core.psm1 are built based on it.
@@ -11,14 +11,13 @@
     https://gist.github.com/alainQtec/217860de99e8ddb89a8820add6f6980f
 .EXAMPLE
     PS C:\> # Try this:
-    PS C:\> iex $((Invoke-RestMethod -Method Get https://api.github.com/gists/217860de99e8ddb89a8820add6f6980f).files.'Nerdcrypt.ps1'.content)
+    PS C:\> iex $((Invoke-RestMethod -Method Get https://api.github.com/gists/217860de99e8ddb89a8820add6f6980f).files.'Nerdcrypt.Core.ps1'.content)
     PS C:\> $n = [NerdCrypt]::new("H3llo W0rld!");
     PS C:\> $e = $n.Encrypt(3);
     PS C:\> $d = $n.Decrypt(3);
     PS C:\> [xconvert]::BytesToObject($d);
     H3llo W0rld!
 #>
-
 # Import the necessary assemblies
 Add-Type -AssemblyName System.Security;
 Add-Type -AssemblyName System.Runtime.InteropServices;
@@ -2678,92 +2677,7 @@ class NerdCrypt {
 }
 #endregion MainClass
 
-<#
-public static string Encrypt(string stringToEncrypt)
-{
-    if (!string.IsNullOrEmpty(stringToEncrypt))
-    {
-        byte[] keyArray;
-        byte[] toEncryptArray = UTF8Encoding.UTF8.GetBytes(stringToEncrypt);
-
-        System.Configuration.AppSettingsReader settingsReader = new AppSettingsReader();
-        // Get the key from config file
-
-        string key = (string)settingsReader.GetValue("SecurityKey", typeof(String));
-
-        //If hashing use get hashcode regards to your key
-        MD5CryptoServiceProvider hashmd5 = new MD5CryptoServiceProvider();
-        keyArray = hashmd5.ComputeHash(UTF8Encoding.UTF8.GetBytes(key));
-        //Always release the resources and flush data
-        // of the Cryptographic service provide. Best Practice
-
-        hashmd5.Clear();
-
-        TripleDESCryptoServiceProvider tdes = new TripleDESCryptoServiceProvider();
-        //set the secret key for the tripleDES algorithm
-        tdes.Key = keyArray;
-        //mode of operation. there are other 4 modes.
-        //We choose ECB(Electronic code Book)
-        tdes.Mode = CipherMode.ECB;
-        //padding mode(if any extra byte added)
-
-        tdes.Padding = PaddingMode.PKCS7;
-
-        ICryptoTransform cTransform = tdes.CreateEncryptor();
-        //transform the specified region of bytes array to resultArray
-        byte[] resultArray =
-            cTransform.TransformFinalBlock(toEncryptArray, 0,
-            toEncryptArray.Length);
-        //Release resources held by TripleDes Encryptor
-        tdes.Clear();
-        //Return the encrypted data into unreadable string format
-        return Convert.ToBase64String(resultArray, 0, resultArray.Length);
-    }
-    return "";
-}
-
-
-public static string Decrypt(string cipherString)
-{
-    if(!string.IsNullOrEmpty(cipherString))
-    {
-        byte[] keyArray;
-        //get the byte code of the string
-
-        byte[] toEncryptArray = Convert.FromBase64String(cipherString.Replace(" ", "+"));
-
-        System.Configuration.AppSettingsReader settingsReader = new AppSettingsReader();
-        //Get your key from config file to open the lock!
-        string key = (string)settingsReader.GetValue("SecurityKey", typeof(String));
-
-        //if hashing was used get the hash code with regards to your key
-        MD5CryptoServiceProvider hashmd5 = new MD5CryptoServiceProvider();
-        keyArray = hashmd5.ComputeHash(UTF8Encoding.UTF8.GetBytes(key));
-        //release any resource held by the MD5CryptoServiceProvider
-
-        hashmd5.Clear();
-
-        TripleDESCryptoServiceProvider tdes = new TripleDESCryptoServiceProvider();
-        //set the secret key for the tripleDES algorithm
-        tdes.Key = keyArray;
-        //mode of operation. there are other 4 modes.
-        //We choose ECB(Electronic code Book)
-
-        tdes.Mode = CipherMode.ECB;
-        //padding mode(if any extra byte added)
-        tdes.Padding = PaddingMode.PKCS7;
-
-        ICryptoTransform cTransform = tdes.CreateDecryptor();
-        byte[] resultArray = cTransform.TransformFinalBlock(
-                                toEncryptArray, 0, toEncryptArray.Length);
-        //Release resources held by TripleDes Encryptor
-        tdes.Clear();
-        //return the Clear decrypted TEXT
-        return UTF8Encoding.UTF8.GetString(resultArray);
-    }
-    return "";
-}
-#>
+#region   Functions
 function New-K3Y {
     <#
     .SYNOPSIS
@@ -3596,4 +3510,91 @@ function New-Password {
 }
 #endregion PasswordManagment
 
-# Export-ModuleMember -Function *-* -Alias *
+#endregion Functions
+
+<#
+public static string Encrypt(string stringToEncrypt)
+{
+    if (!string.IsNullOrEmpty(stringToEncrypt))
+    {
+        byte[] keyArray;
+        byte[] toEncryptArray = UTF8Encoding.UTF8.GetBytes(stringToEncrypt);
+
+        System.Configuration.AppSettingsReader settingsReader = new AppSettingsReader();
+        // Get the key from config file
+
+        string key = (string)settingsReader.GetValue("SecurityKey", typeof(String));
+
+        //If hashing use get hashcode regards to your key
+        MD5CryptoServiceProvider hashmd5 = new MD5CryptoServiceProvider();
+        keyArray = hashmd5.ComputeHash(UTF8Encoding.UTF8.GetBytes(key));
+        //Always release the resources and flush data
+        // of the Cryptographic service provide. Best Practice
+
+        hashmd5.Clear();
+
+        TripleDESCryptoServiceProvider tdes = new TripleDESCryptoServiceProvider();
+        //set the secret key for the tripleDES algorithm
+        tdes.Key = keyArray;
+        //mode of operation. there are other 4 modes.
+        //We choose ECB(Electronic code Book)
+        tdes.Mode = CipherMode.ECB;
+        //padding mode(if any extra byte added)
+
+        tdes.Padding = PaddingMode.PKCS7;
+
+        ICryptoTransform cTransform = tdes.CreateEncryptor();
+        //transform the specified region of bytes array to resultArray
+        byte[] resultArray =
+            cTransform.TransformFinalBlock(toEncryptArray, 0,
+            toEncryptArray.Length);
+        //Release resources held by TripleDes Encryptor
+        tdes.Clear();
+        //Return the encrypted data into unreadable string format
+        return Convert.ToBase64String(resultArray, 0, resultArray.Length);
+    }
+    return "";
+}
+
+
+public static string Decrypt(string cipherString)
+{
+    if(!string.IsNullOrEmpty(cipherString))
+    {
+        byte[] keyArray;
+        //get the byte code of the string
+
+        byte[] toEncryptArray = Convert.FromBase64String(cipherString.Replace(" ", "+"));
+
+        System.Configuration.AppSettingsReader settingsReader = new AppSettingsReader();
+        //Get your key from config file to open the lock!
+        string key = (string)settingsReader.GetValue("SecurityKey", typeof(String));
+
+        //if hashing was used get the hash code with regards to your key
+        MD5CryptoServiceProvider hashmd5 = new MD5CryptoServiceProvider();
+        keyArray = hashmd5.ComputeHash(UTF8Encoding.UTF8.GetBytes(key));
+        //release any resource held by the MD5CryptoServiceProvider
+
+        hashmd5.Clear();
+
+        TripleDESCryptoServiceProvider tdes = new TripleDESCryptoServiceProvider();
+        //set the secret key for the tripleDES algorithm
+        tdes.Key = keyArray;
+        //mode of operation. there are other 4 modes.
+        //We choose ECB(Electronic code Book)
+
+        tdes.Mode = CipherMode.ECB;
+        //padding mode(if any extra byte added)
+        tdes.Padding = PaddingMode.PKCS7;
+
+        ICryptoTransform cTransform = tdes.CreateDecryptor();
+        byte[] resultArray = cTransform.TransformFinalBlock(
+                                toEncryptArray, 0, toEncryptArray.Length);
+        //Release resources held by TripleDes Encryptor
+        tdes.Clear();
+        //return the Clear decrypted TEXT
+        return UTF8Encoding.UTF8.GetString(resultArray);
+    }
+    return "";
+}
+#>
