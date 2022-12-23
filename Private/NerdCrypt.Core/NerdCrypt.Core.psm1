@@ -1363,6 +1363,7 @@ class CredentialManager {
         return $Credentials
     }
     [Psobject[]]static hidden get_StoredCreds() {
+	  # until I know the existance of a [wrapper module](https://learn.microsoft.com/en-us/powershell/utility-modules/crescendo/overview?view=ps-modules), I'll stick to this Hack.
         $cmdkey = (Get-Command cmdkey -ErrorAction SilentlyContinue).Source
         if ([string]::IsNullOrEmpty($cmdkey)) { throw [System.Exception]::new('get_StoredCreds() Failed.') }
         $outputLines = (&$cmdkey /list) -split "`n"
