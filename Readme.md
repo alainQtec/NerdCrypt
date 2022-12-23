@@ -44,15 +44,11 @@ NerdCrypt, is an all in one Cryptography Powershell module.
 
 ## 📖 **Description**
 
-    AIO PowerShell module to do all things encryption-decryption.
+Cryptography is the study of techniques for secure communication in the presence of adversaries. It is a field of computer science that requires a strong foundation in mathematical and computational concepts. Some people who are interested in cryptography may be considered "nerdy" due to their deep knowledge and interest in the subject.
 
-Cryptography is the study of techniques for secure communication in the presence of adversaries. It is a field of mathematics and computer science that requires a strong foundation in mathematical and computational concepts. Some people who are interested in cryptography may be considered "nerdy" due to their deep knowledge and interest in the subject.
+<img align="right" alt="logo" src="https://github.com/alainQtec/NerdCrypt/blob/main/docs/images/CryptographyNerd.png">
 
-<div style="float: right;">
-  ![logo](https://github.com/alainQtec/NerdCrypt/blob/main/docs/images/CryptographyNerd.png)
-</div>
-
-However, cryptography is an important and fascinating field that has a wide range of practical applications, and anyone with an interest in mathematics, computer science, or security can find something interesting and worthwhile in the study of cryptography.
+However, since cryptography is an important and fascinating field with a wide range of practical applications, anyone with an interest in security or computer science can find something interesting and worthwhile in the study of cryptography.
 
 This Module's features focus mainly on **Data encryption**, **Data protection**, **Secure communication** and **User authentication**
 
