@@ -3,7 +3,7 @@
     PowerShell classes and functions for Cryptography.
 .DESCRIPTION
     Nerdcrypt is an all in one Encryption Decryption Powerhell Class.
-    All functions in ./Nerdcrypt.core.psm1 are built based on it.
+    All ../Nerdcrypt.psm1 functions are built based on these classes.
 .NOTES
     [+] Most of the methods work. (Most).
     [+] This file is over 2000 lines of code (All in One), so use regions code folding if your editor supports it.
@@ -12,11 +12,11 @@
 .EXAMPLE
     PS C:\> # Try this:
     PS C:\> iex $((Invoke-RestMethod -Method Get https://api.github.com/gists/217860de99e8ddb89a8820add6f6980f).files.'Nerdcrypt.Core.ps1'.content)
-    PS C:\> $n = [NerdCrypt]::new("H3llo W0rld!");
-    PS C:\> $e = $n.Encrypt(3);
-    PS C:\> $d = $n.Decrypt(3);
-    PS C:\> [xconvert]::BytesToObject($d);
-    H3llo W0rld!
+    PS C:\> $Obj = [NerdCrypt]::new("H3llo W0rld!");
+    PS C:\> $eOb = $Obj.Encrypt(3); # Encrypt 3 times
+    PS C:\> $dOb = $Obj.Decrypt(3); # Decrypt 3 times
+    PS C:\> [xconvert]::BytesToObject($dOb);
+    PS C:\> #You get back: H3llo W0rld!
 #>
 # Import the necessary assemblies
 Add-Type -AssemblyName System.Security;
@@ -56,6 +56,13 @@ enum CertStoreName {
     ROOT
     TRUST
     CA
+}
+# Only Encryption algorithms that are widely trusted and used in real-world
+enum CryptoAlgorithm {
+    AES # (Advanced Encryption Standard) A symmetric-key encryption algorithm that is used to protect a variety of sensitive data, including financial transactions, medical records, and government communications. It is considered to be very secure, and has been adopted as a standard by many governments and organizations around the world.
+    RSA # An asymmetric-key encryption algorithm that is widely used to secure sensitive data, including financial transactions and sensitive communications. It is known for its strong security, and is often used in combination with other encryption algorithms to provide an additional layer of protection.
+    ECC # (Elliptic Curve Cryptography) Asymmetric-key encryption algorithms that are known for their strong security and efficient use of resources. They are widely used in a variety of applications, including secure communication, file encryption, and password storage.
+    AESGCM # A mode of operation for the AES encryption algorithm that combines confidentiality and authenticity, and is widely used in a variety of applications, including secure communication and file encryption.
 }
 enum Compression {
     Gzip
@@ -948,28 +955,26 @@ class XConvert {
 }
 #endregion Custom_ObjectConverter
 
-#region    PBKDF2_Hashing
-<#
-.SYNOPSIS
-    Password String Hashing Helper Class.
-.DESCRIPTION
-    when a user inputs a password, instead of storing the password in cleartext, we hash the password and store the username and hash pair in the database table.
-    When the user logs in, we hash the password sent and compare it to the hash connected with the provided username.
-.EXAMPLE
-    ## Usage Example:
-
-    # STEP 1. Create Hash and Store it somewhere secure.
-    [byte[]]$hashBytes = [PasswordHash]::new("MypasswordString").ToArray();
-    [xconvert]::BytesToHex($hashBytes) | Out-File $ReallySecureFilePath;
-    $(Get-Item $ReallySecureFilePath).Encrypt();
-
-    # STEP 2. Check Password against a Stored hash.
-    [byte[]]$hashBytes = [xconvert]::BytesFromHex($(Get-Content $ReallySecureFilePath));
-    $hash = [PasswordHash]::new($hashBytes);
-    if(!$hash.Verify("newly entered password")) { throw [System.UnauthorizedAccessException]::new() };
-.NOTES
-    https://stackoverflow.com/questions/51941509/what-is-the-process-of-checking-passwords-in-databases/51961121#51961121
-#>
+#region    _Passwords
+# .SYNOPSIS
+#     PBKDF2 Password String Hashing Class.
+# .DESCRIPTION
+#     when a user inputs a password, instead of storing the password in cleartext, we hash the password and store the username and hash pair in the database table.
+#     When the user logs in, we hash the password sent and compare it to the hash connected with the provided username.
+# .EXAMPLE
+#     ## Usage Example:
+#
+#     # STEP 1. Create Hash and Store it somewhere secure.
+#     [byte[]]$hashBytes = [PasswordHash]::new("MypasswordString").ToArray();
+#     [xconvert]::BytesToHex($hashBytes) | Out-File $ReallySecureFilePath;
+#     $(Get-Item $ReallySecureFilePath).Encrypt();
+#
+#     # STEP 2. Check Password against a Stored hash.
+#     [byte[]]$hashBytes = [xconvert]::BytesFromHex($(Get-Content $ReallySecureFilePath));
+#     $hash = [PasswordHash]::new($hashBytes);
+#     if(!$hash.Verify("newly entered password")) { throw [System.UnauthorizedAccessException]::new() };
+# .NOTES
+#     https://stackoverflow.com/questions/51941509/what-is-the-process-of-checking-passwords-in-databases/51961121#51961121
 class PasswordHash {
     [byte[]]$hash # The pbkdf2 Hash
     [byte[]]$salt
@@ -978,7 +983,7 @@ class PasswordHash {
     [ValidateNotNullOrEmpty()][int]hidden $HashIter = 10000 # Number of pbkdf2 iterations
 
     PasswordHash([string]$passw0rd) {
-        $this.salt = [byte[]]::new($this.SaltSize)
+        $this.salt = [byte[]]::new($this.SaltSize) # todo: Not tested yet but maybe I could use [xgen]::NewSalt($SaltSize) as the default salt
         [void][System.Security.Cryptography.RNGCryptoServiceProvider]::new().GetBytes($this.salt)
         $this.hash = [System.Security.Cryptography.Rfc2898DeriveBytes]::new($passw0rd, $this.salt, $this.HashIter).GetBytes($this.HashSize)
     }
@@ -1014,11 +1019,18 @@ class PasswordHash {
         return $rs
     }
 }
-#endregion PBKDF2_Hashing
+class InvalidPasswordException : System.Exception {
+    [string]$Message; [string]hidden $Passw0rd; [securestring]hidden $Password; [System.Exception]$InnerException
+    InvalidPasswordException() { $this.Message = "Invalid password" }
+    InvalidPasswordException([string]$Message) { $this.message = $Message }
+    InvalidPasswordException([string]$Message, [string]$Passw0rd) { ($this.message, $this.Passw0rd, $this.InnerException) = ($Message, $Passw0rd, [System.Exception]::new($Message)) }
+    InvalidPasswordException([string]$Message, [securestring]$Password) { ($this.message, $this.Password, $this.InnerException) = ($Message, $Password, [System.Exception]::new($Message)) }
+    InvalidPasswordException([string]$Message, [string]$Passw0rd, [System.Exception]$InnerException) { ($this.message, $this.Passw0rd, $this.InnerException) = ($Message, $Passw0rd, $InnerException) }
+    InvalidPasswordException([string]$Message, [securestring]$Password, [System.Exception]$InnerException) { ($this.message, $this.Password, $this.InnerException) = ($Message, $Password, $InnerException) }
+}
+#endregion _Passwords
 
 #region    Object
-# This is the Object I'll be playing around with in the [Nerdcrypt] Class.
-# Its basically a wrapper to protect object bytes I use in this script.
 class NcObject {
     [Type]hidden $OGType;
     [byte[]]hidden $Bytes;
@@ -1244,7 +1256,6 @@ class Advapi32 {
         $this.API = New-Object -TypeName CredentialManager.Advapi32;
     }
 }
-
 class CredentialNotFoundException : System.Exception, System.Runtime.Serialization.ISerializable {
     [string]$Message; [Exception]$InnerException; hidden $Info; hidden $Context
     CredentialNotFoundException() { $this.Message = 'CredentialNotFound' }
@@ -1252,7 +1263,6 @@ class CredentialNotFoundException : System.Exception, System.Runtime.Serializati
     CredentialNotFoundException([string]$message, [Exception]$InnerException) { ($this.Message, $this.InnerException) = ($message, $InnerException) }
     CredentialNotFoundException([System.Runtime.Serialization.SerializationInfo]$info, [System.Runtime.Serialization.StreamingContext]$context) { ($this.Info, $this.Context) = ($info, $context) }
 }
-
 # See Usage Example in the Wiki
 class CredentialManager {
     #  [ CONSTANTS ]
@@ -2248,6 +2258,8 @@ class K3Y {
         ($IsValid, $Compression) = [k3Y]::AnalyseK3YUID($this, $Password, $false)[0, 2];
         if (-not $IsValid) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Expired K3Y.") };
         if ($Compression.Equals('')) { throw [System.Management.Automation.PSInvalidOperationException]::new("The Operation is not valid due to Invalid Compression.", [System.ArgumentNullException]::new('Compression')) };
+        # todo: Chose the algorithm
+        # if alg -eq RSA then we RSA+AES hybrid
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $salt, $Compression);
     }
     [bool]IsUsed() { return [K3Y]::IsUsed($this, $false) }
@@ -2286,7 +2298,7 @@ class K3Y {
                 )
             )
         } else {
-            if ($ThrowOnFailure) { throw [System.Management.Automation.SetValueException]::new('The Key already Has a UID.') }
+            if ($ThrowOnFailure) { throw [System.Management.Automation.SetValueException]::new('This Key already Has a UID.') }
         }
     }
     [string]GetK3YIdSTR() {
@@ -2294,7 +2306,7 @@ class K3Y {
     }
     [string]static GetK3YIdSTR([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
         if ($null -eq $Password -or $([string]::IsNullOrWhiteSpace([xconvert]::ToString($Password)))) {
-            throw [System.InvalidOperationException]::new("Please Provide a Password that isn't Null and not a WhiteSpace.", [System.ArgumentNullException]::new("Password"));
+            throw [InvalidPasswordException]::new("Please Provide a Password that isn't Null and not a WhiteSpace.", $Password, [System.ArgumentNullException]::new("Password"))
         }
         return [string][xconvert]::BytesToHex([System.Text.Encoding]::UTF7.GetBytes([xconvert]::ToCompressed([xconvert]::StringToCustomCipher(
                         [string][K3Y]::CreateUIDstring([byte[]][XConvert]::BytesFromObject([PSCustomObject]@{
@@ -2321,7 +2333,7 @@ class K3Y {
     [securestring]static GetPassword([bool]$ThrowOnFailure) {
         $Password = $null; Set-Variable -Name Password -Scope Local -Visibility Private -Option Private -Value ($(Get-Variable Host).value.UI.PromptForCredential('NerdCrypt', "Please Enter Your Password", $Env:UserName, $Env:COMPUTERNAME).Password);
         if ($ThrowOnFailure -and ($null -eq $Password -or $([string]::IsNullOrWhiteSpace([xconvert]::ToString($Password))))) {
-            throw [System.InvalidOperationException]::new("Please Provide a Password that is not Null Or WhiteSpace.", [System.ArgumentNullException]::new("Password"));
+            throw [InvalidPasswordException]::new("Please Provide a Password that isn't Null and not a WhiteSpace.", $Password, [System.ArgumentNullException]::new("Password"))
         }
         return $Password
     }
@@ -2364,14 +2376,34 @@ class K3Y {
         return $this.ResolvePassword($Password, $SecHash);
     }
     [securestring]ResolvePassword([securestring]$Password, [securestring]$SecHash) {
-        $Passw0rd = [string]::Empty; Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToString($Password));
+        $derivedKey = [securestring]::new(); [System.IntPtr]$handle = [System.IntPtr]::new(0); $Passw0rd = [string]::Empty;
+        Add-Type -AssemblyName System.Runtime.InteropServices
+        Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToString($Password));
+        Set-Variable -Name handle -Scope Local -Visibility Private -Option Private -Value $([System.Runtime.InteropServices.Marshal]::StringToHGlobalAnsi($Passw0rd));
         if ([K3Y]::VerifyPassword($Passw0rd, $SecHash)) {
-            # $Hash = [xconvert]::Tostring($SecHash); Write-Verbose "[i] Using Password, With Hash: $Hash";
-            # Use a 'UTF7 PasswordDerivation' instead of the real 'Password' (Just to be extra cautious.)
-            return [xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8)));
+            try {
+                if ([System.Environment]::UserInteractive) {
+                    Write-Debug "[i] Using Password, With Hash: $([xconvert]::Tostring($SecHash))" -Debug
+                }
+                # This next line is like a KDF. ie: If this was a Powershell function it would be named Get-KeyFromPassword
+                $derivedKey = [xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.Rfc2898DeriveBytes]::new($Passw0rd, $this.rgbSalt, 10000, [System.Security.Cryptography.HashAlgorithmName]::SHA1).GetBytes(256 / 8)));
+                # Most people use utf8, so I use 'UTF7 instead. (Just to be extra cautious)
+                # & I could use: System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, $this.rgbSalt, 'SHA1', 2).GetBytes(256 / 8)...
+                # Which would be less stress on cpu but sacrificing too much security. so its a Nono
+            } catch {
+                throw $_.Exeption
+            } finally {
+                # Zero out the memory used by the variable.
+                [void][System.Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocAnsi($handle);
+                # It is usually sufficient to simply use the Remove-Variable but in this situation we Just want to be extra cautious.
+            }
+            return $derivedKey
         } else {
-            Write-Verbose "[x] Wrong Password!";
-            Throw [System.UnauthorizedAccessException]::new('Wrong Password.')
+            if ([System.Environment]::UserInteractive) {
+                [System.Console]::Beep(600, 100); [System.Threading.Thread]::Sleep(100); [System.Console]::Beep(600, 200);
+                Write-Verbose "[x] Wrong Password!";
+            }
+            Throw [System.UnauthorizedAccessException]::new('Wrong Password.', [InvalidPasswordException]::new());
         }
     }
     [bool]HasHashedPassword() {
@@ -2613,6 +2645,7 @@ class NerdCrypt {
     }
     #
     # TODO: Add option to encrypt using KEys From Azure KeyVault (The process has to be INTERACTIVE).
+    # If($IsInteractive = [Environment]::UserInteractive -and [Environment]::GetCommandLineArgs().Where({ $_ -like '-NonI*' }).Count -eq 0) {'Prompt for stuff'} else {'Nope!'}
     # https://docs.microsoft.com/en-us/azure/key-vault/secrets/quick-create-powershell
     #
     #region    ParanoidCrypto
