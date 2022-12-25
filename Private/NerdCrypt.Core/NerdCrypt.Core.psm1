@@ -68,6 +68,7 @@ enum Compression {
     Gzip
     Deflate
     ZLib
+    # Zstd # Todo: Add Zstandard. (from facebook. I jusst can't find a way to make it work in powershell! no dll nothing!)
 }
 # [xgen]::Enumerator('ExpType', ('Milliseconds', 'Years', 'Months', 'Days', 'Hours', 'Minutes', 'Seconds'))
 
@@ -1811,6 +1812,125 @@ class RNGlg : NcObject {
 #endregion rng~algo
 
 #region    RSA~algo
+class RSAEncryption {
+    $publicKeyXml = ""
+    $privateKeyXml = ""
+
+    # Constructor
+    RSAEncryption([string]$publicKeyXml, [string]$privateKeyXml) {
+        $this.publicKeyXml = $publicKeyXml
+        $this.privateKeyXml = $privateKeyXml # (encrypted string)
+    }
+
+    # Simply Encrypts the specified data using the public key.
+    [byte[]] Encrypt([byte[]]$data) {
+        $rsa = New-Object System.Security.Cryptography.RSACryptoServiceProvider
+        $rsa.FromXmlString($this.publicKeyXml)
+        return $rsa.Encrypt($data, $true)
+    }
+
+    # Decrypts the specified data using the private key.
+    [byte[]] Decrypt([byte[]]$data) {
+        $rsa = New-Object System.Security.Cryptography.RSACryptoServiceProvider
+        $rsa.FromXmlString($this.privateKeyXml)
+        return $rsa.Decrypt($data, $true)
+    }
+
+    # The data is encrypted using AES in combination with the password and salt.
+    # The encrypted data is then encrypted using RSA.
+    [byte[]] Encrypt([byte[]]$data, [securestring]$password, [byte[]]$salt) {
+        # Generate the AES key and initialization vector from the password and salt
+        $aesKey = [System.Security.Cryptography.Rfc2898DeriveBytes]::new([xconvert]::Tostring($password), $salt, 1000).GetBytes(32);
+        $aesIV = [System.Security.Cryptography.Rfc2898DeriveBytes]::new([xconvert]::Tostring($password), $salt, 1000).GetBytes(16);
+
+        # Encrypt the data using AES
+        $aes = [System.Security.Cryptography.AesCryptoServiceProvider]::new(); ($aes.Key, $aes.IV) = ($aesKey, $aesIV);
+        $encryptedData = $aes.CreateEncryptor().TransformFinalBlock($data, 0, $data.Length)
+
+        # Encrypt the AES key and initialization vector using RSA
+        $rsa = [System.Security.Cryptography.RSACryptoServiceProvider]::new()
+        $rsa.FromXmlString($this.publicKeyXml)
+        $encryptedKey = $rsa.Encrypt($aesKey, $true)
+        $encryptedIV = $rsa.Encrypt($aesIV, $true)
+
+        # Concatenate the encrypted key, encrypted IV, and encrypted data
+        # and return the result as a byte array
+        return [byte[]]([System.Linq.Enumerable]::Concat($encryptedKey, $encryptedIV, $encryptedData));
+    }
+
+    # Decrypts the specified data using the private key.
+    # The data is first decrypted using RSA to obtain the AES key and initialization vector.
+    # The data is then decrypted using AES.
+    [byte[]] Decrypt([byte[]]$data, [securestring]$password) {
+        # Extract the encrypted key, encrypted IV, and encrypted data from the input data
+        $encryptedKey = $data[0..255]
+        $encryptedIV = $data[256..271]
+        $encryptedData = $data[272..$data.Length]
+
+        # Decrypt the AES key and initialization vector using RSA
+        $rsa = [System.Security.Cryptography.RSACryptoServiceProvider]::new()
+        # todo: Use the $pASSWORD to decrypt the private key so it can be used
+        $rsa.FromXmlString($this.privateKeyXml)
+        $aesKey = $rsa.Decrypt($encryptedKey, $true)
+        $aesIV = $rsa.Decrypt($encryptedIV, $true)
+
+        # Decrypt the data using AES
+        $aes = [System.Security.Cryptography.AesCryptoServiceProvider]::new()
+        $aes.Key = $aesKey
+        $aes.IV = $aesIV
+        return $aes.CreateDecryptor().TransformFinalBlock($encryptedData, 0, $encryptedData.Length)
+    }
+    # Exports the key pair to a file or string. # This can be useful if you want to save the key pair to a file or string for later use.
+    # If a file path is specified, the key pair will be saved to the file.
+    # If no file path is specified, the key pair will be returned as a string.
+    # Usage:
+    # Save the key pair to a file
+    # $rsa.ExportKeyPair("C:\path\to\keypair.json")
+    # Get the key pair as a string
+    # $keyPairString = $rsa.ExportKeyPair()
+    [void] ExportKeyPair([string]$filePath = "") {
+        $keyPair = @{
+            "PublicKey"  = $this.publicKeyXml
+            "PrivateKey" = $this.privateKeyXml
+        }
+
+        if ([string]::IsNullOrWhiteSpace($filePath)) {
+            throw 'Invalid FilePath'
+        } else {
+            # Save the key pair to the specified file
+            $keyPair | ConvertTo-Json | Out-File -FilePath $filePath
+        }
+    }
+    # Imports a key pair from a file or string.
+    # If a file path is specified, the key pair will be loaded from the file.
+    # If no file path is specified, the key pair will be loaded from the string.
+    #Usage:
+    # Load the key pair from a file
+    # $rsa.ImportKeyPair("C:\path\to\keypair.json")
+
+    # Load the key pair from a string
+    # $keyPairString = '{"PublicKey":"...',
+    # $rsa.ImportKeyPair("", $keyPairString)
+    [void] ImportKeyPair([string]$filePath = "", [string]$keyPairString = "") {
+        if ($filePath -ne "") {
+            # Load the key pair from the specified file
+            $keyPair = Get-Content $filePath | ConvertFrom-Json
+        } else {
+            # Load the key pair from the string
+            $keyPair = $keyPairString | ConvertFrom-Json
+        }
+        $this.publicKeyXml = $keyPair.PublicKey
+        $this.privateKeyXml = $keyPair.PrivateKey
+    }
+
+    # Generates a new RSA key pair and returns the public and private key XML strings.
+    [string] GenerateKeyPair() {
+        $rsa = [System.Security.Cryptography.RSACryptoServiceProvider]::new()
+        ($publicKey, $privateKey) = ($rsa.ToXmlString($false), $rsa.ToXmlString($true))
+        return $publicKey, $privateKey
+    }
+}
+
 class RSAlg : NcObject {
     [string]$String
     [ValidateNotNullOrEmpty()][X509cr]$X509cr
@@ -1966,6 +2086,242 @@ class X509cr {
     }
 }
 #endregion RSA~algo
+
+#region    ecc
+# Elliptic Curve Cryptography
+# Usage:
+# $ecc = new ECC($publicKeyXml, $privateKeyXml)
+# $encryptedData = $ecc.Encrypt($data, $password, $salt)
+# $decryptedData = $ecc.Decrypt($encryptedData, $password, $salt)
+
+class ECC {
+    $publicKeyXml = [string]::Empty
+    $privateKeyXml = [string]::Empty
+
+    # Constructor
+    ECC([string]$publicKeyXml, [string]$privateKeyXml) {
+        $this.publicKeyXml = $publicKeyXml
+        $this.privateKeyXml = $privateKeyXml
+    }
+    # Encrypts the specified data using the public key.
+    # The data is encrypted using AES in combination with the password and salt.
+    # Normally I could use System.Security.Cryptography.ECCryptoServiceProvider but for Compatibility reasons
+    # I use ECDsaCng class, which provides similar functionality.
+    # The encrypted data is then encrypted using ECC.
+    # Encrypts the specified data using the public key.
+    # The data is encrypted using AES in combination with the password and salt.
+    # The encrypted data is then encrypted using ECC.
+    [byte[]] Encrypt([byte[]]$data, [securestring]$password, [byte[]]$salt) {
+        # Generate the AES key and initialization vector from the password and salt
+        $aesKey = [System.Security.Cryptography.Rfc2898DeriveBytes]::new([xconvert]::Tostring($password), $salt, 1000).GetBytes(32);
+        $aesIV = [System.Security.Cryptography.Rfc2898DeriveBytes]::new([xconvert]::Tostring($password), $salt, 1000).GetBytes(16);
+        # Encrypt the data using AES
+        $aes = New-Object System.Security.Cryptography.AesCryptoServiceProvider
+        $aes.Key = $aesKey
+        $aes.IV = $aesIV
+        $encryptedData = $aes.CreateEncryptor().TransformFinalBlock($data, 0, $data.Length)
+
+        # Encrypt the AES key and initialization vector using ECC
+        $ecc = New-Object System.Security.Cryptography.ECDsaCng
+        $ecc.FromXmlString($this.publicKeyXml)
+        $encryptedKey = $ecc.Encrypt($aesKey, $true)
+        $encryptedIV = $ecc.Encrypt($aesIV, $true)
+
+        # Concatenate the encrypted key, encrypted IV, and encrypted data
+        # and return the result as a byte array
+        return [byte[]]([System.Linq.Enumerable]::Concat($encryptedKey, $encryptedIV, $encryptedData))
+        # or:
+        # $bytes = New-Object System.Collections.Generic.List[Byte]
+        # $bytes.AddRange($encryptedKey)
+        # $bytes.AddRange($encryptedIV)
+        # $bytes.AddRange($encryptedData)
+        # return [byte[]]$bytes
+    }
+    # Decrypts the specified data using the private key.
+    # The data is first decrypted using ECC to obtain the AES key and initialization vector.
+    # The data is then decrypted using AES.
+    [byte[]] Decrypt([byte[]]$data, [securestring]$password) {
+        # Extract the encrypted key, encrypted IV, and encrypted data from the input data
+        $encryptedKey = $data[0..255]
+        $encryptedIV = $data[256..271]
+        $encryptedData = $data[272..$data.Length]
+
+        # Decrypt the AES key and initialization vector using ECC
+        $ecc = [System.Security.Cryptography.ECDsaCng]::new();
+        $ecc.FromXmlString($this.privateKeyXml)
+        $aesKey = $ecc.Decrypt($encryptedKey, $true)
+        $aesIV = $ecc.Decrypt($encryptedIV, $true)
+
+        # Decrypt the data using AES
+        $aes = [System.Security.Cryptography.AesCryptoServiceProvider]::new();
+        $aes.Key = $aesKey
+        $aes.IV = $aesIV
+        return $aes.CreateDecryptor().TransformFinalBlock($encryptedData, 0, $encryptedData.Length)
+    }
+    # Generates a new ECC key pair and returns the public and private keys as XML strings.
+    [string] GenerateKeyPair() {
+        $ecc = [System.Security.Cryptography.ECDsaCng]::new(256)
+        ($publicKey, $privateKey) = ($ecc.ToXmlString($false), $ecc.ToXmlString($true))
+        return $publicKey, $privateKey
+    }
+    # Exports the ECC key pair to a file or string.
+    # If a file path is specified, the keys are saved to the file.
+    # If a string is specified, the keys are returned as a string.
+    # Usage:
+    # $ECC.ExportKeyPair("C:\keys.xml")
+    [string] ExportKeyPair([string]$file = $null) {
+        # Create the key pair XML string
+        $keyPairXml = "
+            <keyPair>
+                <publicKey>$($this.publicKeyXml)</publicKey>
+                <privateKey>$($this.privateKeyXml)</privateKey>
+            </keyPair>
+        "
+        # Save the key pair XML to a file or return it as a string
+        if ($null -ne $file) {
+            $keyPairXml | Out-File -Encoding UTF8 $file
+            return $null
+        } else {
+            return $keyPairXml
+        }
+    }
+    # Imports the ECC key pair from a file or string.
+    # If a file path is specified, the keys are loaded from the file.
+    # If a string is specified, the keys are loaded from the string.
+    [void] ImportKeyPair([string]$filePath = $null, [string]$keyPairXml = $null) {
+        # Load the key pair XML from a file or string
+        if (![string]::IsNullOrWhiteSpace($filePath)) {
+            if ([IO.File]::Exists($filePath)) {
+                $keyPairXml = Get-Content -Raw -Encoding UTF8 $filePath
+            } else {
+                throw [System.IO.FileNotFoundException]::new('Unable to find the specified file.', "$filePath")
+            }
+        } else {
+            throw [System.ArgumentNullException]::new('filePath')
+        }
+        # Extract the public and private key XML strings from the key pair XML
+        $publicKey = ([xml]$keyPairXml).keyPair.publicKey
+        $privateKey = ([xml]$keyPairXml).keyPair.privateKey
+
+        # Set the public and private key XML strings in the ECC object
+        $this.publicKeyXml = $publicKey
+        $this.privateKeyXml = $privateKey
+    }
+}
+#endregion ecc
+
+#region    aesgcm
+# Usage:
+# $aesGcm = New-Object AESGCM
+
+# # Encrypt some data
+# $data = [System.Text.Encoding]::UTF8.GetBytes("Hello, world!")
+# $password = ConvertTo-SecureString "password123" -AsPlainText -Force
+# $salt = [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes(12)
+# $encryptedData = $aesGcm.Encrypt($data, $password, $salt)
+
+# # Decrypt the data
+# $decryptedData = $aesGcm.Decrypt($encryptedData, $password, $salt)
+# $plainText = [System.Text.Encoding]::UTF8.GetString($decryptedData)
+
+# # Output the plain text
+# Write-Output $plainText
+class AESGCM {
+    [byte[]] Encrypt([byte[]] $data, [securestring] $password, [byte[]] $salt) {
+        # Create a new Aes object using the specified password and salt
+        $aes = [System.Security.Cryptography.Aes]::Create();
+        $aes.Key = [System.Security.Cryptography.Rfc2898DeriveBytes]::new([xconvert]::Tostring($password), $salt, 1000).GetBytes(32);
+        $aes.IV = [System.Security.Cryptography.Rfc2898DeriveBytes]::new([xconvert]::Tostring($password), $salt, 1000).GetBytes(16);
+
+        # Set the cipher mode to GCM
+        $aes.Mode = [System.Security.Cryptography.CipherMode]::GCM
+
+        # Create a new ICryptoTransform object to perform the encryption
+        $encryptor = [System.Security.Cryptography.ICryptoTransform]$aes.CreateEncryptor()
+
+        # Create a new MemoryStream to store the encrypted data
+        $memoryStream = [System.IO.MemoryStream]::new()
+
+        # Create a CryptoStream to encrypt the data
+        $cryptoStream = [System.Security.Cryptography.CryptoStream]::new($memoryStream, $encryptor, [System.Security.Cryptography.CryptoStreamMode]::Write)
+
+        # Write the data to the CryptoStream
+        $cryptoStream.Write($data, 0, $data.Length)
+        $cryptoStream.FlushFinalBlock()
+
+        # Get the encrypted data from the MemoryStream
+        $encryptedData = $memoryStream.ToArray()
+
+        # Close the streams
+        $cryptoStream.Close()
+        $memoryStream.Close()
+
+        # Return the encrypted data
+        return $encryptedData
+    }
+
+    [byte[]] Decrypt([byte[]]$encryptedData, [securestring] $password) {
+        # Create a new Aes object using the specified password and salt
+        $aes = [System.Security.Cryptography.Aes]::Create()
+        #Todo: use  $password & $salt for something
+
+        # Set the cipher mode to GCM
+        $aes.Mode = [System.Security.Cryptography.CipherMode]::GCM
+
+        # Create a new ICryptoTransform object to perform the decryption
+        $decryptor = [System.Security.Cryptography.ICryptoTransform]$aes.CreateDecryptor()
+
+        # Create a new MemoryStream to store the decrypted data
+        $memoryStream = [System.IO.MemoryStream]::new($encryptedData);
+
+        # Create a CryptoStream to decrypt the data
+        $cryptoStream = [System.Security.Cryptography.CryptoStream]::new($memoryStream, $decryptor, [System.Security.Cryptography.CryptoStreamMode]::Read)
+
+        # Read the decrypted data from the CryptoStream
+        $decryptedData = New-Object byte[] ($encryptedData.Length)
+        $bytesRead = $cryptoStream.Read($decryptedData, 0, $encryptedData.Length)
+
+        # Close the streams
+        $cryptoStream.Close()
+        $memoryStream.Close()
+
+        # Return the decrypted data
+        return $decryptedData[0..($bytesRead - 1)]
+    }
+    # Convert a SecureString to a byte array
+    # This method converts a SecureString to a byte array. It can be used to convert a password stored as a SecureString to a byte array that can be passed to the Encrypt and Decrypt methods.
+    [byte[]] ConvertSecureStringToByteArray([securestring] $secureString) {
+        # Get the plain text version of the SecureString
+        $plainText = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureString));
+        # Convert the plain text to a byte array
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($plainText)
+        # Return the byte array
+        return $bytes
+    }
+    # Convert a byte array to a SecureString
+    # This method converts a byte array to a SecureString. It can be used to convert the salt value or the encrypted data to a SecureString for storage or transmission.
+    [securestring] ConvertByteArrayToSecureString([byte[]] $bytes) {
+        # Convert the byte array to a string
+        $plainText = [System.Text.Encoding]::UTF8.GetString($bytes)
+        $secureString = [XConvert]::ToSecurestring($plainText)
+
+        # Return the SecureString
+        return $secureString
+    }
+
+
+    # Generate a random salt value
+    [byte[]] GenerateSalt() {
+        # Create a RandomNumberGenerator object
+        $randomNumberGenerator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+        # Generate a random salt value
+        $salt = New-Object byte[] (12)
+        [void]$randomNumberGenerator.GetBytes($salt)
+        # Return the salt value
+        return $salt
+    }
+}
+#endregion aesgcm
 
 #region    TripleDES
 class TDES : NcObject {
@@ -2208,6 +2564,8 @@ class Encryptor {
     Encryptor() {
         $this.Algorithm = [CryptoAlgorithm]::AES
     }
+    # Usage Example:
+    # $encryptor = $this.CreateEncryptor($bytesToEncrypt, [securestring]$Password, [byte]$salt, [CryptoAlgorithm]$Algorithm); $result = $encryptor.encrypt();
     Encryptor([CryptoAlgorithm]$Algorithm) {
         $this.Algorithm = $Algorithm
         # if alg -eq aes => aes + aesgcm
