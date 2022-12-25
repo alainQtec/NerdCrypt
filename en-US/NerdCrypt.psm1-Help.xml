@@ -57,7 +57,7 @@ Decryptor Function (Decrypt-Object) can use them without need of your input agai
 					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
 				</command:parameter>
 				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
-					<maml:name>Expirity</maml:name>
+					<maml:name>Expiration</maml:name>
 					<maml:description>
 						<maml:para></maml:para>
 					</maml:description>
@@ -116,7 +116,7 @@ Decryptor Function (Decrypt-Object) can use them without need of your input agai
 					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
 				</command:parameter>
 				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="Named">
-					<maml:name>Expirity</maml:name>
+					<maml:name>Expiration</maml:name>
 					<maml:description>
 						<maml:para></maml:para>
 					</maml:description>
@@ -161,7 +161,7 @@ Decryptor Function (Decrypt-Object) can use them without need of your input agai
 					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
 				</command:parameter>
 				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="4">
-					<maml:name>Expirity</maml:name>
+					<maml:name>Expiration</maml:name>
 					<maml:description>
 						<maml:para></maml:para>
 					</maml:description>
@@ -230,7 +230,7 @@ Decryptor Function (Decrypt-Object) can use them without need of your input agai
 					<command:parameterValue required="true" variableLength="false">string</command:parameterValue>
 				</command:parameter>
 				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
-					<maml:name>Expirity</maml:name>
+					<maml:name>Expiration</maml:name>
 					<maml:description>
 						<maml:para></maml:para>
 					</maml:description>
@@ -254,7 +254,7 @@ Decryptor Function (Decrypt-Object) can use them without need of your input agai
 					<command:parameterValue required="true" variableLength="false"></command:parameterValue>
 				</command:parameter>
 				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="1">
-					<maml:name>Expirity</maml:name>
+					<maml:name>Expiration</maml:name>
 					<maml:description>
 						<maml:para></maml:para>
 					</maml:description>
@@ -405,7 +405,7 @@ Decryptor Function (Decrypt-Object) can use them without need of your input agai
 				<dev:defaultValue></dev:defaultValue>
 			</command:parameter>
 			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
-				<maml:name>Expirity</maml:name>
+				<maml:name>Expiration</maml:name>
 				<maml:description>
 					<maml:para></maml:para>
 				</maml:description>
@@ -417,7 +417,7 @@ Decryptor Function (Decrypt-Object) can use them without need of your input agai
 				<dev:defaultValue></dev:defaultValue>
 			</command:parameter>
 			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
-				<maml:name>KeyExpirity</maml:name>
+				<maml:name>KeyExpiration</maml:name>
 				<maml:description>
 					<maml:para></maml:para>
 				</maml:description>
@@ -847,7 +847,7 @@ $dec = Decrypt-Object $enc -Password $([K3Y]::GetPassword()) -PublicKey $(cat .\
 					<command:parameterValue required="true" variableLength="false">securestring</command:parameterValue>
 				</command:parameter>
 				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
-					<maml:name>Expirity</maml:name>
+					<maml:name>Expiration</maml:name>
 					<maml:description>
 						<maml:para></maml:para>
 					</maml:description>
@@ -885,7 +885,7 @@ $dec = Decrypt-Object $enc -Password $([K3Y]::GetPassword()) -PublicKey $(cat .\
 					<command:parameterValue required="true" variableLength="false">securestring</command:parameterValue>
 				</command:parameter>
 				<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="3">
-					<maml:name>Expirity</maml:name>
+					<maml:name>Expiration</maml:name>
 					<maml:description>
 						<maml:para></maml:para>
 					</maml:description>
@@ -955,7 +955,7 @@ $dec = Decrypt-Object $enc -Password $([K3Y]::GetPassword()) -PublicKey $(cat .\
 				<dev:defaultValue></dev:defaultValue>
 			</command:parameter>
 			<command:parameter required="false" variableLength="false" globbing="false" pipelineInput="false" position="2">
-				<maml:name>Expirity</maml:name>
+				<maml:name>Expiration</maml:name>
 				<maml:description>
 					<maml:para></maml:para>
 				</maml:description>
