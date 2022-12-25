@@ -12,11 +12,11 @@
 .EXAMPLE
     PS C:\> # Try this:
     PS C:\> iex $((Invoke-RestMethod -Method Get https://api.github.com/gists/217860de99e8ddb89a8820add6f6980f).files.'Nerdcrypt.Core.ps1'.content)
-    PS C:\> $Obj = [NerdCrypt]::new("H3llo W0rld!");
+    PS C:\> $Obj = [NerdCrypt]::new("Crypt0gr4Phy Rocks!");
     PS C:\> $eOb = $Obj.Encrypt(3); # Encrypt 3 times
     PS C:\> $dOb = $Obj.Decrypt(3); # Decrypt 3 times
-    PS C:\> [xconvert]::BytesToObject($dOb);
-    PS C:\> #You get back: H3llo W0rld!
+    PS C:\> echo ([xconvert]::BytesToObject($dOb))
+    PS C:\> #You get back: Crypt0gr4Phy Rocks!
 #>
 # Import the necessary assemblies
 Add-Type -AssemblyName System.Security;
@@ -316,7 +316,7 @@ class XConvert {
     XConvert() {}
     [string]static Tostring([k3Y]$K3Y) {
         if ($null -eq $K3Y) { return [string]::Empty };
-        $NotNullProps = ('User', 'UID', 'Expirity');
+        $NotNullProps = ('User', 'UID', 'Expiration');
         $K3Y | Get-Member -MemberType Properties | ForEach-Object { $Prop = $_.Name; if ($null -eq $K3Y.$Prop -and $Prop -in $NotNullProps) { throw [System.ArgumentNullException]::new($Prop) } };
         $CustomObject = [xconvert]::ToPSObject($K3Y);
         return [string][xconvert]::ToCompressed([System.Convert]::ToBase64String([XConvert]::BytesFromObject($CustomObject)));
@@ -1410,20 +1410,20 @@ class CredentialManager {
 }
 #endregion vaultStuff
 
-#region    securecodes~Expirity
-Class Expirity {
+#region    securecodes~Expiration
+Class Expiration {
     [Datetime]$Date
     [Timespan]$TimeSpan
     [String]$TimeStamp
     [ExpType]$Type
 
-    Expirity() {
+    Expiration() {
         $this.TimeSpan = [Timespan]::FromMilliseconds([DateTime]::Now.Millisecond)
         $this.Date = [datetime]::Now + $this.TimeSpan
         $this.setExpType($this.TimeSpan);
         $this.setTimeStamp($this.TimeSpan);
     }
-    Expirity([int]$Years) {
+    Expiration([int]$Years) {
         # ($Months, $Years) = if ($Years -eq 1) { (12, 0) }else { (0, $Years) };
         # $CrDate = [datetime]::Now;
         # $Months = [int]($CrDate.Month + $Months); if ($Months -gt 12) { $Months -= 12 };
@@ -1432,30 +1432,30 @@ Class Expirity {
         $this.setExpType($this.TimeSpan);
         $this.setTimeStamp($this.TimeSpan);
     }
-    Expirity([int]$Years, [int]$Months) {
+    Expiration([int]$Years, [int]$Months) {
         $this.TimeSpan = [Timespan]::new((365 * $years + $Months * 30), 0, 0, 0);
         $this.Date = [datetime]::Now + $this.TimeSpan
         $this.setExpType($this.TimeSpan);
         $this.setTimeStamp($this.TimeSpan);
     }
-    Expirity([datetime]$date) {
+    Expiration([datetime]$date) {
         $this.Date = $date
         $this.TimeSpan = $date - [datetime]::Now;
         $this.setExpType($this.TimeSpan);
         $this.setTimeStamp($this.TimeSpan);
     }
-    Expirity([System.TimeSpan]$TimeSpan) {
+    Expiration([System.TimeSpan]$TimeSpan) {
         $this.TimeSpan = $TimeSpan;
         $this.Date = [datetime]::Now + $this.TimeSpan
         $this.setExpType($this.TimeSpan);
         $this.setTimeStamp($this.TimeSpan);
     }
-    Expirity([int]$hours, [int]$minutes, [int]$seconds) {
+    Expiration([int]$hours, [int]$minutes, [int]$seconds) {
         $this.TimeSpan = [Timespan]::new($hours, $minutes, $seconds);
         $this.setExpType($this.TimeSpan);
         $this.setTimeStamp($this.TimeSpan);
     }
-    Expirity([int]$days, [int]$hours, [int]$minutes, [int]$seconds) {
+    Expiration([int]$days, [int]$hours, [int]$minutes, [int]$seconds) {
         $this.TimeSpan = [Timespan]::new($days, $hours, $minutes, $seconds)
         $this.Date = [datetime]::Now + $this.TimeSpan
         $this.setExpType($this.TimeSpan);
@@ -1493,7 +1493,7 @@ Class Expirity {
         return $this.Date.ToString();
     }
 }
-#endregion securecodes~Expirity
+#endregion securecodes~Expiration
 
 #region    Usual~Algorithms
 
@@ -1907,8 +1907,8 @@ class X509cr {
         $this.Cert = $Certificate
         $this._init()
     }
-    X509cr ([string]$Type, [string]$Subject, [string]$CertStoreLocation, [securestring]$Pin, [System.DateTime]$ExpirityDate) {
-        ($this.Type, $this.Subject, $this.StoreLocation, $this.Pin, $this.Expirity) = ($Type, $Subject, $CertStoreLocation, $Pin, $ExpirityDate)
+    X509cr ([string]$Type, [string]$Subject, [string]$CertStoreLocation, [securestring]$Pin, [System.DateTime]$ExpirationDate) {
+        ($this.Type, $this.Subject, $this.StoreLocation, $this.Pin, $this.Expiration) = ($Type, $Subject, $CertStoreLocation, $Pin, $ExpirationDate)
         $this._init()
     }
     [System.Security.Cryptography.X509Certificates.X509Certificate2]CreateCertificate() {
@@ -1960,7 +1960,7 @@ class X509cr {
         if ($null -eq $this.KeyProtection) { $this.KeyProtection = 'ProtectHigh' }
         if ($null -eq $this.KeyUsage) { $this.KeyUsage = 'DataEncipherment' }
         if ($null -eq $this.KeyPadding) { $this.KeyPadding = [X509cr]::GetRSAPadding() }
-        if ($null -eq $this.NotAfter) { $this.NotAfter = [Expirity]::new(0, 1).Date } # 30 Days
+        if ($null -eq $this.NotAfter) { $this.NotAfter = [Expiration]::new(0, 1).Date } # 30 Days
         if ($null -eq $this.StoreLocation) { $this.StoreLocation = "Cert:\CurrentUser\My" }
         if ($null -eq $this.Path) { $this.Path = "{0}\{1}" -f $this.StoreLocation, $this.Cert.Thumbprint }
     }
@@ -2202,16 +2202,42 @@ Class FileCryptr {
 }
 #endregion FileCrypter
 
-#region    Custom_Cryptography_Wrapper
-
+#region    Custom_Cryptography_Wrappers
+class Encryptor {
+    [CryptoAlgorithm]hidden $Algorithm
+    Encryptor() {
+        $this.Algorithm = [CryptoAlgorithm]::AES
+    }
+    Encryptor([CryptoAlgorithm]$Algorithm) {
+        $this.Algorithm = $Algorithm
+        # if alg -eq aes => aes + aesgcm
+        # if alg -eq rsa => aes + rsa
+        # if alg -eq ecc => aes + ecc
+    }
+    [byte[]]Encrypt() {
+        return [byte[]]::new(2)
+    }
+}
+class Decryptor {
+    [CryptoAlgorithm]hidden $Algorithm
+    Decryptor() {
+        $this.Algorithm = [CryptoAlgorithm]::AES
+    }
+    Decryptor([CryptoAlgorithm]$Algorithm) {
+        $this.Algorithm = $Algorithm
+    }
+    [byte[]]Decrypt() {
+        return [byte[]]::new(2)
+    }
+}
 #region    _The_K3Y
-# The K3Y can only be used to Once, and its 'UID' [ see .SetK3YUID() method ] is a fancy way of storing the version, user/owner credentials, Compression alg~tm used and Other Info
-# about the most recent use and the person who used it; so it can be analyzed later to verify some rules before being used again. this allows to create complex expiring encryptions.
-# It doen't store the actual passwords, it keeps their hashes.
+# The K3Y 'UID' [ see .SetK3YUID() method ] is a fancy way of storing the version, user/owner credentials, Compression alg~tm used and Other Info
+# about the most recent use and the person who used it; so it can be analyzed later to verify some rules before being used again. This enables the creation of complex expiring encryptions.
+# It does not store or use the actual password; instead, it employs its own 'KDF' and retains a 'SHA1' hash string as securestring objects. idk if this is the most secure way to use but it should work.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingInvokeExpression", '')]
 class K3Y {
     [ValidateNotNullOrEmpty()][CredManaged]$User;
-    [ValidateNotNullOrEmpty()][Expirity]$Expirity = [Expirity]::new(0, 1); # Default is 30 days
+    [ValidateNotNullOrEmpty()][Expiration]$Expiration = [Expiration]::new(0, 1); # Default is 30 days
     [ValidateNotNullOrEmpty()][keyStoreMode]hidden $StorageMode = [KeyStoreMode]::Securestring;
     [ValidateNotNullOrEmpty()][int]hidden $_PID = $(Get-Variable -Name PID).value;
     [ValidateNotNullOrEmpty()][securestring]hidden $UID;
@@ -2221,30 +2247,35 @@ class K3Y {
         $this.User = [CredManaged]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
         $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
-    K3Y([Datetime]$Expirity) {
+    K3Y([Datetime]$Expiration) {
         $this.User = [CredManaged]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
-        $this.Expirity = [Expirity]::new($Expirity); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
+        $this.Expiration = [Expiration]::new($Expiration); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
-    K3Y([pscredential]$User, [Datetime]$Expirity) {
-        ($this.User, $this.Expirity) = ([CredManaged]::new($User), [Expirity]::new($Expirity)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
+    K3Y([pscredential]$User, [Datetime]$Expiration) {
+        ($this.User, $this.Expiration) = ([CredManaged]::new($User), [Expiration]::new($Expiration)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([string]$UserName, [securestring]$Password) {
         $this.User = [CredManaged]::new([pscredential]::new($UserName, $Password)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
-    K3Y([string]$UserName, [securestring]$Password, [Datetime]$Expirity) {
-        ($this.User, $this.Expirity) = ([CredManaged]::new([pscredential]::new($UserName, $Password)), [Expirity]::new($Expirity)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
+    K3Y([string]$UserName, [securestring]$Password, [Datetime]$Expiration) {
+        ($this.User, $this.Expiration) = ([CredManaged]::new([pscredential]::new($UserName, $Password)), [Expiration]::new($Expiration)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt) {
         return $this.Encrypt($bytesToEncrypt, [K3Y]::GetPassword());
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password) {
-        return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $this.Expirity.Date);
+        return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $this.Expiration.Date);
     }
-    [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [Datetime]$Expirity) {
-        return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $Expirity);
+    [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password, [Datetime]$Expiration) {
+        return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $Expiration);
     }
-    [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$Password, [byte[]]$salt, [string]$Compression, [Datetime]$Expirity) {
-        $Password = [securestring]$this.ResolvePassword($Password); $this.SetK3YUID($Password, $Expirity, $Compression, $this._PID)
+    [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$Password, [byte[]]$salt, [string]$Compression, [Datetime]$Expiration) {
+        return $this.Encrypt($bytesToEncrypt, $password, $salt, $Compression, $Expiration, [CryptoAlgorithm]::AES);
+    }
+    [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$Password, [byte[]]$salt, [string]$Compression, [Datetime]$Expiration, [CryptoAlgorithm]$Algorithm) {
+        $Password = [securestring]$this.ResolvePassword($Password); $this.SetK3YUID($Password, $Expiration, $Compression, $this._PID)
+        # $CryptoServiceProvider = [CustomCryptoServiceProvider]::new($bytesToEncrypt, $Password, $salt, [CryptoAlgorithm]$Algorithm)
+        # $encryptor = $CryptoServiceProvider.CreateEncryptor(); $result = $encryptor.encrypt();
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
@@ -2286,13 +2317,13 @@ class K3Y {
         }
         return $IsUsed
     }
-    [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
-        $this.SetK3YUID($Password, $Expirity, $Compression, $_PID, $false);
+    [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expiration, [string]$Compression, [int]$_PID) {
+        $this.SetK3YUID($Password, $Expiration, $Compression, $_PID, $false);
     }
-    [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID, [bool]$ThrowOnFailure) {
+    [void]hidden SetK3YUID([securestring]$Password, [datetime]$Expiration, [string]$Compression, [int]$_PID, [bool]$ThrowOnFailure) {
         if (!$this.IsUsed()) {
             Invoke-Command -InputObject $this.UID -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
-                        $K3YIdSTR = [string]::Empty; Set-Variable -Name K3YIdSTR -Scope local -Visibility Private -Option Private -Value $([string][K3Y]::GetK3YIdSTR($Password, $Expirity, $Compression, $_PID));
+                        $K3YIdSTR = [string]::Empty; Set-Variable -Name K3YIdSTR -Scope local -Visibility Private -Option Private -Value $([string][K3Y]::GetK3YIdSTR($Password, $Expiration, $Compression, $_PID));
                         Invoke-Expression "`$this.psobject.Properties.Add([psscriptproperty]::new('UID', { ConvertTo-SecureString -AsPlainText -String '$K3YIdSTR' -Force }))";
                     }
                 )
@@ -2302,19 +2333,19 @@ class K3Y {
         }
     }
     [string]GetK3YIdSTR() {
-        return [K3Y]::GetK3YIdSTR($this.User.Password, $this.Expirity.Date, $(Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID)
+        return [K3Y]::GetK3YIdSTR($this.User.Password, $this.Expiration.Date, $(Get-Random ([Enum]::GetNames('Compression' -as 'Type'))), $this._PID)
     }
-    [string]static GetK3YIdSTR([securestring]$Password, [datetime]$Expirity, [string]$Compression, [int]$_PID) {
+    [string]static GetK3YIdSTR([securestring]$Password, [datetime]$Expiration, [string]$Compression, [int]$_PID) {
         if ($null -eq $Password -or $([string]::IsNullOrWhiteSpace([xconvert]::ToString($Password)))) {
             throw [InvalidPasswordException]::new("Please Provide a Password that isn't Null and not a WhiteSpace.", $Password, [System.ArgumentNullException]::new("Password"))
         }
         return [string][xconvert]::BytesToHex([System.Text.Encoding]::UTF7.GetBytes([xconvert]::ToCompressed([xconvert]::StringToCustomCipher(
                         [string][K3Y]::CreateUIDstring([byte[]][XConvert]::BytesFromObject([PSCustomObject]@{
                                     KeyInfo = [xconvert]::BytesFromObject([PSCustomObject]@{
-                                            Expirity = $Expirity
-                                            Version  = [version]::new("1.0.0.1")
-                                            User     = $Env:USERNAME
-                                            PID      = $_PID
+                                            Expiration = $Expiration
+                                            Version    = [version]::new("1.0.0.1")
+                                            User       = $Env:USERNAME
+                                            PID        = $_PID
                                         }
                                     )
                                     BytesCT = [AesLg]::Encrypt(([System.Text.Encoding]::UTF7.GetBytes($Compression)), $Password);
@@ -2358,13 +2389,13 @@ class K3Y {
             $InnerException = $_.Exception
         } finally {
             if ($ThrowOnFailure -and !$IsValid) {
-                throw [System.Management.Automation.RuntimeException]::new('Error. UnauthorizedAccess', $InnerException)
+                throw [InvalidPasswordException]::new("Invalid password", $Passw0rd, $InnerException)
             }
         }
         return $IsValid
     }
     [securestring]ResolvePassword([securestring]$Password) {
-        if (!$this.HasHashedPassword()) {
+        if (!$this.IsHashed()) {
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
                         $hashSTR = [string]::Empty; Set-Variable -Name hashSTR -Scope local -Visibility Private -Option Private -Value $([string][xconvert]::BytesToHex(([PasswordHash]::new([xconvert]::ToString($password)).ToArray())));
                         Invoke-Expression "`$this.User.psobject.Properties.Add([psscriptproperty]::new('Password', { ConvertTo-SecureString -AsPlainText -String '$hashSTR' -Force }))";
@@ -2382,9 +2413,7 @@ class K3Y {
         Set-Variable -Name handle -Scope Local -Visibility Private -Option Private -Value $([System.Runtime.InteropServices.Marshal]::StringToHGlobalAnsi($Passw0rd));
         if ([K3Y]::VerifyPassword($Passw0rd, $SecHash)) {
             try {
-                if ([System.Environment]::UserInteractive) {
-                    Write-Debug "[i] Using Password, With Hash: $([xconvert]::Tostring($SecHash))" -Debug
-                }
+                if ([System.Environment]::UserInteractive) { (Get-Variable host).Value.UI.WriteDebugLine("  [i] Using Password, With Hash: $([xconvert]::Tostring($SecHash))") }
                 # This next line is like a KDF. ie: If this was a Powershell function it would be named Get-KeyFromPassword
                 $derivedKey = [xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.Rfc2898DeriveBytes]::new($Passw0rd, $this.rgbSalt, 10000, [System.Security.Cryptography.HashAlgorithmName]::SHA1).GetBytes(256 / 8)));
                 # Most people use utf8, so I use 'UTF7 instead. (Just to be extra cautious)
@@ -2406,36 +2435,43 @@ class K3Y {
             Throw [System.UnauthorizedAccessException]::new('Wrong Password.', [InvalidPasswordException]::new());
         }
     }
-    [bool]HasHashedPassword() {
-        return $this.HasHashedPassword($false);
+    [bool]IsHashed() {
+        return $this.IsHashed($false);
     }
-    [bool]static HasHashedPassword([K3Y]$k3y) {
+    [bool]static IsHashed([K3Y]$k3y) {
         $ThrowOnFailure = $false
-        return [K3Y]::HasHashedPassword($k3y, $ThrowOnFailure);
+        return [K3Y]::IsHashed($k3y, $ThrowOnFailure);
     }
-    [bool]HasHashedPassword([bool]$ThrowOnFailure) {
-        return [K3Y]::HasHashedPassword($this, $ThrowOnFailure);
+    [bool]IsHashed([bool]$ThrowOnFailure) {
+        return [K3Y]::IsHashed($this, $ThrowOnFailure);
     }
-    [bool]static HasHashedPassword([K3Y]$k3y, [bool]$ThrowOnFailure) {
-        # Verifies if The password has already been set.
+    [bool]static IsHashed([K3Y]$k3y, [bool]$ThrowOnFailure) {
+        # Verifies if The password (the one only you know) has already been hashed
         [bool]$SetValu3Exception = $false; [securestring]$p = $k3y.User.Password; $InnerException = [System.Exception]::new()
-        [bool]$HasHashedPassword = [regex]::IsMatch([string][xconvert]::ToString($k3y.User.Password), "^[A-Fa-f0-9]{72}$");
+        [bool]$IsHashed = [regex]::IsMatch([string][xconvert]::ToString($k3y.User.Password), "^[A-Fa-f0-9]{72}$");
         try {
-            $k3y.User.Password = [securestring]::new()
+            $k3y.User.Password = [securestring]::new() # This will not work if the hash has been set
         } catch [System.Management.Automation.SetValueException] {
             $SetValu3Exception = $true
         } catch {
             $InnerException = $_.Exception
         } finally {
-            $HasHashedPassword = $HasHashedPassword -and $SetValu3Exception
+            $IsHashed = $IsHashed -and $SetValu3Exception
         }
         if (!$SetValu3Exception) {
             $k3y.User.Password = $p
         }
-        if ($ThrowOnFailure -and !$HasHashedPassword) {
+        if ($ThrowOnFailure -and !$IsHashed) {
             throw [System.InvalidOperationException]::new('Operation is not valid due to the current state of the object. No password Hash found.', $InnerException)
         }
-        return $HasHashedPassword
+        return $IsHashed
+    }
+    [Encryptor] CreateEncryptor([byte[]]$bytesToEncrypt, [securestring]$Password, [byte[]]$salt, [CryptoAlgorithm]$Algorithm) {
+        # Usage Example: $encryptor = $this.CreateEncryptor($bytesToEncrypt, $Password, $salt, [CryptoAlgorithm]$Algorithm); $result = $encryptor.encrypt();
+        return [Encryptor]::new()
+    }
+    [Decryptor] CreateDecryptor([byte[]]$bytesToDecrypt, [securestring]$Password, [byte[]]$salt, [CryptoAlgorithm]$Algorithm) {
+        return [Decryptor]::new()
     }
     [string]hidden static CreateUIDstring([byte[]]$bytes) {
         # 'UIDstring' containing the timestamp, expiry, Compression, rgbSalt, and other information for later analysis.
@@ -2449,7 +2485,7 @@ class K3Y {
         $Prefix = [string]::Empty;
         $Splitr = [string]::Empty;
         $keyUID = [string]::Empty;
-        $key_Ex = [Expirity]::new($KeyI_Obj.Expirity);
+        $key_Ex = [Expiration]::new($KeyI_Obj.Expiration);
         $bc = [string]::Empty; $kc = [string]::Empty;
         # Add a prefix String so that I can tell how old the K3YString is just by looking at it.
         ($Prefix, $Splitr) = switch ($key_Ex.Type.ToString()) {
@@ -2511,7 +2547,7 @@ class K3Y {
             $Min = [int][string]::Join('', $c[2..3])
             $ebc = [byte[]][xconvert]::BytesFromRnStr($_rc)
             $Info_Obj = [xconvert]::BytesToObject([xconvert]::BytesFromRnStr($_rk))
-            $Is_Valid = $($Info_Obj.Expirity - [datetime]::Now) -ge [timespan]::new(0)
+            $Is_Valid = $($Info_Obj.Expiration - [datetime]::Now) -ge [timespan]::new(0)
             $B_C_type = $(try { [System.Text.Encoding]::UTF7.GetString([AesLg]::Decrypt($ebc, $Password)) }catch { if ($ThrowOnFailure) { throw [System.InvalidOperationException]::new("Please Provide a valid Password.", [System.UnauthorizedAccessException]::new('Wrong Password')) }else { [string]::Empty } }); # (Byte Compression Type)
             $EncrDate = Get-Date -Month $Mon -Day $Day -Hour $Hrs -Minute $Min # An estimate of when was the last encryption Done
             $Output = ($Is_Valid, $Info_Obj, $B_C_type, $EncrDate);
@@ -2522,9 +2558,9 @@ class K3Y {
         }
         if ($CreateReport) {
             return [PSCustomObject]@{
-                Summary        = "K3Y $(if ([K3Y]::HasHashedPassword($K3Y)) { 'Last used' }else { 'created' }) on: $($Output[3]), PID: $($Output[1].PID), by: $($Output[1].User)."
+                Summary        = "K3Y $(if ([K3Y]::IsHashed($K3Y)) { 'Last used' }else { 'created' }) on: $($Output[3]), PID: $($Output[1].PID), by: $($Output[1].User)."
                 Version        = $Output[1].Version
-                ExpirationDate = $Output[1].Expirity.date
+                ExpirationDate = $Output[1].Expiration.date
                 Compression    = $Output[2]
                 LastUsedOn     = $Output[3]
                 UserName       = $Output[1].User
@@ -2552,10 +2588,19 @@ class K3Y {
     }
     [void]Export([string]$FilePath, [bool]$encrypt) {
         $ThrowOnFailure = $true; [void]$this.IsUsed($ThrowOnFailure)
-        $FilePath = [xgen]::ResolvedPath($FilePath)
+        $FilePath = [xgen]::UnResolvedPath($FilePath)
         if (![IO.File]::Exists($FilePath)) { New-Item -Path $FilePath -ItemType File | Out-Null }
         Set-Content -Path $FilePath -Value ([xconvert]::Tostring($this)) -Encoding UTF8 -NoNewline;
         if ($encrypt) { $(Get-Item $FilePath).Encrypt() }
+        # Select the optimal data compression algorithm based on the length of the input string
+        #     [string]::Empty $algorithm =[string]::Empty;
+        #     if ($inputString.Length -lt 1000){
+        #         $algorithm = "Deflate";
+        #     } elseif ($inputString.Length -lt 10000) {
+        #         $algorithm = "LZMA";
+        #     } else {
+        #         $algorithm = "Zstandard"; # use zstd.exe to compress the outputfile
+        #     }
     }
     [K3Y]Import([string]$StringK3y) {
         $K3Y = $null; Set-Variable -Name K3Y -Scope Local -Visibility Private -Option Private -Value ([K3Y]::Create($StringK3y));
@@ -2586,7 +2631,7 @@ class K3Y {
         return $IsStillValid
     }
     [void]SaveToVault() {
-        $ThrowOnFailure = $true; [void]$this.HasHashedPassword($ThrowOnFailure)
+        $ThrowOnFailure = $true; [void]$this.IsHashed($ThrowOnFailure)
         $_Hash = [xconvert]::ToString($this.User.Password); $RName = 'PNKey' + $_Hash
         $_Cred = New-Object -TypeName CredManaged -ArgumentList ($RName, $this.User.UserName, [xconvert]::Tostring($this))
         Write-Verbose "[i] Saving $RName To Vault .."
@@ -2596,7 +2641,7 @@ class K3Y {
 }
 #endregion _The_K3Y
 
-#endregion Custom_Cryptography_Wrapper
+#endregion Custom_Cryptography_Wrappers
 
 #endregion Helpers
 
@@ -2744,7 +2789,7 @@ function New-K3Y {
         # Expiration date
         [Parameter(Position = 2, Mandatory = $false, ParameterSetName = 'default')]
         [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'byPscredential')]
-        [datetime]$Expirity,
+        [datetime]$Expiration,
 
         # Convert to string (sharable)
         [Parameter(Mandatory = $false, ParameterSetName = '__AllParameterSets')]
@@ -2761,10 +2806,10 @@ function New-K3Y {
     }
     process {
         $k3y = $(if ($PSCmdlet.ParameterSetName -eq 'byPscredential') {
-                if ($params.ContainsKey('User') -and $params.ContainsKey('Expirity')) {
-                    [K3Y]::New($User, $Expirity);
+                if ($params.ContainsKey('User') -and $params.ContainsKey('Expiration')) {
+                    [K3Y]::New($User, $Expiration);
                 } else {
-                    # It means: $params.ContainsKey('User') -and !$params.ContainsKey('Expirity')
+                    # It means: $params.ContainsKey('User') -and !$params.ContainsKey('Expiration')
                     [datetime]$ExpiresOn = if ($IsInteractive) {
                         [int]$days = Read-Host -Prompt "Expires In (replie num of days)"
                         [datetime]::Now + [Timespan]::new($days, 0, 0, 0);
@@ -2774,26 +2819,26 @@ function New-K3Y {
                     [K3Y]::New($User, $ExpiresOn);
                 }
             } elseif ($PSCmdlet.ParameterSetName -eq 'default') {
-                if ($params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and $params.ContainsKey('Expirity')) {
-                    [K3Y]::New($UserName, $Password, $Expirity);
-                } elseif ($params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and !$params.ContainsKey('Expirity')) {
+                if ($params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and $params.ContainsKey('Expiration')) {
+                    [K3Y]::New($UserName, $Password, $Expiration);
+                } elseif ($params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and !$params.ContainsKey('Expiration')) {
                     [K3Y]::New($UserName, $Password);
-                } elseif ($params.ContainsKey('UserName') -and !$params.ContainsKey('Password') -and !$params.ContainsKey('Expirity')) {
+                } elseif ($params.ContainsKey('UserName') -and !$params.ContainsKey('Password') -and !$params.ContainsKey('Expiration')) {
                     $passwd = if ($IsInteractive) { Read-Host -AsSecureString -Prompt "Password" } else { [securestring]::new() }
                     [K3Y]::New($UserName, $passwd);
-                } elseif (!$params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and !$params.ContainsKey('Expirity')) {
+                } elseif (!$params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and !$params.ContainsKey('Expiration')) {
                     $usrName = if ($IsInteractive) { Read-Host -Prompt "UserName" } else { [System.Environment]::GetEnvironmentVariable('UserName') }
                     [K3Y]::New($usrName, $Password);
-                } elseif (!$params.ContainsKey('UserName') -and !$params.ContainsKey('Password') -and $params.ContainsKey('Expirity')) {
+                } elseif (!$params.ContainsKey('UserName') -and !$params.ContainsKey('Password') -and $params.ContainsKey('Expiration')) {
                     if ($IsInteractive) {
                         $usrName = Read-Host -Prompt "UserName"; $passwd = Read-Host -AsSecureString -Prompt "Password";
                         [K3Y]::New($usrName, $passwd);
                     } else {
-                        [K3Y]::New($Expirity);
+                        [K3Y]::New($Expiration);
                     }
-                } elseif (!$params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and $params.ContainsKey('Expirity')) {
+                } elseif (!$params.ContainsKey('UserName') -and $params.ContainsKey('Password') -and $params.ContainsKey('Expiration')) {
                     $usrName = if ($IsInteractive) { Read-Host -Prompt "UserName" } else { [System.Environment]::GetEnvironmentVariable('UserName') }
-                    [K3Y]::New($usrName, $Password, $Expirity);
+                    [K3Y]::New($usrName, $Password, $Expiration);
                 } else {
                     [K3Y]::New();
                 }
@@ -2871,14 +2916,14 @@ function Encrypt-Object {
         [Alias('ExportFile')]
         [string]$KeyOutFile,
 
-        # How long you want the encryption to last. Default to one month (!Caution Your data will be LOST Forever if you do not decrypt before the expirity date!)
+        # How long you want the encryption to last. Default to one month (!Caution Your data will be LOST Forever if you do not decrypt before the Expiration date!)
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithVault')]
         [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WithKey')]
         [Parameter(Mandatory = $false, Position = 3, ParameterSetName = 'WithPlainKey')]
         [Parameter(Mandatory = $false, Position = 3, ParameterSetName = 'WithSecureKey')]
         [ValidateNotNullOrEmpty()]
-        [Alias('KeyExpirity')]
-        [datetime]$Expirity = ([Datetime]::Now + [TimeSpan]::new(30, 0, 0, 0)),
+        [Alias('KeyExpiration')]
+        [datetime]$Expiration = ([Datetime]::Now + [TimeSpan]::new(30, 0, 0, 0)),
 
         [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WithSecureKey')]
         [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WithPlainKey')]
@@ -2978,12 +3023,12 @@ function Encrypt-Object {
             }
         );
         Set-Variable -Name nc -Scope Local -Visibility Private -Option Private -Value $([nerdcrypt]::new($Object));
-        if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('Expirity')) { $nc.key.Expirity = [Expirity]::new($Expirity) }
+        if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('Expiration')) { $nc.key.Expiration = [Expiration]::new($Expiration) }
         if ($PsCmdlet.MyInvocation.BoundParameters.ContainsKey('PublicKey')) {
             $nc.SetPNKey($PublicKey);
         } else {
             Write-Verbose "[+] Create PublicKey (K3Y) ...";
-            $PNK = New-K3Y -UserName $nc.key.User.UserName -Password $PsW -Expirity $nc.key.Expirity.date -AsString -Protect
+            $PNK = New-K3Y -UserName $nc.key.User.UserName -Password $PsW -Expiration $nc.key.Expiration.date -AsString -Protect
             $nc.SetPNKey($PNK);
         }
         $bytes = $nc.Object.Bytes
