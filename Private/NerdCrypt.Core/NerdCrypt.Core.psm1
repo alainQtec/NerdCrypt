@@ -64,11 +64,19 @@ enum CryptoAlgorithm {
     ECC # (Elliptic Curve Cryptography) Asymmetric-key encryption algorithms that are known for their strong security and efficient use of resources. They are widely used in a variety of applications, including secure communication, file encryption, and password storage.
     AESGCM # A mode of operation for the AES encryption algorithm that combines confidentiality and authenticity, and is widely used in a variety of applications, including secure communication and file encryption.
 }
+# System.Security.Cryptography.RSAEncryptionPadding Names
+enum RSAPadding {
+    Pkcs1
+    OaepSHA1
+    OaepSHA256
+    OaepSHA384
+    OaepSHA512
+}
 enum Compression {
     Gzip
     Deflate
     ZLib
-    # Zstd # Todo: Add Zstandard. (from facebook. I jusst can't find a way to make it work in powershell! no dll nothing!)
+    # Zstd # Todo: Add Zstandard. (The one from faceboo. or maybe zstd-sharp idk. I just can't find a way to make it work in powershell! no dll nothing!)
 }
 # [xgen]::Enumerator('ExpType', ('Milliseconds', 'Years', 'Months', 'Days', 'Hours', 'Minutes', 'Seconds'))
 
@@ -1499,22 +1507,15 @@ Class Expiration {
 #region    Usual~Algorithms
 
 #region    Aes~algo
+# System.Security.Cryptography.Aes wrapper
+# By default the encrypt method uses CBC ciphermode, AES-256 (The str0ng3st Encryption In z3 WOrLd!), uses SHA1 to hash since it has been proven to be more secure than MD5.
+# aand the result is compressed. plus there is the option to stack encryptions by iteration. (But beware when you iterate much it produces larger output)
 class AesLg {
     [ValidateNotNullOrEmpty()][byte[]]hidden static $Bytes;
-    [ValidateNotNullOrEmpty()][System.Security.Cryptography.Aes]hidden static $Algo;
-    [ValidateNotNullOrEmpty()][byte[]]hidden static $rgbSalt;
 
-    AesLg() {
-        [AesLg]::rgbSalt = [System.Text.Encoding]::UTF7.GetBytes('^;aq8nP#*A(j 8u[HiFH.Fm,7ykX5F$pEk,baM;m^"j<DYCj":8GTN)BGlA)zWP@C#D|O/A!Ccm8o\|(mRcnX_ qTj=;iY3+.u9CNv[/aHgObS\smT$39<4F=k">r"6dM-"VmSE}Y8s#>3geZnPE&}KNseg(-X{LU2v"i9kV>g:s8{;<4;9fTzG=n/ARV#Cq69]SBhj^-D@K<ci)Gv]G');
-    }
+    AesLg() {}
     AesLg([System.Object]$Obj) {
         [AesLg]::SetBytes($Obj); [void][AesLg]::Create();
-    }
-    AesLg([System.Security.Cryptography.Aes]$aes) {
-        [AesLg]::Algo = $aes; [void][AesLg]::Create();
-    }
-    AesLg([System.Object]$Obj, [System.Security.Cryptography.Aes]$aes) {
-        [AesLg]::SetBytes($Obj); [AesLg]::Algo = $aes; [void][AesLg]::Create();
     }
     [void]static SetBytes([byte[]]$Bytes) {
         [AesLg]::Bytes = $Bytes;
@@ -1522,16 +1523,29 @@ class AesLg {
     [void]static SetBytes([Object]$Object) {
         [AesLg]::SetBytes([xconvert]::BytesFromObject($Object));
     }
+    [byte[]] Encrypt() {
+        if ($null -eq [AesLg]::Bytes) {
+            throw [Exception]::new('Please Set Bytes First');
+        }
+        return [AesLg]::Encrypt(1);
+    }
     [byte[]]static Encrypt() {
         return [AesLg]::Encrypt(1);
     }
     [byte[]]static Encrypt([int]$iterations) {
-        $d3faultP4ssW0rd = $null; Set-Variable -Name P4ssW0rd -Scope Local -Visibility Private -Option Private -Value ([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new([xgen]::UniqueMachineId(), [AesLg]::rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
-        $3nc = [AesLg]::Encrypt($iterations, $d3faultP4ssW0rd); Remove-Variable -Name d3faultP4ssW0rd -Scope Local -Force
-        return $3nc;
+        $eNcrypt3dBytes = $null; $d3faultP4ssW0rd = $null;
+        try {
+            Set-Variable -Name d3faultP4ssW0rd -Scope Local -Visibility Private -Option Private -Value ([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new([xgen]::UniqueMachineId(), [byte[]](166, 153, 228, 202, 200, 222, 126, 88, 90, 201, 219, 176), 'SHA1', 2).GetBytes(256 / 8))));
+            $eNcrypt3dBytes = [AesLg]::Encrypt($iterations, $d3faultP4ssW0rd);
+        } catch {
+            throw $_.Exeption # todo: create a custom exception for this.
+        } finally {
+            Remove-Variable d3faultP4ssW0rd -Force -ErrorAction SilentlyContinue
+        }
+        return $eNcrypt3dBytes;
     }
     [byte[]]static Encrypt([int]$iterations, [securestring]$Password) {
-        return [AesLg]::Encrypt($iterations, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'))
+        return [AesLg]::Encrypt($iterations, $Password, [Convert]::FromBase64String('bz07LmY5XiNkXW1WQjxdXw=='))
     }
     [byte[]]static Encrypt([int]$iterations, [securestring]$Password, [byte[]]$Salt) {
         if ($null -eq [AesLg]::Bytes) { throw [System.ArgumentNullException]::new('bytes', 'Bytes Value cannot be null. Please first use setbytes()') }
@@ -1544,10 +1558,10 @@ class AesLg {
         return [AesLg]::Bytes;
     }
     [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password) {
-        return [AesLg]::Encrypt($Bytes, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'));
+        return [AesLg]::Encrypt($Bytes, $Password, [Convert]::FromBase64String('bz07LmY5XiNkXW1WQjxdXw=='));
     }
     [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [int]$iterations) {
-        $_bytes = $Bytes; $Salt = [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_')
+        $_bytes = $Bytes; $Salt = [Convert]::FromBase64String('bz07LmY5XiNkXW1WQjxdXw==')
         for ($i = 1; $i -lt $iterations + 1; $i++) {
             Write-Verbose "[+] Encryption [$i/$iterations] ...$(
                 $_bytes = [AesLg]::Encrypt($_bytes, $Password, $Salt)
@@ -1556,7 +1570,7 @@ class AesLg {
         return $_bytes;
     }
     [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [bool]$Protect) {
-        return [AesLg]::Encrypt($Bytes, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'), 'Gzip', $Protect);
+        return [AesLg]::Encrypt($Bytes, $Password, [Convert]::FromBase64String('bz07LmY5XiNkXW1WQjxdXw=='), 'Gzip', $Protect);
     }
     [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [byte[]]$Salt) {
         return [AesLg]::Encrypt($Bytes, $Password, $Salt, 'Gzip', $false);
@@ -1565,23 +1579,20 @@ class AesLg {
         return [AesLg]::Encrypt($Bytes, $Password, $Salt, 'Gzip', $Protect);
     }
     [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [string]$Compression) {
-        return [AesLg]::Encrypt($Bytes, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'), $Compression, $false);
+        return [AesLg]::Encrypt($Bytes, $Password, [Convert]::FromBase64String('bz07LmY5XiNkXW1WQjxdXw=='), $Compression, $false);
     }
     [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [byte[]]$Salt, [string]$Compression) {
         return [AesLg]::Encrypt($Bytes, $Password, $Salt, $Compression, $false);
     }
-    #A simple method that takes plainBytes and Password then return an AES encrypted bytes.
-    #No other Technical parameters or anything, just your Plaintext and [securestring]Password. The password is used to generate derived Key.
-    #The encryption uses AES-256 (The str0ng3st Encryption In z3 WOrLd!) and uses SHA1 to hash since it has been proven to be more secure than MD5.
     [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [byte[]]$Salt, [string]$Compression, [bool]$Protect) {
-        [int]$PasswordIterations = 2; [int]$KeySize = 256; $CryptoProvider = $null; $EncrBytes = $null
+        [int]$PasswordIterations = 10000; [int]$KeySize = 256; $CryptoProvider = $null; $EncrBytes = $null
         if ($Compression -notin ([Enum]::GetNames('Compression' -as 'Type'))) { Throw [System.InvalidCastException]::new("The name '$Compression' is not a valid [Compression]`$typeName.") }
         Set-Variable -Name CryptoProvider -Scope Local -Visibility Private -Option Private -Value ([System.Security.Cryptography.AesCryptoServiceProvider]::new());
         $CryptoProvider.KeySize = [int]$KeySize;
         $CryptoProvider.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7;
         $CryptoProvider.Mode = [System.Security.Cryptography.CipherMode]::CBC;
         $CryptoProvider.Key = [System.Security.Cryptography.PasswordDeriveBytes]::new([xconvert]::ToString($Password), $Salt, "SHA1", $PasswordIterations).GetBytes($KeySize / 8);
-        $CryptoProvider.IV = [System.Text.Encoding]::ASCII.GetBytes([xconvert]::Reverse($('c#*Y!/JVe?d)b' + [convert]::ToBase64String($Salt))))[0..15];
+        $CryptoProvider.IV = [System.Security.Cryptography.Rfc2898DeriveBytes]::new([xconvert]::Tostring($password), $salt, "SHA1", 1000).GetBytes(16);
         Set-Variable -Name EncrBytes -Scope Local -Visibility Private -Option Private -Value $($CryptoProvider.IV + $CryptoProvider.CreateEncryptor().TransformFinalBlock($Bytes, 0, $Bytes.Length));
         if ($Protect) { $EncrBytes = [xconvert]::ToProtected($EncrBytes, $Salt, [ProtectionScope]::CurrentUser) }
         Set-Variable -Name EncrBytes -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToCompressed($EncrBytes, $Compression));
@@ -1622,12 +1633,19 @@ class AesLg {
         return [AesLg]::Decrypt(1)
     }
     [byte[]]static Decrypt([int]$iterations) {
-        $d3faultP4ssW0rd = $null; Set-Variable -Name P4ssW0rd -Scope Local -Visibility Private -Option Private -Value ([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new([xgen]::UniqueMachineId(), [AesLg]::rgbSalt, 'SHA1', 2).GetBytes(256 / 8))));
-        $d3c = [AesLg]::Decrypt($iterations, $d3faultP4ssW0rd); Remove-Variable -Name d3faultP4ssW0rd -Scope Local -Force
-        return $d3c
+        $d3cryptedBytes = $null; $d3faultP4ssW0rd = $null;
+        try {
+            Set-Variable -Name d3faultP4ssW0rd -Scope Local -Visibility Private -Option Private -Value ([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new([xgen]::UniqueMachineId(), [byte[]](166, 153, 228, 202, 200, 222, 126, 88, 90, 201, 219, 176), 'SHA1', 2).GetBytes(256 / 8))));
+            $d3cryptedBytes = [AesLg]::Decrypt($iterations, $d3faultP4ssW0rd);
+        } catch {
+            throw $_.Exeption
+        } finally {
+            Remove-Variable d3faultP4ssW0rd -Force -ErrorAction SilentlyContinue
+        }
+        return $d3cryptedBytes
     }
     [byte[]]static Decrypt([int]$iterations, [securestring]$Password) {
-        return [AesLg]::Decrypt($iterations, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'))
+        return [AesLg]::Decrypt($iterations, $Password, [Convert]::FromBase64String('bz07LmY5XiNkXW1WQjxdXw=='))
     }
     [byte[]]static Decrypt([int]$iterations, [SecureString]$Password, [byte[]]$salt) {
         if ($null -eq [AesLg]::Bytes) { throw [System.ArgumentNullException]::new('bytes', 'Bytes Value cannot be null. Please first use setbytes()') }
@@ -1643,7 +1661,7 @@ class AesLg {
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, 'Gzip');
     }
     [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password, [int]$iterations) {
-        $_bytes = $bytesToDecrypt; $Salt = [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_')
+        $_bytes = $bytesToDecrypt; $Salt = [Convert]::FromBase64String('bz07LmY5XiNkXW1WQjxdXw==')
         for ($i = 1; $i -lt $iterations + 1; $i++) {
             Write-Verbose "[+] Decryption [$i/$iterations] ...$(
                 $_bytes = [AesLg]::Decrypt($_bytes, $Password, $Salt)
@@ -1652,7 +1670,7 @@ class AesLg {
         return $_bytes;
     }
     [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password, [bool]$UnProtect) {
-        return [AesLg]::Decrypt($bytesToDecrypt, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'), 'GZip', $UnProtect);
+        return [AesLg]::Decrypt($bytesToDecrypt, $Password, [Convert]::FromBase64String('bz07LmY5XiNkXW1WQjxdXw=='), 'GZip', $UnProtect);
     }
     [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password, [byte[]]$Salt) {
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $Salt, 'GZip', $false);
@@ -1664,7 +1682,7 @@ class AesLg {
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, $Salt, $Compression, $false);
     }
     [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password, [string]$Compression) {
-        return [AesLg]::Decrypt($bytesToDecrypt, $Password, [System.Text.Encoding]::ASCII.GetBytes('o=;.f9^#d]mVB<]_'), $Compression, $false);
+        return [AesLg]::Decrypt($bytesToDecrypt, $Password, [Convert]::FromBase64String('bz07LmY5XiNkXW1WQjxdXw=='), $Compression, $false);
     }
     [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password, [byte[]]$Salt, [string]$Compression, [bool]$UnProtect) {
         [int]$PasswordIterations = 2; [int]$KeySize = 256; $CryptoProvider = $null; $DEcrBytes = $null; $_Bytes = $null
@@ -1812,12 +1830,12 @@ class RNGlg : NcObject {
 #endregion rng~algo
 
 #region    RSA~algo
-class RSAEncryption {
+class RSA {
     $publicKeyXml = ""
-    $privateKeyXml = ""
+    $privateKeyXml = "" # todo: Encrypted and a Securestring
 
     # Constructor
-    RSAEncryption([string]$publicKeyXml, [string]$privateKeyXml) {
+    RSA([string]$publicKeyXml, [string]$privateKeyXml) {
         $this.publicKeyXml = $publicKeyXml
         $this.privateKeyXml = $privateKeyXml # (encrypted string)
     }
@@ -1869,7 +1887,7 @@ class RSAEncryption {
 
         # Decrypt the AES key and initialization vector using RSA
         $rsa = [System.Security.Cryptography.RSACryptoServiceProvider]::new()
-        # todo: Use the $pASSWORD to decrypt the private key so it can be used
+        # todo: Use the $PASSWORD to decrypt the private key so it can be used
         $rsa.FromXmlString($this.privateKeyXml)
         $aesKey = $rsa.Decrypt($encryptedKey, $true)
         $aesIV = $rsa.Decrypt($encryptedIV, $true)
@@ -1930,68 +1948,12 @@ class RSAEncryption {
         return $publicKey, $privateKey
     }
 }
+#endregion RSA~algo
 
-class RSAlg : NcObject {
-    [string]$String
-    [ValidateNotNullOrEmpty()][X509cr]$X509cr
-    RSAlg () {
-        $this._init()
-    }
-    RSAlg ([byte[]]$Bytes) {
-        $this.Bytes = $Bytes
-        $this._init()
-    }
-    RSAlg ([X509cr]$X509cr) {
-        $this.X509cr = $X509cr
-        $this._init()
-    }
-    RSAlg ([System.Security.Cryptography.X509Certificates.X509Certificate2]$X509Certificate2) {
-        $this._init()
-        $this.X509cr.Cert = $X509Certificate2
-    }
-    RSAlg ([System.Security.Cryptography.X509Certificates.X509Certificate2]$X509Certificate2, [System.Security.Cryptography.RSAEncryptionPadding]$Padding) {
-        $this._init()
-        ($this.X509cr.Cert, $this.X509cr.KeyPadding) = ($X509Certificate2, $Padding)
-    }
-    [byte[]]Encrypt() {
-        if ($null -eq $this.Bytes) { $this.SetBytes() };
-        $this.SetBytes($this.Encrypt($this.Bytes, $this.X509cr.Cert));
-        return $this.Bytes;
-    }
-    [byte[]]Decrypt() {
-        if ($null -eq $this.Bytes) { throw [System.ArgumentException]::new('Null Byte array can not be decrypted!', 'Bytes') };
-        if ($null -eq $this.X509cr.Cert) { throw [System.ArgumentException]::new('Can not use Null X509Certificate', 'X509cr.Cert') };
-        $this.SetBytes($this.Decrypt($this.Bytes, $this.X509cr.Cert))
-        return $this.Bytes;
-    }
-    [byte[]]Encrypt([byte[]]$PlainBytes, [System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert) {
-        if ($null -eq $this.X509cr.KeyPadding) {
-            Write-Verbose "[+] Use a Random 'RSAEncryption KeyPadding' ..."
-            $this.X509cr.KeyPadding = [X509cr]::GetRSAPadding();
-        }
-        [byte[]]$encryptedBytes = $Cert.PublicKey.Key.Encrypt($PlainBytes, $this.X509cr.KeyPadding);
-        return $encryptedBytes
-    }
-    [byte[]]Decrypt([string]$Base64String, [System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert) {
-        [byte[]]$encryptedBytes = [Convert]::FromBase64String($Base64String);
-        return $this.Decrypt($encryptedBytes, $Cert);
-    }
-    [byte[]]Decrypt([byte[]]$encryptedBytes, [System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert) {
-        $PrivateKey = $Cert.PrivateKey;
-        [byte[]]$decryptedBytes = $PrivateKey.Decrypt($encryptedBytes, $this.X509cr.KeyPadding);
-        return $decryptedBytes
-    }
-    [void]hidden _init () {
-        if ($null -eq $this.X509cr) { $this.X509cr = [X509cr]::new() }
-        if ($null -eq $this.X509cr.Cert) { $this.X509cr.CreateCertificate() }
-        if ([string]::IsNullOrEmpty($this.String)) {
-            $this.String = "TestSTR:$([xgen]::RandomName(69))"; # For Testing Purposes
-        }
-    }
-}
-
+#region    X509
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingInvokeExpression", '')]
-class X509cr {
+class X509 {
+    [string]hidden $String;
     [string]$Type = 'Custom';
     [securestring]$Pin;
     [string]hidden $upn = "alain.1337dev@outlook.com";
@@ -2005,31 +1967,62 @@ class X509cr {
     [ValidateSet('None', 'Protect', 'ProtectHigh', 'ProtectFingerPrint')][string]$KeyProtection;
     [ValidateNotNullOrEmpty()][System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert;
     [ValidateSet('None', 'EncipherOnly', 'CRLSign', 'CertSign', 'KeyAgreement', 'DataEncipherment', 'KeyEncipherment', 'NonRepudiation', 'DigitalSignature', 'DecipherOnly')][string]$KeyUsage;
-    [string[]]hidden static $_validRSAPaddings_ = 'Pkcs1', 'OaepSHA1', 'OaepSHA256', 'OaepSHA384', 'OaepSHA512'
     [string]$Path
 
-    X509cr () {
+    X509 () {
         $this._init()
     }
-    X509cr ([string]$Type, [securestring]$Pin) {
+    X509 ([string]$Type, [securestring]$Pin) {
         ($this.Type, $this.Pin) = ($Type, $Pin)
         $this._init()
     }
-    X509cr ([string]$Type, [string]$CertStoreLocation, [securestring]$Pin) {
+    X509 ([string]$Type, [string]$CertStoreLocation, [securestring]$Pin) {
         ($this.Type, $this.StoreLocation, $this.Pin) = ($Type, $CertStoreLocation, $Pin)
         $this._init()
     }
-    X509cr ([string]$Type, [string]$Subject, [string]$CertStoreLocation, [securestring]$Pin) {
+    X509 ([string]$Type, [string]$Subject, [string]$CertStoreLocation, [securestring]$Pin) {
         ($this.Type, $this.Subject, $this.StoreLocation, $this.Pin) = ($Type, $Subject, $CertStoreLocation, $Pin)
         $this._init()
     }
-    X509cr ([System.Security.Cryptography.X509Certificates.X509Certificate2]$Certificate) {
+    X509 ([System.Security.Cryptography.X509Certificates.X509Certificate2]$Certificate) {
         $this.Cert = $Certificate
         $this._init()
     }
-    X509cr ([string]$Type, [string]$Subject, [string]$CertStoreLocation, [securestring]$Pin, [System.DateTime]$ExpirationDate) {
+    X509 ([System.Security.Cryptography.X509Certificates.X509Certificate2]$X509Certificate2, [System.Security.Cryptography.RSAEncryptionPadding]$Padding) {
+        ($this.Cert, $this.KeyPadding) = ($X509Certificate2, $Padding);
+        $this._init()
+    }
+    X509 ([string]$Type, [string]$Subject, [string]$CertStoreLocation, [securestring]$Pin, [System.DateTime]$ExpirationDate) {
         ($this.Type, $this.Subject, $this.StoreLocation, $this.Pin, $this.Expiration) = ($Type, $Subject, $CertStoreLocation, $Pin, $ExpirationDate)
         $this._init()
+    }
+    [byte[]]Encrypt([byte[]]$Bytes) {
+        if ($null -eq $Bytes) { throw [System.ArgumentException]::new('Null Byte array can not be ecrypted!', 'Bytes') };
+        if ($null -eq $this.Cert) { $this.CreateCertificate() }
+        return $this.Encrypt($Bytes, $this.Cert);
+    }
+    [byte[]]Decrypt([byte[]]$Bytes) {
+        if ($null -eq $Bytes) { throw [System.ArgumentException]::new('Null Byte array can not be decrypted!', 'Bytes') };
+        if ($null -eq $this.Cert) { throw [System.ArgumentException]::new('Can not use Null X509Certificate', 'X509.Cert') };
+        return $this.Decrypt($this.Bytes, $this.Cert)
+    }
+    [byte[]]Encrypt([byte[]]$PlainBytes, [System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert) {
+        if ($null -eq $this.KeyPadding) {
+            Write-Verbose "[+] Use a Random 'RSAEncryption KeyPadding' ..."
+            $this.KeyPadding = [X509]::GetRSAPadding();
+        }
+        return $Cert.PublicKey.Key.Encrypt($PlainBytes, $this.KeyPadding);
+    }
+    [byte[]]Decrypt([byte[]]$encryptedBytes, [System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert) {
+        $PrivateKey = $Cert.PrivateKey;
+        if ($null -eq $PrivateKey) {
+            throw [System.ArgumentNullException]::new('PrivateKey')
+        }
+        return $PrivateKey.Decrypt($encryptedBytes, $this.KeyPadding);
+    }
+    [byte[]]Decrypt([string]$Base64String, [System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert) {
+        [byte[]]$encryptedBytes = [Convert]::FromBase64String($Base64String); # todo: A try catch would be useful here
+        return $this.Decrypt($encryptedBytes, $Cert);
     }
     [System.Security.Cryptography.X509Certificates.X509Certificate2]CreateCertificate() {
         if (![bool]("Microsoft.CertificateServices.Commands.KeyExportPolicy" -as [Type])) {
@@ -2057,17 +2050,17 @@ class X509cr {
         return $this.Cert
     }
     [System.Security.Cryptography.RSAEncryptionPadding]static GetRSAPadding () {
-        return $(Invoke-Expression "[System.Security.Cryptography.RSAEncryptionPadding]::$([X509cr]::_validRSAPaddings_ | Get-Random)")
+        return $(Invoke-Expression "[System.Security.Cryptography.RSAEncryptionPadding]::$([Enum]::GetNames([RSAPadding]) | Get-Random)")
     }
     [System.Security.Cryptography.RSAEncryptionPadding]static GetRSAPadding([string]$Padding) {
-        if ($Padding -notin [X509cr]::_validRSAPaddings_) {
+        if (!(($Padding -as 'RSAPadding') -is [RSAPadding])) {
             throw "Value Not in Validateset."
         } else {
             return $(Invoke-Expression "[System.Security.Cryptography.RSAEncryptionPadding]::$Padding")
         }
     }
     [System.Security.Cryptography.RSAEncryptionPadding]static GetRSAPadding([System.Security.Cryptography.RSAEncryptionPadding]$Padding) {
-        $validPaddings = [X509cr]::_validRSAPaddings_ | ForEach-Object { "{0}$_" }; Set-Variable -Name validPaddings -Visibility Public -Scope Local -Option ReadOnly -Value $($validPaddings | ForEach-Object { Invoke-Expression ($_ -f "[System.Security.Cryptography.RSAEncryptionPadding]::") });
+        [System.Security.Cryptography.RSAEncryptionPadding[]]$validPaddings = [Enum]::GetNames([RSAPadding]) | ForEach-Object { "{0}$_" }; Set-Variable -Name validPaddings -Visibility Public -Scope Local -Option ReadOnly -Value $($validPaddings | ForEach-Object { Invoke-Expression ($_ -f "[System.Security.Cryptography.RSAEncryptionPadding]::") });
         if ($Padding -notin $validPaddings) {
             throw "Value Not in Validateset."
         } else {
@@ -2079,13 +2072,16 @@ class X509cr {
         if ($null -eq $this.KeyExportPolicy) { $this.KeyExportPolicy = 'ExportableEncrypted' }
         if ($null -eq $this.KeyProtection) { $this.KeyProtection = 'ProtectHigh' }
         if ($null -eq $this.KeyUsage) { $this.KeyUsage = 'DataEncipherment' }
-        if ($null -eq $this.KeyPadding) { $this.KeyPadding = [X509cr]::GetRSAPadding() }
+        if ($null -eq $this.KeyPadding) { $this.KeyPadding = [X509]::GetRSAPadding() }
         if ($null -eq $this.NotAfter) { $this.NotAfter = [Expiration]::new(0, 1).Date } # 30 Days
         if ($null -eq $this.StoreLocation) { $this.StoreLocation = "Cert:\CurrentUser\My" }
         if ($null -eq $this.Path) { $this.Path = "{0}\{1}" -f $this.StoreLocation, $this.Cert.Thumbprint }
     }
+    [void]ImportCertificate() {
+        $this.Cert = ''
+    }
 }
-#endregion RSA~algo
+#endregion X509
 
 #region    ecc
 # Elliptic Curve Cryptography
@@ -2209,119 +2205,6 @@ class ECC {
     }
 }
 #endregion ecc
-
-#region    aesgcm
-# Usage:
-# $aesGcm = New-Object AESGCM
-
-# # Encrypt some data
-# $data = [System.Text.Encoding]::UTF8.GetBytes("Hello, world!")
-# $password = ConvertTo-SecureString "password123" -AsPlainText -Force
-# $salt = [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes(12)
-# $encryptedData = $aesGcm.Encrypt($data, $password, $salt)
-
-# # Decrypt the data
-# $decryptedData = $aesGcm.Decrypt($encryptedData, $password, $salt)
-# $plainText = [System.Text.Encoding]::UTF8.GetString($decryptedData)
-
-# # Output the plain text
-# Write-Output $plainText
-class AESGCM {
-    [byte[]] Encrypt([byte[]] $data, [securestring] $password, [byte[]] $salt) {
-        # Create a new Aes object using the specified password and salt
-        $aes = [System.Security.Cryptography.Aes]::Create();
-        $aes.Key = [System.Security.Cryptography.Rfc2898DeriveBytes]::new([xconvert]::Tostring($password), $salt, 1000).GetBytes(32);
-        $aes.IV = [System.Security.Cryptography.Rfc2898DeriveBytes]::new([xconvert]::Tostring($password), $salt, 1000).GetBytes(16);
-
-        # Set the cipher mode to GCM
-        $aes.Mode = [System.Security.Cryptography.CipherMode]::GCM
-
-        # Create a new ICryptoTransform object to perform the encryption
-        $encryptor = [System.Security.Cryptography.ICryptoTransform]$aes.CreateEncryptor()
-
-        # Create a new MemoryStream to store the encrypted data
-        $memoryStream = [System.IO.MemoryStream]::new()
-
-        # Create a CryptoStream to encrypt the data
-        $cryptoStream = [System.Security.Cryptography.CryptoStream]::new($memoryStream, $encryptor, [System.Security.Cryptography.CryptoStreamMode]::Write)
-
-        # Write the data to the CryptoStream
-        $cryptoStream.Write($data, 0, $data.Length)
-        $cryptoStream.FlushFinalBlock()
-
-        # Get the encrypted data from the MemoryStream
-        $encryptedData = $memoryStream.ToArray()
-
-        # Close the streams
-        $cryptoStream.Close()
-        $memoryStream.Close()
-
-        # Return the encrypted data
-        return $encryptedData
-    }
-
-    [byte[]] Decrypt([byte[]]$encryptedData, [securestring] $password) {
-        # Create a new Aes object using the specified password and salt
-        $aes = [System.Security.Cryptography.Aes]::Create()
-        #Todo: use  $password & $salt for something
-
-        # Set the cipher mode to GCM
-        $aes.Mode = [System.Security.Cryptography.CipherMode]::GCM
-
-        # Create a new ICryptoTransform object to perform the decryption
-        $decryptor = [System.Security.Cryptography.ICryptoTransform]$aes.CreateDecryptor()
-
-        # Create a new MemoryStream to store the decrypted data
-        $memoryStream = [System.IO.MemoryStream]::new($encryptedData);
-
-        # Create a CryptoStream to decrypt the data
-        $cryptoStream = [System.Security.Cryptography.CryptoStream]::new($memoryStream, $decryptor, [System.Security.Cryptography.CryptoStreamMode]::Read)
-
-        # Read the decrypted data from the CryptoStream
-        $decryptedData = New-Object byte[] ($encryptedData.Length)
-        $bytesRead = $cryptoStream.Read($decryptedData, 0, $encryptedData.Length)
-
-        # Close the streams
-        $cryptoStream.Close()
-        $memoryStream.Close()
-
-        # Return the decrypted data
-        return $decryptedData[0..($bytesRead - 1)]
-    }
-    # Convert a SecureString to a byte array
-    # This method converts a SecureString to a byte array. It can be used to convert a password stored as a SecureString to a byte array that can be passed to the Encrypt and Decrypt methods.
-    [byte[]] ConvertSecureStringToByteArray([securestring] $secureString) {
-        # Get the plain text version of the SecureString
-        $plainText = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureString));
-        # Convert the plain text to a byte array
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes($plainText)
-        # Return the byte array
-        return $bytes
-    }
-    # Convert a byte array to a SecureString
-    # This method converts a byte array to a SecureString. It can be used to convert the salt value or the encrypted data to a SecureString for storage or transmission.
-    [securestring] ConvertByteArrayToSecureString([byte[]] $bytes) {
-        # Convert the byte array to a string
-        $plainText = [System.Text.Encoding]::UTF8.GetString($bytes)
-        $secureString = [XConvert]::ToSecurestring($plainText)
-
-        # Return the SecureString
-        return $secureString
-    }
-
-
-    # Generate a random salt value
-    [byte[]] GenerateSalt() {
-        # Create a RandomNumberGenerator object
-        $randomNumberGenerator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-        # Generate a random salt value
-        $salt = New-Object byte[] (12)
-        [void]$randomNumberGenerator.GetBytes($salt)
-        # Return the salt value
-        return $salt
-    }
-}
-#endregion aesgcm
 
 #region    TripleDES
 class TDES : NcObject {
