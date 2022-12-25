@@ -136,52 +136,8 @@ class xgen {
         }
         return [string][xgen]::RandomSTR($samplekeys, $iterations, $minLength, $maxLength);
     }
-    [string]static Password() {
-        return [string][xgen]::Password(1);
-    }
-    [string]static Password([int]$iterations) {
-        return [string][xgen]::Password($iterations, 24, 80);
-    }
-    [string]static Password([int]$iterations, [int]$Length) {
-        return [string][xgen]::Password($iterations, $Length, $Length);
-    }
-    [string]static Password([int]$iterations, [int]$minLength, [int]$maxLength) {
-        # https://stackoverflow.com/questions/55556/characters-to-avoid-in-automatically-generated-passwords
-        $Passw0rd = [string]::Empty; [string]$possibleCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;':\`",./<>?";
-        $MinrL = 8; $MaxrL = 999 # Gotta have some restrictions, or one typo could endup creating insanely long or small Passwords, ex 30000 intead of 30.
-        if ($minLength -lt $MinrL) { Write-Warning "Length is below the Minimum required 'Password Length'. Try $MinrL or greater." ; Break }
-        if ($maxLength -gt $MaxrL) { Write-Warning "Length is greater the Maximum required 'Password Length'. Try $MaxrL or lower." ; Break }
-        if ($minLength -lt 130) {
-            $Passw0rd = [string][xgen]::RandomSTR($possibleCharacters, $iterations, $minLength, $maxLength)
-        } else {
-            #This person Wants a really good password, so We retry Until we get a 60% strong password.
-            do {
-                $Passw0rd = [string][xgen]::RandomSTR($possibleCharacters, $iterations, $minLength, $maxLength)
-            } until ([int][xgen]::PasswordStrength($Passw0rd) -gt 60)
-        }
-        return $Passw0rd;
-    }
-    [int]static PasswordStrength([string]$passw0rd) {
-        # Inspired by: https://www.security.org/how-secure-is-my-password/
-        $passwordDigits = [System.Text.RegularExpressions.Regex]::new("\d", [System.Text.RegularExpressions.RegexOptions]::Compiled);
-        $passwordNonWord = [System.Text.RegularExpressions.Regex]::new("\W", [System.Text.RegularExpressions.RegexOptions]::Compiled);
-        $passwordUppercase = [System.Text.RegularExpressions.Regex]::new("[A-Z]", [System.Text.RegularExpressions.RegexOptions]::Compiled);
-        $passwordLowercase = [System.Text.RegularExpressions.Regex]::new("[a-z]", [System.Text.RegularExpressions.RegexOptions]::Compiled);
-        [int]$strength = 0; $digits = $passwordDigits.Matches($passw0rd); $NonWords = $passwordNonWord.Matches($passw0rd); $Uppercases = $passwordUppercase.Matches($passw0rd); $Lowercases = $passwordLowercase.Matches($passw0rd);
-        if ($digits.Count -ge 2) { $strength += 10 };
-        if ($digits.Count -ge 5) { $strength += 10 };
-        if ($NonWords.Count -ge 2) { $strength += 10 };
-        if ($NonWords.Count -ge 5) { $strength += 10 };
-        if ($passw0rd.Length -gt 8) { $strength += 10 };
-        if ($passw0rd.Length -ge 16) { $strength += 10 };
-        if ($Lowercases.Count -ge 2) { $strength += 10 };
-        if ($Lowercases.Count -ge 5) { $strength += 10 };
-        if ($Uppercases.Count -ge 2) { $strength += 10 };
-        if ($Uppercases.Count -ge 5) { $strength += 10 };
-        return $strength;
-    }
     [byte[]]static Salt() {
-        return [byte[]][xconvert]::BytesFromObject([xgen]::RandomName(16))
+        return [byte[]][xconvert]::BytesFromObject([xgen]::RandomName(16));
     }
     [byte[]]static Salt([int]$iterations) {
         return [byte[]]$(1..$iterations | ForEach-Object { [xgen]::Salt() });
@@ -191,7 +147,7 @@ class xgen {
     }
     [byte[]]static Key([int]$iterations) {
         $password = $null; $salt = $null;
-        Set-Variable -Name password -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToSecurestring([xgen]::Password($Iterations)));
+        Set-Variable -Name password -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToSecurestring([PasswordManager]::GeneratePassword($Iterations)));
         Set-Variable -Name salt -Scope Local -Visibility Private -Option Private -Value $([xgen]::Salt($Iterations));
         return [xgen]::Key($password, $salt)
     }
@@ -300,7 +256,7 @@ class xgen {
     [System.Security.Cryptography.Aes]static Aes() { return [xgen]::Aes(1) }
     [System.Security.Cryptography.Aes]static Aes([int]$Iterations) {
         $salt = $null; $password = $null;
-        Set-Variable -Name password -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToSecurestring([xgen]::Password($Iterations)));
+        Set-Variable -Name password -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToSecurestring([PasswordManager]::GeneratePassword($Iterations)));
         Set-Variable -Name salt -Scope Local -Visibility Private -Option Private -Value $([xgen]::Salt($Iterations));
         return [xgen]::Aes($password, $salt, $Iterations)
     }
@@ -965,6 +921,141 @@ class XConvert {
 #endregion Custom_ObjectConverter
 
 #region    _Passwords
+class PasswordManager {
+    [string] $Username
+    [securestring] $Password
+    # [string]$passwordHash
+
+    PasswordManager([string]$username, [securestring]$password) {
+        $this.Username = $username
+        $this.Password = $password
+    }
+
+    # Method to retrieve the password
+    [string] GetPassword() {
+        return $this.Password
+    }
+
+    # Method to update the password
+    UpdatePassword([securestring]$newPassword) {
+        $this.Password = $newPassword
+    }
+    # Method to validate the password: This just checks if its a good enough password
+    [bool]static ValidatePassword([SecureString]$password) {
+        $IsValid = $false; $minLength = 8; $handle = [System.IntPtr]::new(0); $Passw0rd = [string]::Empty;
+        try {
+            Add-Type -AssemblyName System.Runtime.InteropServices
+            Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToString($Password));
+            Set-Variable -Name handle -Scope Local -Visibility Private -Option Private -Value $([System.Runtime.InteropServices.Marshal]::StringToHGlobalAnsi($Passw0rd));
+            # Set the required character types
+            $requiredCharTypes = [System.Text.RegularExpressions.Regex]::Matches("$Passw0rd", "[A-Za-z]|[0-9]|[^A-Za-z0-9]") | Select-Object -ExpandProperty Value
+            # Check if the password meets the minimum length requirement and includes at least one of each required character type
+            $IsValid = ($Passw0rd.Length -ge $minLength -and $requiredCharTypes.Count -ge 3)
+        } catch {
+            throw $_.Exeption
+        } finally {
+            Remove-Variable Passw0rd -Force -ErrorAction SilentlyContinue
+            # Zero out the memory used by the variable.
+            [void][System.Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocAnsi($handle);
+            Remove-Variable handle -Force -ErrorAction SilentlyContinue
+        }
+        return $IsValid
+    }
+    [string]static GeneratePassword() {
+        return [string][PasswordManager]::GeneratePassword(1);
+    }
+    [string]static GeneratePassword([int]$iterations) {
+        return [string][PasswordManager]::GeneratePassword($iterations, 24, 80);
+    }
+    [string]static GeneratePassword([int]$iterations, [int]$Length) {
+        return [string][PasswordManager]::GeneratePassword($iterations, $Length, $Length);
+    }
+    [string]static GeneratePassword([int]$iterations, [int]$minLength, [int]$maxLength) {
+        # https://stackoverflow.com/questions/55556/characters-to-avoid-in-automatically-generated-passwords
+        $Passw0rd = [string]::Empty; [string]$possibleCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;':\`",./<>?";
+        $MinrL = 8; $MaxrL = 999 # Gotta have some restrictions, or one typo could endup creating insanely long or small Passwords, ex 30000 intead of 30.
+        if ($minLength -lt $MinrL) { Write-Warning "Length is below the Minimum required 'Password Length'. Try $MinrL or greater." ; Break }
+        if ($maxLength -gt $MaxrL) { Write-Warning "Length is greater the Maximum required 'Password Length'. Try $MaxrL or lower." ; Break }
+        if ($minLength -lt 130) {
+            $Passw0rd = [string][xgen]::RandomSTR($possibleCharacters, $iterations, $minLength, $maxLength)
+        } else {
+            #This person Wants a really good password, so We retry Until we get a 60% strong password.
+            do {
+                $Passw0rd = [string][xgen]::RandomSTR($possibleCharacters, $iterations, $minLength, $maxLength)
+            } until ([int][PasswordManager]::GetPasswordStrength($Passw0rd) -gt 60)
+        }
+        return $Passw0rd;
+    }
+    [int]static GetPasswordStrength([string]$passw0rd) {
+        # Inspired by: https://www.security.org/how-secure-is-my-password/
+        $passwordDigits = [System.Text.RegularExpressions.Regex]::new("\d", [System.Text.RegularExpressions.RegexOptions]::Compiled);
+        $passwordNonWord = [System.Text.RegularExpressions.Regex]::new("\W", [System.Text.RegularExpressions.RegexOptions]::Compiled);
+        $passwordUppercase = [System.Text.RegularExpressions.Regex]::new("[A-Z]", [System.Text.RegularExpressions.RegexOptions]::Compiled);
+        $passwordLowercase = [System.Text.RegularExpressions.Regex]::new("[a-z]", [System.Text.RegularExpressions.RegexOptions]::Compiled);
+        [int]$strength = 0; $digits = $passwordDigits.Matches($passw0rd); $NonWords = $passwordNonWord.Matches($passw0rd); $Uppercases = $passwordUppercase.Matches($passw0rd); $Lowercases = $passwordLowercase.Matches($passw0rd);
+        if ($digits.Count -ge 2) { $strength += 10 };
+        if ($digits.Count -ge 5) { $strength += 10 };
+        if ($NonWords.Count -ge 2) { $strength += 10 };
+        if ($NonWords.Count -ge 5) { $strength += 10 };
+        if ($passw0rd.Length -gt 8) { $strength += 10 };
+        if ($passw0rd.Length -ge 16) { $strength += 10 };
+        if ($Lowercases.Count -ge 2) { $strength += 10 };
+        if ($Lowercases.Count -ge 5) { $strength += 10 };
+        if ($Uppercases.Count -ge 2) { $strength += 10 };
+        if ($Uppercases.Count -ge 5) { $strength += 10 };
+        return $strength;
+    }
+    # Method to save the password to sql database
+    [void]Static SavePasswordHash([string]$username, [SecureString]$password, [string]$connectionString) {
+        $passwordHash = [string]::Empty
+        # Hash the password using the SHA-3 algorithm
+        if ('System.Security.Cryptography.SHA3Managed' -is 'type') {
+            $passwordHash = (New-Object System.Security.Cryptography.SHA3Managed).ComputeHash([System.Text.Encoding]::UTF8.GetBytes([xconvert]::Tostring($password)))
+        } else {
+            # Hash the password using an online SHA-3 hash generator
+            $passwordHash = ((Invoke-WebRequest -Method Post -Uri "https://passwordsgenerator.net/sha3-hash-generator/" -Body "text=$([xconvert]::Tostring($password))").Content | ConvertFrom-Json).sha3
+        }
+        # Connect to the database
+        $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
+        $connection.Open()
+
+        # Create a SQL command to update the password hash in the database
+        $command = New-Object System.Data.SqlClient.SqlCommand("UPDATE Users SET PasswordHash = @PasswordHash WHERE Username = @Username", $connection)
+        $command.Parameters.AddWithValue("@Username", $username)
+        $command.Parameters.AddWithValue("@PasswordHash", $passwordHash)
+
+        # Execute the command
+        $command.ExecuteNonQuery()
+
+        # Close the connection
+        $connection.Close()
+    }
+    # Method to retieve the passwordHash from sql database
+    # Create an instance of the PasswordManager class
+    # $manager = [PasswordManager]::new("username", "")
+    # Load the password hash from the database
+    # $manager.LoadPasswordHash("username", "Server=localhost;Database=MyDatabase;Trusted_Connection=True;")
+    # Retrieve the password hash
+    # $passwordHash = $manager.GetPasswordHash()
+    [string]static LoadPasswordHash([string]$username, [string]$connectionString) {
+        # Connect to the database
+        $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
+        $connection.Open()
+
+        # Create a SQL command to retrieve the password hash from the database
+        $command = New-Object System.Data.SqlClient.SqlCommand("SELECT PasswordHash FROM Users WHERE Username = @Username", $connection)
+        $command.Parameters.AddWithValue("@Username", $username)
+
+        # Execute the command and retrieve the password hash
+        $reader = $command.ExecuteReader()
+        $reader.Read()
+        $PasswordHash = $reader["PasswordHash"]
+
+        # Close the connection
+        $connection.Close()
+        return $PasswordHash
+    }
+}
 # .SYNOPSIS
 #     PBKDF2 Password String Hashing Class.
 # .DESCRIPTION
@@ -1523,19 +1614,16 @@ class AesLg {
     [void]static SetBytes([Object]$Object) {
         [AesLg]::SetBytes([xconvert]::BytesFromObject($Object));
     }
-    [byte[]] Encrypt() {
+    [byte[]]static Encrypt() {
         if ($null -eq [AesLg]::Bytes) {
             throw [Exception]::new('Please Set Bytes First');
         }
         return [AesLg]::Encrypt(1);
     }
-    [byte[]]static Encrypt() {
-        return [AesLg]::Encrypt(1);
-    }
     [byte[]]static Encrypt([int]$iterations) {
         $eNcrypt3dBytes = $null; $d3faultP4ssW0rd = $null;
         try {
-            Set-Variable -Name d3faultP4ssW0rd -Scope Local -Visibility Private -Option Private -Value ([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new([xgen]::UniqueMachineId(), [byte[]](166, 153, 228, 202, 200, 222, 126, 88, 90, 201, 219, 176), 'SHA1', 2).GetBytes(256 / 8))));
+            Set-Variable -Name d3faultP4ssW0rd -Scope Local -Visibility Private -Option Private -Value ([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.Rfc2898DeriveBytes]::new([xgen]::UniqueMachineId(), [byte[]](166, 153, 228, 202, 200, 222, 126, 88, 90, 201, 219, 176), 10000, [System.Security.Cryptography.HashAlgorithmName]::SHA1).GetBytes(256 / 8))));
             $eNcrypt3dBytes = [AesLg]::Encrypt($iterations, $d3faultP4ssW0rd);
         } catch {
             throw $_.Exeption # todo: create a custom exception for this.
@@ -1585,14 +1673,14 @@ class AesLg {
         return [AesLg]::Encrypt($Bytes, $Password, $Salt, $Compression, $false);
     }
     [byte[]]static Encrypt([byte[]]$Bytes, [SecureString]$Password, [byte[]]$Salt, [string]$Compression, [bool]$Protect) {
-        [int]$PasswordIterations = 10000; [int]$KeySize = 256; $CryptoProvider = $null; $EncrBytes = $null
+        [int]$KeySize = 256; $CryptoProvider = $null; $EncrBytes = $null
         if ($Compression -notin ([Enum]::GetNames('Compression' -as 'Type'))) { Throw [System.InvalidCastException]::new("The name '$Compression' is not a valid [Compression]`$typeName.") }
         Set-Variable -Name CryptoProvider -Scope Local -Visibility Private -Option Private -Value ([System.Security.Cryptography.AesCryptoServiceProvider]::new());
         $CryptoProvider.KeySize = [int]$KeySize;
         $CryptoProvider.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7;
         $CryptoProvider.Mode = [System.Security.Cryptography.CipherMode]::CBC;
-        $CryptoProvider.Key = [System.Security.Cryptography.PasswordDeriveBytes]::new([xconvert]::ToString($Password), $Salt, "SHA1", $PasswordIterations).GetBytes($KeySize / 8);
-        $CryptoProvider.IV = [System.Security.Cryptography.Rfc2898DeriveBytes]::new([xconvert]::Tostring($password), $salt, "SHA1", 1000).GetBytes(16);
+        $CryptoProvider.Key = [System.Security.Cryptography.Rfc2898DeriveBytes]::new([xconvert]::ToString($Password), $Salt, 10000, [System.Security.Cryptography.HashAlgorithmName]::SHA1).GetBytes($KeySize / 8);
+        $CryptoProvider.IV = [System.Security.Cryptography.Rfc2898DeriveBytes]::new([xconvert]::Tostring($password), $salt, 1, [System.Security.Cryptography.HashAlgorithmName]::SHA1).GetBytes(16);
         Set-Variable -Name EncrBytes -Scope Local -Visibility Private -Option Private -Value $($CryptoProvider.IV + $CryptoProvider.CreateEncryptor().TransformFinalBlock($Bytes, 0, $Bytes.Length));
         if ($Protect) { $EncrBytes = [xconvert]::ToProtected($EncrBytes, $Salt, [ProtectionScope]::CurrentUser) }
         Set-Variable -Name EncrBytes -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToCompressed($EncrBytes, $Compression));
@@ -1635,7 +1723,7 @@ class AesLg {
     [byte[]]static Decrypt([int]$iterations) {
         $d3cryptedBytes = $null; $d3faultP4ssW0rd = $null;
         try {
-            Set-Variable -Name d3faultP4ssW0rd -Scope Local -Visibility Private -Option Private -Value ([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new([xgen]::UniqueMachineId(), [byte[]](166, 153, 228, 202, 200, 222, 126, 88, 90, 201, 219, 176), 'SHA1', 2).GetBytes(256 / 8))));
+            Set-Variable -Name d3faultP4ssW0rd -Scope Local -Visibility Private -Option Private -Value ([xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.Rfc2898DeriveBytes]::new([xgen]::UniqueMachineId(), [byte[]](166, 153, 228, 202, 200, 222, 126, 88, 90, 201, 219, 176), 10000, [System.Security.Cryptography.HashAlgorithmName]::SHA1).GetBytes(256 / 8))));
             $d3cryptedBytes = [AesLg]::Decrypt($iterations, $d3faultP4ssW0rd);
         } catch {
             throw $_.Exeption
@@ -1648,7 +1736,7 @@ class AesLg {
         return [AesLg]::Decrypt($iterations, $Password, [Convert]::FromBase64String('bz07LmY5XiNkXW1WQjxdXw=='))
     }
     [byte[]]static Decrypt([int]$iterations, [SecureString]$Password, [byte[]]$salt) {
-        if ($null -eq [AesLg]::Bytes) { throw [System.ArgumentNullException]::new('bytes', 'Bytes Value cannot be null. Please first use setbytes()') }
+        if ($null -eq [AesLg]::Bytes) { throw [System.ArgumentNullException]::new('bytes', 'Bytes Value cannot be null.') }
         $_bytes = [AesLg]::Bytes;
         for ($i = 1; $i -lt $iterations + 1; $i++) {
             Write-Verbose "[+] Decryption [$i/$iterations] ...$(
@@ -1685,14 +1773,14 @@ class AesLg {
         return [AesLg]::Decrypt($bytesToDecrypt, $Password, [Convert]::FromBase64String('bz07LmY5XiNkXW1WQjxdXw=='), $Compression, $false);
     }
     [byte[]]static Decrypt([byte[]]$bytesToDecrypt, [SecureString]$Password, [byte[]]$Salt, [string]$Compression, [bool]$UnProtect) {
-        [int]$PasswordIterations = 2; [int]$KeySize = 256; $CryptoProvider = $null; $DEcrBytes = $null; $_Bytes = $null
+        [int]$KeySize = 256; $CryptoProvider = $null; $DEcrBytes = $null; $_Bytes = $null
         $_Bytes = [XConvert]::ToDeCompressed($bytesToDecrypt, $Compression);
         if ($UnProtect) { $_Bytes = [xconvert]::ToUnProtected($_Bytes, $Salt, [ProtectionScope]::CurrentUser) }
         Set-Variable -Name CryptoProvider -Scope Local -Visibility Private -Option Private -Value ([System.Security.Cryptography.AesCryptoServiceProvider]::new());
         $CryptoProvider.KeySize = $KeySize;
         $CryptoProvider.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7;
         $CryptoProvider.Mode = [System.Security.Cryptography.CipherMode]::CBC;
-        $CryptoProvider.Key = [System.Security.Cryptography.PasswordDeriveBytes]::new([xconvert]::ToString($Password), $Salt, "SHA1", $PasswordIterations).GetBytes($KeySize / 8);
+        $CryptoProvider.Key = [System.Security.Cryptography.Rfc2898DeriveBytes]::new([xconvert]::ToString($Password), $Salt, 10000, [System.Security.Cryptography.HashAlgorithmName]::SHA1).GetBytes($KeySize / 8);
         $CryptoProvider.IV = $_Bytes[0..15];
         Set-Variable -Name DEcrBytes -Scope Local -Visibility Private -Option Private -Value $($CryptoProvider.CreateDecryptor().TransformFinalBlock($_Bytes, 16, $_Bytes.Length - 16))
         $CryptoProvider.Clear(); $CryptoProvider.Dispose();
@@ -2278,11 +2366,11 @@ class XOR {
     [ValidateNotNullOrEmpty()][byte[]]static hidden $Salt = [System.Text.Encoding]::UTF7.GetBytes('\SBOv!^L?XuCFlJ%*[6(pUVp5GeR^|U=NH3FaK#XECOaM}ExV)3_bkd:eG;Z,tWZRMg;.A!,:-k6D!CP>74G+TW7?(\6;Li]lA**2P(a2XxL}<.*oJY7bOx+lD>%DVVa');
     XOR() {
         $this.Object = [NcObject]::new();
-        $this.Password = [xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new([xgen]::UniqueMachineId(), [XOR]::Salt, 'SHA1', 2).GetBytes(256 / 8)))
+        $this.Password = [xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.Rfc2898DeriveBytes]::new([xgen]::UniqueMachineId(), [XOR]::Salt, 1000, [System.Security.Cryptography.HashAlgorithmName]::SHA1).GetBytes(256 / 8)))
     }
     XOR([Object]$object) {
         $this.Object = [NcObject]::new($object);
-        $this.Password = [xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new([xgen]::UniqueMachineId(), [XOR]::Salt, 'SHA1', 2).GetBytes(256 / 8)))
+        $this.Password = [xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.Rfc2898DeriveBytes]::new([xgen]::UniqueMachineId(), [XOR]::Salt, 1000, [System.Security.Cryptography.HashAlgorithmName]::SHA1).GetBytes(256 / 8)))
     }
     [byte[]]Encrypt() {
         if ($null -eq $this.Object.Bytes) { throw ([System.ArgumentNullException]::new('Object.Bytes')) }
@@ -2297,7 +2385,7 @@ class XOR {
         return $this.Object.Bytes
     }
     [byte[]]static Encrypt([byte[]]$bytes, [String]$Passw0rd) {
-        return [XOR]::Encrypt($bytes, [xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, [XOR]::Salt, 'SHA1', 2).GetBytes(256 / 8))), 1)
+        return [XOR]::Encrypt($bytes, [xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.Rfc2898DeriveBytes]::new($Passw0rd, [XOR]::Salt, 1000, [System.Security.Cryptography.HashAlgorithmName]::SHA1).GetBytes(256 / 8))), 1)
     }
     [byte[]]static Encrypt([byte[]]$bytes, [SecureString]$password) {
         return [XOR]::Encrypt($bytes, $password, 1)
@@ -2324,7 +2412,7 @@ class XOR {
     }
     #!Not Recommended!
     [byte[]]static Decrypt([byte[]]$bytes, [String]$Passw0rd) {
-        return [XOR]::Decrypt($bytes, [xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.PasswordDeriveBytes]::new($Passw0rd, [XOR]::Salt, 'SHA1', 2).GetBytes(256 / 8))), 1);
+        return [XOR]::Decrypt($bytes, [xconvert]::ToSecurestring([System.Text.Encoding]::UTF7.GetString([System.Security.Cryptography.Rfc2898DeriveBytes]::new($Passw0rd, [XOR]::Salt, 1000, [System.Security.Cryptography.HashAlgorithmName]::SHA1).GetBytes(256 / 8))), 1);
     }
     [byte[]]static Decrypt([byte[]]$bytes, [SecureString]$password) {
         return [XOR]::Decrypt($bytes, $password, 1);
@@ -2485,11 +2573,11 @@ class K3Y {
     [ValidateNotNullOrEmpty()][byte[]]hidden $rgbSalt = [System.Text.Encoding]::UTF7.GetBytes('hR#ho"rK6FMu mdZFXp}JMY\?NC]9(.:6;>oB5U>.GkYC-JD;@;XRgXBgsEi|%MqU>_+w/RpUJ}Kt.>vWr[WZ;[e8GM@P@YKuT947Z-]ho>E2"c6H%_L2A:O5:E)6Fv^uVE; aN\4t\|(*;rPRndSOS(7& xXLRKX)VL\/+ZB4q.iY { %Ko^<!sW9n@r8ihj*=T $+Cca-Nvv#JnaZh'); #this is the default salt, change it if you want.
 
     K3Y() {
-        $this.User = [CredManaged]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
+        $this.User = [CredManaged]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([PasswordManager]::GeneratePassword(1, 64))));
         $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([Datetime]$Expiration) {
-        $this.User = [CredManaged]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([xgen]::Password(1, 64))));
+        $this.User = [CredManaged]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([PasswordManager]::GeneratePassword(1, 64))));
         $this.Expiration = [Expiration]::new($Expiration); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([pscredential]$User, [Datetime]$Expiration) {
@@ -3807,17 +3895,17 @@ function New-Password {
     process {
         if ($PSCmdlet.ParameterSetName -eq 'ByLength') {
             if ($params.ContainsKey('Length') -and $params.ContainsKey('Iterations')) {
-                $Pass = [xgen]::Password($Iterations, $Length);
+                $Pass = [PasswordManager]::GeneratePassword($Iterations, $Length);
             } elseif ($params.ContainsKey('Length') -and !$params.ContainsKey('Iterations')) {
-                $Pass = [xgen]::Password(1, $Length);
+                $Pass = [PasswordManager]::GeneratePassword(1, $Length);
             } else {
-                $Pass = [xgen]::Password();
+                $Pass = [PasswordManager]::GeneratePassword();
             }
         } elseif ($PSCmdlet.ParameterSetName -eq 'ByMinMax') {
             if ($params.ContainsKey('Iterations')) {
-                $pass = [xgen]::Password($Iterations, $minLength, $maxLength);
+                $pass = [PasswordManager]::GeneratePassword($Iterations, $minLength, $maxLength);
             } else {
-                $Pass = [xgen]::Password(1, $minLength, $maxLength);
+                $Pass = [PasswordManager]::GeneratePassword(1, $minLength, $maxLength);
             }
         } else {
             throw [System.Management.Automation.ParameterBindingException]::new("Could Not Resolve ParameterSetname.");
