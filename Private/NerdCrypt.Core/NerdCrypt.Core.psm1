@@ -59,10 +59,9 @@ enum CertStoreName {
 }
 # Only Encryption algorithms that are widely trusted and used in real-world
 enum CryptoAlgorithm {
-    AES # (Advanced Encryption Standard) A symmetric-key encryption algorithm that is used to protect a variety of sensitive data, including financial transactions, medical records, and government communications. It is considered to be very secure, and has been adopted as a standard by many governments and organizations around the world.
-    RSA # An asymmetric-key encryption algorithm that is widely used to secure sensitive data, including financial transactions and sensitive communications. It is known for its strong security, and is often used in combination with other encryption algorithms to provide an additional layer of protection.
-    ECC # (Elliptic Curve Cryptography) Asymmetric-key encryption algorithms that are known for their strong security and efficient use of resources. They are widely used in a variety of applications, including secure communication, file encryption, and password storage.
-    AESGCM # A mode of operation for the AES encryption algorithm that combines confidentiality and authenticity, and is widely used in a variety of applications, including secure communication and file encryption.
+    AES # Advanced Encryption Standard
+    RSA # RSA
+    ECC # Elliptic Curve Cryptography
 }
 # System.Security.Cryptography.RSAEncryptionPadding Names
 enum RSAPadding {
@@ -1623,9 +1622,14 @@ Class Expiration {
 #region    Usual~Algorithms
 
 #region    Aes~algo
-# System.Security.Cryptography.Aes wrapper
-# By default the encrypt method uses CBC ciphermode, AES-256 (The str0ng3st Encryption In z3 WOrLd!), uses SHA1 to hash since it has been proven to be more secure than MD5.
-# aand the result is compressed. plus there is the option to stack encryptions by iteration. (But beware when you iterate much it produces larger output)
+# .SYNOPSIS
+#     AES (System.Security.Cryptography.Aes) wrapper class
+# .DESCRIPTION
+#     A symmetric-key encryption algorithm that is used to protect a variety of sensitive data, including financial transactions, medical records, and government communications.
+#     It is considered to be very secure, and has been adopted as a standard by many governments and organizations around the world.
+#
+#     By default the encrypt method uses CBC ciphermode, AES-256 (The str0ng3st Encryption In z3 WOrLd!), uses SHA1 to hash since it has been proven to be more secure than MD5.
+#     aand the result is compressed. plus there is the option to stack encryptions by iteration. (But beware when you iterate much it produces larger output)
 class AesLg {
     [ValidateNotNullOrEmpty()][byte[]]hidden static $Bytes;
 
@@ -1943,33 +1947,31 @@ class RNGlg : NcObject {
 #endregion rng~algo
 
 #region    RSA~algo
+# .SYNOPSIS
+#     Powershell class implementation of RSA (Rivest-Shamir-Adleman) algorithm.
+# .DESCRIPTION
+#     A public-key cryptosystem that is widely used for secure data transmission. It is based on the mathematical concept of factoring large composite numbers into their prime factors. The security of the RSA algorithm is based on the difficulty of factoring large composite numbers, which makes it computationally infeasible for an attacker to determine the private key from the public key.
+# .EXAMPLE
+#     Test-MyTestFunction -Verbose
+#     Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines
 class RSA {
-    $publicKeyXml = ""
-    $privateKeyXml = "" # todo: Encrypted and a Securestring
-
-    # Constructor
-    RSA([string]$publicKeyXml, [string]$privateKeyXml) {
-        $this.publicKeyXml = $publicKeyXml
-        $this.privateKeyXml = $privateKeyXml # (encrypted string)
-    }
-
     # Simply Encrypts the specified data using the public key.
-    [byte[]] Encrypt([byte[]]$data) {
-        $rsa = New-Object System.Security.Cryptography.RSACryptoServiceProvider
-        $rsa.FromXmlString($this.publicKeyXml)
+    [byte[]]static Encrypt([byte[]]$data, [string]$publicKeyXml) {
+        $rsa = [System.Security.Cryptography.RSACryptoServiceProvider]::new()
+        $rsa.FromXmlString($publicKeyXml)
         return $rsa.Encrypt($data, $true)
     }
 
     # Decrypts the specified data using the private key.
-    [byte[]] Decrypt([byte[]]$data) {
-        $rsa = New-Object System.Security.Cryptography.RSACryptoServiceProvider
-        $rsa.FromXmlString($this.privateKeyXml)
+    [byte[]]static Decrypt([byte[]]$data, [string]$privateKeyXml) {
+        $rsa = [System.Security.Cryptography.RSACryptoServiceProvider]::new()
+        $rsa.FromXmlString($privateKeyXml)
         return $rsa.Decrypt($data, $true)
     }
 
     # The data is encrypted using AES in combination with the password and salt.
     # The encrypted data is then encrypted using RSA.
-    [byte[]] Encrypt([byte[]]$data, [securestring]$password, [byte[]]$salt) {
+    [byte[]]static Encrypt([byte[]]$data, [string]$PublicKeyXml, [securestring]$password, [byte[]]$salt) {
         # Generate the AES key and initialization vector from the password and salt
         $aesKey = [System.Security.Cryptography.Rfc2898DeriveBytes]::new([xconvert]::Tostring($password), $salt, 1000).GetBytes(32);
         $aesIV = [System.Security.Cryptography.Rfc2898DeriveBytes]::new([xconvert]::Tostring($password), $salt, 1000).GetBytes(16);
@@ -1980,7 +1982,7 @@ class RSA {
 
         # Encrypt the AES key and initialization vector using RSA
         $rsa = [System.Security.Cryptography.RSACryptoServiceProvider]::new()
-        $rsa.FromXmlString($this.publicKeyXml)
+        $rsa.FromXmlString($PublicKeyXml)
         $encryptedKey = $rsa.Encrypt($aesKey, $true)
         $encryptedIV = $rsa.Encrypt($aesIV, $true)
 
@@ -1992,7 +1994,7 @@ class RSA {
     # Decrypts the specified data using the private key.
     # The data is first decrypted using RSA to obtain the AES key and initialization vector.
     # The data is then decrypted using AES.
-    [byte[]] Decrypt([byte[]]$data, [securestring]$password) {
+    [byte[]]static Decrypt([byte[]]$data, [string]$privateKeyXml, [securestring]$password) {
         # Extract the encrypted key, encrypted IV, and encrypted data from the input data
         $encryptedKey = $data[0..255]
         $encryptedIV = $data[256..271]
@@ -2001,7 +2003,7 @@ class RSA {
         # Decrypt the AES key and initialization vector using RSA
         $rsa = [System.Security.Cryptography.RSACryptoServiceProvider]::new()
         # todo: Use the $PASSWORD to decrypt the private key so it can be used
-        $rsa.FromXmlString($this.privateKeyXml)
+        $rsa.FromXmlString($privateKeyXml)
         $aesKey = $rsa.Decrypt($encryptedKey, $true)
         $aesIV = $rsa.Decrypt($encryptedIV, $true)
 
@@ -2014,15 +2016,10 @@ class RSA {
     # Exports the key pair to a file or string. # This can be useful if you want to save the key pair to a file or string for later use.
     # If a file path is specified, the key pair will be saved to the file.
     # If no file path is specified, the key pair will be returned as a string.
-    # Usage:
-    # Save the key pair to a file
-    # $rsa.ExportKeyPair("C:\path\to\keypair.json")
-    # Get the key pair as a string
-    # $keyPairString = $rsa.ExportKeyPair()
-    [void] ExportKeyPair([string]$filePath = "") {
+    [void]static ExportKeyPair([xml]$publicKeyXml, [string]$privateKeyXml, [string]$filePath = "") {
         $keyPair = @{
-            "PublicKey"  = $this.publicKeyXml
-            "PrivateKey" = $this.privateKeyXml
+            "PublicKey"  = $publicKeyXml
+            "PrivateKey" = $privateKeyXml
         }
 
         if ([string]::IsNullOrWhiteSpace($filePath)) {
@@ -2032,26 +2029,14 @@ class RSA {
             $keyPair | ConvertTo-Json | Out-File -FilePath $filePath
         }
     }
-    # Imports a key pair from a file or string.
-    # If a file path is specified, the key pair will be loaded from the file.
-    # If no file path is specified, the key pair will be loaded from the string.
-    #Usage:
-    # Load the key pair from a file
-    # $rsa.ImportKeyPair("C:\path\to\keypair.json")
-
-    # Load the key pair from a string
-    # $keyPairString = '{"PublicKey":"...',
-    # $rsa.ImportKeyPair("", $keyPairString)
-    [void] ImportKeyPair([string]$filePath = "", [string]$keyPairString = "") {
-        if ($filePath -ne "") {
-            # Load the key pair from the specified file
-            $keyPair = Get-Content $filePath | ConvertFrom-Json
-        } else {
-            # Load the key pair from the string
-            $keyPair = $keyPairString | ConvertFrom-Json
+    [psobject]static LoadKeyPair([string]$filePath = "" ) {
+        if ([string]::IsNullOrWhiteSpace($filePath)) {
+            throw [System.ArgumentNullException]::new('filePath')
         }
-        $this.publicKeyXml = $keyPair.PublicKey
-        $this.privateKeyXml = $keyPair.PrivateKey
+        return [RSA]::LoadKeyPair((Get-Content $filePath | ConvertFrom-Json))
+    }
+    [psobject]static LoadKeyPair([string]$filePath = "", [string]$keyPairString = "") {
+        return $keyPairString | ConvertFrom-Json
     }
 
     # Generates a new RSA key pair and returns the public and private key XML strings.
@@ -2197,12 +2182,14 @@ class X509 {
 #endregion X509
 
 #region    ecc
-# Elliptic Curve Cryptography
-# Usage:
-# $ecc = new ECC($publicKeyXml, $privateKeyXml)
-# $encryptedData = $ecc.Encrypt($data, $password, $salt)
-# $decryptedData = $ecc.Decrypt($encryptedData, $password, $salt)
-
+# .SYNOPSIS
+#     Elliptic Curve Cryptography
+# .DESCRIPTION
+#     Asymmetric-key encryption algorithms that are known for their strong security and efficient use of resources. They are widely used in a variety of applications, including secure communication, file encryption, and password storage.
+# .EXAMPLE
+#     $ecc = new ECC($publicKeyXml, $privateKeyXml)
+#     $encryptedData = $ecc.Encrypt($data, $password, $salt)
+#     $decryptedData = $ecc.Decrypt($encryptedData, $password, $salt)
 class ECC {
     $publicKeyXml = [string]::Empty
     $privateKeyXml = [string]::Empty
@@ -2463,6 +2450,139 @@ class XOR {
     }
 }
 #endregion XOR
+
+#region    RC4
+# .SYNOPSIS
+#     PowerShell class implementation of the RC4 algorithm
+# .DESCRIPTION
+#     "Ron's Code 4" or "Rivest Cipher 4," depending on the source.
+#     A symmetric key stream cipher that was developed by Ron Rivest of RSA Security in 1987.
+#     It was widely used in the 1990s and early 2000s, but has since been replaced by more secure algorithms in many applications due to vulnerabilities.
+# .NOTES
+#     RC4 is an old and insecure encryption algorithm.
+#     It is recommended to use a more modern and secure algorithm, such as AES or ChaCha20.
+#     But if you insist on using this, Just Use really strong passwords.
+#     I mean shit like: Wwi@4c5w&@hOtf}Mm_t%&[BXq>5*0:Fm}6L'poyi!8LoZD\!HXPPPvMRas<CWl$yk${vlW9(f:S@w/E
+# .EXAMPLE
+#     $dat = [xconvert]::BytesFromObject("Hello World")
+#     $enc = [rc4]::Encrypt($dat, (Read-Host -AsSecureString -Prompt 'Password'))
+#     $dec = [rc4]::Decrypt($enc, (Read-Host -AsSecureString -Prompt 'Password'))
+#     [xconvert]::BytesToObject($dec)
+class RC4 {
+    static [Byte[]] Encrypt([Byte[]]$data, [Byte[]]$passwd) {
+        $a = $i = $j = $k = $tmp = [Int]0
+        $key = [Int[]]::new(256)
+        $box = [Int[]]::new(256)
+        $cipher = [Byte[]]::new($data.Length)
+        for ($i = 0; $i -lt 256; $i++) {
+            $key[$i] = $passwd[$i % $passwd.Length];
+            $box[$i] = $i;
+        }
+        for ($j = $i = 0; $i -lt 256; $i++) {
+            $j = ($j + $box[$i] + $key[$i]) % 256;
+            $tmp = $box[$i];
+            $box[$i] = $box[$j];
+            $box[$j] = $tmp;
+        }
+        for ($a = $j = $i = 0; $i -lt $data.Length; $i++) {
+            $a++;
+            $a %= 256;
+            $j += $box[$a];
+            $j %= 256;
+            $tmp = $box[$a];
+            $box[$a] = $box[$j];
+            $box[$j] = $tmp;
+            $k = $box[(($box[$a] + $box[$j]) % 256)];
+            $cipher[$i] = [Byte]($data[$i] -bxor $k);
+        }
+        return $cipher;
+    }
+    static [Byte[]] Decrypt([Byte[]]$data, [Byte[]]$passwd) {
+        return [RC4]::Encrypt($data, $passwd);
+        # The Decrypt method simply calls the Encrypt method with the same arguments.
+        # This is because the RC4 algorithm is symmetric, meaning that the same key is used for both encryption and decryption.
+        # Therefore, the encryption and decryption processes are identical.
+    }
+}
+#endregion RC4
+
+#region    CHACHA20
+class ChaCha20 {
+    [Byte[]]$Key
+    [Byte[]]$Nonce
+
+    ChaCha20([Byte[]]$Key, [Byte[]]$Nonce) {
+        $this.Key = $Key
+        $this.Nonce = $Nonce
+    }
+    <#
+    # todo: finish/make this method work!
+    [Byte[]] Encrypt([Byte[]] $Plaintext) {
+        $state = @(
+            0x61707865, 0x3320646e, 0x79622d32, 0x6b206574,
+            0x03020100, 0x07060504, 0x0b0a0908, 0x0f0e0d0c,
+            0x13121110, 0x17161514, 0x1b1a1918, 0x1f1e1d1c,
+            $this.Key[0], $this.Key[1], $this.Key[2], $this.Key[3],
+            $this.Key[4], $this.Key[5], $this.Key[6], $this.Key[7],
+            $this.Nonce[0], $this.Nonce[1], $this.Nonce[2], $this.Nonce[3]
+        )
+        $blockCounter = 0
+        $ciphertext = New-Object Byte[] $Plaintext.Length
+        for ($i = 0; $i -lt $Plaintext.Length; $i += 64) {
+            $block = @(
+                $blockCounter, 0,
+                $this.Nonce[4], $this.Nonce[5],
+                $this.Nonce[6], $this.Nonce[7],
+                0, 0
+            )
+            $blockCounter++
+            $state = ($state + $block) | ForEach-Object { $_ -bxor 0x61707865 }
+            for ($j = 0; $j -lt 10; $j++) {
+                $state = @(
+                    ($state[0] + $state[4]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[1] + $state[5]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[2] + $state[6]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[3] + $state[7]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[12] xor ($state[0] >> 16) xor ($state[0] << 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[13] xor ($state[1] >> 16) xor ($state[1] << 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[14] xor ($state[2] >> 16) xor ($state[2] << 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[15] xor ($state[3] >> 16) xor ($state[3] << 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff }
+                )
+                $state = @(
+                    ($state[0] xor ($state[12] >> 8) xor ($state[12] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[1] xor ($state[13] >> 8) xor ($state[13] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[2] xor ($state[14] >> 8) xor ($state[14] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[3] xor ($state[15] >> 8) xor ($state[15] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[4] xor ($state[0] >> 8) xor ($state[0] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[5] xor ($state[1] >> 8) xor ($state[1] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[6] xor ($state[2] >> 8) xor ($state[2] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[7] xor ($state[3] >> 8) xor ($state[3] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff }
+                )
+                $state = @(
+                    ($state[0] xor ($state[5] >> 7) xor ($state[5] << 25)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[1] xor ($state[6] >> 7) xor ($state[6] << 25)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[2] xor ($state[7] >> 7) xor ($state[7] << 25)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[3] xor ($state[4] >> 7) xor ($state[4] << 25)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    $state[4],
+                    $state[5],
+                    $state[6],
+                    $state[7]
+                )
+            }
+            $state = ($state + $block) | ForEach-Object { [UInt32]$_ -band 0xffffffff }
+            for ($k = 0; $k -lt 16; $k++) {
+                [Byte[]] $temp = [BitConverter]::GetBytes(([UInt32]$state[$k] + [UInt32]$block[$k]) -bor 0xffffffff)
+                $ciphertext[$i + $k * 4] = $temp[0]
+                $ciphertext[$i + $k * 4 + 1] = $temp[1]
+                $ciphertext[$i + $k * 4 + 2] = $temp[2]
+                $ciphertext[$i + $k * 4 + 3] = $temp[3]
+            }
+            $ciphertext
+        }
+    }
+#>
+}
+#endregion CHACHA20
 
 #endregion Usual~Algorithms
 
