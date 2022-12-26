@@ -922,23 +922,16 @@ class XConvert {
 
 #region    _Passwords
 class PasswordManager {
-    [string] $Username
-    [securestring] $Password
-    # [string]$passwordHash
-
-    PasswordManager([string]$username, [securestring]$password) {
-        $this.Username = $username
-        $this.Password = $password
+    [securestring]static GetPassword() {
+        $ThrowOnFailure = $true
+        return [PasswordManager]::GetPassword($ThrowOnFailure);
     }
-
-    # Method to retrieve the password
-    [string] GetPassword() {
-        return $this.Password
-    }
-
-    # Method to update the password
-    UpdatePassword([securestring]$newPassword) {
-        $this.Password = $newPassword
+    [securestring]static GetPassword([bool]$ThrowOnFailure) {
+        $Password = $null; Set-Variable -Name Password -Scope Local -Visibility Private -Option Private -Value ($(Get-Variable Host).value.UI.PromptForCredential('NerdCrypt', "Please Enter Your Password", $Env:UserName, $Env:COMPUTERNAME).Password);
+        if ($ThrowOnFailure -and ($null -eq $Password -or $([string]::IsNullOrWhiteSpace([xconvert]::ToString($Password))))) {
+            throw [InvalidPasswordException]::new("Please Provide a Password that isn't Null and not a WhiteSpace.", $Password, [System.ArgumentNullException]::new("Password"))
+        }
+        return $Password
     }
     # Method to validate the password: This just checks if its a good enough password
     [bool]static ValidatePassword([SecureString]$password) {
@@ -1007,13 +1000,13 @@ class PasswordManager {
     }
     # Method to save the password to sql database
     [void]Static SavePasswordHash([string]$username, [SecureString]$password, [string]$connectionString) {
-        $passwordHash = [string]::Empty
+        $passw0rdHash = [string]::Empty
         # Hash the password using the SHA-3 algorithm
         if ('System.Security.Cryptography.SHA3Managed' -is 'type') {
-            $passwordHash = (New-Object System.Security.Cryptography.SHA3Managed).ComputeHash([System.Text.Encoding]::UTF8.GetBytes([xconvert]::Tostring($password)))
+            $passw0rdHash = (New-Object System.Security.Cryptography.SHA3Managed).ComputeHash([System.Text.Encoding]::UTF8.GetBytes([xconvert]::Tostring($password)))
         } else {
             # Hash the password using an online SHA-3 hash generator
-            $passwordHash = ((Invoke-WebRequest -Method Post -Uri "https://passwordsgenerator.net/sha3-hash-generator/" -Body "text=$([xconvert]::Tostring($password))").Content | ConvertFrom-Json).sha3
+            $passw0rdHash = ((Invoke-WebRequest -Method Post -Uri "https://passwordsgenerator.net/sha3-hash-generator/" -Body "text=$([xconvert]::Tostring($password))").Content | ConvertFrom-Json).sha3
         }
         # Connect to the database
         $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
@@ -1022,7 +1015,7 @@ class PasswordManager {
         # Create a SQL command to update the password hash in the database
         $command = New-Object System.Data.SqlClient.SqlCommand("UPDATE Users SET PasswordHash = @PasswordHash WHERE Username = @Username", $connection)
         $command.Parameters.AddWithValue("@Username", $username)
-        $command.Parameters.AddWithValue("@PasswordHash", $passwordHash)
+        $command.Parameters.AddWithValue("@PasswordHash", $passw0rdHash)
 
         # Execute the command
         $command.ExecuteNonQuery()
@@ -1035,8 +1028,6 @@ class PasswordManager {
     # $manager = [PasswordManager]::new("username", "")
     # Load the password hash from the database
     # $manager.LoadPasswordHash("username", "Server=localhost;Database=MyDatabase;Trusted_Connection=True;")
-    # Retrieve the password hash
-    # $passwordHash = $manager.GetPasswordHash()
     [string]static LoadPasswordHash([string]$username, [string]$connectionString) {
         # Connect to the database
         $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
@@ -1049,11 +1040,45 @@ class PasswordManager {
         # Execute the command and retrieve the password hash
         $reader = $command.ExecuteReader()
         $reader.Read()
-        $PasswordHash = $reader["PasswordHash"]
+        $Passw0rdHash = $reader["PasswordHash"]
 
         # Close the connection
         $connection.Close()
-        return $PasswordHash
+        return $Passw0rdHash
+    }
+    [string]static GetPasswordHash([string]$Passw0rd) {
+        return [xconvert]::BytesToHex([PasswordHash]::new($Passw0rd).ToArray())
+    }
+    [bool]static VerifyPasswordHash([string]$Passw0rd, [string]$hashSTR) {
+        return [PasswordManager]::VerifyPasswordHash($Passw0rd, $hashSTR, $false)
+    }
+    [bool]static VerifyPasswordHash([string]$Passw0rd, [string]$hashSTR, [bool]$ThrowOnFailure) {
+        if ([string]::IsNullOrEmpty($Passw0rd)) {
+            throw [System.ArgumentNullException]::new('password', [InvalidPasswordException]::New('Please input a valid Password'));
+        }
+        if ([string]::IsNullOrWhiteSpace($hashSTR)) {
+            throw [System.ArgumentNullException]::new('hashSTR');
+        }
+        Add-Type -AssemblyName System.Runtime.InteropServices
+        Set-Variable -Name handle -Scope Local -Visibility Private -Option Private -Value $([System.Runtime.InteropServices.Marshal]::StringToHGlobalAnsi($Passw0rd));
+        $handle = [System.IntPtr]::new(0); [bool]$result = $false; $Isvalid_Hex = [regex]::IsMatch($hashSTR, "^[A-Fa-f0-9]{72}$")
+        try {
+            if (!$Isvalid_Hex) { Throw [System.FormatException]::new("Hash string was in invalid format.") }
+            $hashBytes = $null; Set-Variable -Name hashBytes -Scope Local -Visibility Private -Option Private -Value ([xconvert]::BytesFromHex($hashSTR));
+            if ([PasswordHash]::new($hashBytes).Verify($Passw0rd)) {
+                $result = $true
+            } elseif ($ThrowOnFailure) {
+                throw [System.UnauthorizedAccessException]::new('Wrong Password.');
+            } else {
+                $result = $false
+            }
+        } catch {
+            throw $_
+        } finally {
+            Remove-Variable hashBytes -Force -ErrorAction SilentlyContinue
+            [void][System.Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocAnsi($handle);
+        }
+        return $result
     }
 }
 # .SYNOPSIS
@@ -2590,7 +2615,7 @@ class K3Y {
         ($this.User, $this.Expiration) = ([CredManaged]::new([pscredential]::new($UserName, $Password)), [Expiration]::new($Expiration)); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt) {
-        return $this.Encrypt($bytesToEncrypt, [K3Y]::GetPassword());
+        return $this.Encrypt($bytesToEncrypt, [PasswordManager]::GetPassword());
     }
     [byte[]]Encrypt([byte[]]$bytesToEncrypt, [securestring]$password) {
         return $this.Encrypt($bytesToEncrypt, $password, $this.rgbSalt, 'Gzip', $this.Expiration.Date);
@@ -2608,7 +2633,7 @@ class K3Y {
         return [AesLg]::Encrypt($bytesToEncrypt, $Password, $salt);
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt) {
-        return $this.Decrypt($bytesToDecrypt, [K3Y]::GetPassword());
+        return $this.Decrypt($bytesToDecrypt, [PasswordManager]::GetPassword());
     }
     [byte[]]Decrypt([byte[]]$bytesToDecrypt, [securestring]$Password) {
         return $this.Decrypt($bytesToDecrypt, $Password, $this.rgbSalt);
@@ -2686,43 +2711,6 @@ class K3Y {
             )
         )
     }
-    [securestring]static GetPassword() {
-        $ThrowOnFailure = $true
-        return [K3Y]::GetPassword($ThrowOnFailure);
-    }
-    [securestring]static GetPassword([bool]$ThrowOnFailure) {
-        $Password = $null; Set-Variable -Name Password -Scope Local -Visibility Private -Option Private -Value ($(Get-Variable Host).value.UI.PromptForCredential('NerdCrypt', "Please Enter Your Password", $Env:UserName, $Env:COMPUTERNAME).Password);
-        if ($ThrowOnFailure -and ($null -eq $Password -or $([string]::IsNullOrWhiteSpace([xconvert]::ToString($Password))))) {
-            throw [InvalidPasswordException]::new("Please Provide a Password that isn't Null and not a WhiteSpace.", $Password, [System.ArgumentNullException]::new("Password"))
-        }
-        return $Password
-    }
-    [bool]hidden VerifyPassword([string]$Passw0rd) {
-        return [K3Y]::VerifyPassword($Passw0rd, $this.User.Password, $true);
-        # ie: This works when $this.User.Password is not the actual password its just a 'read-only hash' of the password used during Encryption.
-    }
-    [bool]static VerifyPassword([string]$Passw0rd, [securestring]$SecHash) {
-        return [K3Y]::VerifyPassword($Passw0rd, $SecHash, $true);
-    }
-    [bool]static VerifyPassword([string]$Passw0rd, [securestring]$SecHash, [bool]$ThrowOnFailure) {
-        $hash = $null; [bool]$IsValid = $false; $Isvalid_Hex = $false; $_Hex = [string]::Empty ; $InnerException = [System.UnauthorizedAccessException]::new('Wrong Password.');
-        try {
-            Set-Variable -Name _Hex -Scope Local -Visibility Private -Option Private -Value ([xconvert]::ToString($SecHash));
-            $Isvalid_Hex = [regex]::IsMatch($_Hex, "^[A-Fa-f0-9]{72}$")
-            if (!$Isvalid_Hex) { Throw [System.FormatException]::new("Securestring Hash was in an invalid format.") }
-            Set-Variable -Name hash -Scope Local -Visibility Private -Option Private -Value ([PasswordHash]::new([byte[]][xconvert]::BytesFromHex($_Hex)));
-            if ($hash.Verify([string]$Passw0rd)) { $IsValid = $true }else {
-                throw $InnerException
-            }
-        } catch {
-            $InnerException = $_.Exception
-        } finally {
-            if ($ThrowOnFailure -and !$IsValid) {
-                throw [InvalidPasswordException]::new("Invalid password", $Passw0rd, $InnerException)
-            }
-        }
-        return $IsValid
-    }
     [securestring]ResolvePassword([securestring]$Password) {
         if (!$this.IsHashed()) {
             Invoke-Command -InputObject $this.User -NoNewScope -ScriptBlock $([ScriptBlock]::Create({
@@ -2740,7 +2728,7 @@ class K3Y {
         Add-Type -AssemblyName System.Runtime.InteropServices
         Set-Variable -Name Passw0rd -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToString($Password));
         Set-Variable -Name handle -Scope Local -Visibility Private -Option Private -Value $([System.Runtime.InteropServices.Marshal]::StringToHGlobalAnsi($Passw0rd));
-        if ([K3Y]::VerifyPassword($Passw0rd, $SecHash)) {
+        if ([PasswordManager]::VerifyPasswordHash($Passw0rd, [xconvert]::ToString($SecHash), $true)) {
             try {
                 if ([System.Environment]::UserInteractive) { (Get-Variable host).Value.UI.WriteDebugLine("  [i] Using Password, With Hash: $([xconvert]::Tostring($SecHash))") }
                 # This next line is like a KDF. ie: If this was a Powershell function it would be named Get-KeyFromPassword
@@ -2831,7 +2819,7 @@ class K3Y {
         return $UIDstr
     }
     [Object[]]static AnalyseK3YUID([K3Y]$K3Y) {
-        return [K3Y]::AnalyseK3YUID($K3Y, [K3Y]::GetPassword());
+        return [K3Y]::AnalyseK3YUID($K3Y, [PasswordManager]::GetPassword());
     }
     [Object[]]static AnalyseK3YUID([K3Y]$K3Y, [securestring]$Password) {
         $ThrowOnFailure = $true
@@ -3024,10 +3012,10 @@ class NerdCrypt {
     #
     #region    ParanoidCrypto
     [void]Encrypt() {
-        $this.SetBytes($this.Encrypt($this.Object.Bytes, [K3Y]::GetPassword()))
+        $this.SetBytes($this.Encrypt($this.Object.Bytes, [PasswordManager]::GetPassword()))
     }
     [byte[]]Encrypt([int]$iterations) {
-        $this.SetBytes($this.Encrypt($this.Object.Bytes, [K3Y]::GetPassword(), $iterations));
+        $this.SetBytes($this.Encrypt($this.Object.Bytes, [PasswordManager]::GetPassword(), $iterations));
         return $this.Object.Bytes
     }
     [byte[]]Encrypt([byte[]]$bytes, [securestring]$Password) {
@@ -3048,10 +3036,10 @@ class NerdCrypt {
         return $_bytes
     }
     [void]Decrypt() {
-        $this.SetBytes($this.Decrypt($this.Object.Bytes, [K3Y]::GetPassword()))
+        $this.SetBytes($this.Decrypt($this.Object.Bytes, [PasswordManager]::GetPassword()))
     }
     [byte[]]Decrypt([int]$iterations) {
-        $this.SetBytes($this.Decrypt($this.Object.Bytes, [K3Y]::GetPassword(), $Iterations));
+        $this.SetBytes($this.Decrypt($this.Object.Bytes, [PasswordManager]::GetPassword(), $Iterations));
         return $this.Object.Bytes
     }
     [byte[]]Decrypt([byte[]]$bytes, [securestring]$Password) {
@@ -3223,7 +3211,7 @@ function Encrypt-Object {
         # With a locked local Password vault it will require much more than just guessing The password, or any BruteForce tool.
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithSecureKey')]
         [Alias('Password', 'Securestring')]
-        [SecureString]$PrivateKey = [K3Y]::GetPassword(),
+        [SecureString]$PrivateKey = [PasswordManager]::GetPassword(),
 
         [Parameter(Mandatory = $false, Position = 2, ParameterSetName = '__AllParameterSets')]
         [ValidateNotNullOrEmpty()]
@@ -3392,7 +3380,7 @@ function Decrypt-Object {
         [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'WithSecureKey')]
         [ValidateNotNullOrEmpty()]
         [Alias('Password')]
-        [SecureString]$PrivateKey = [K3Y]::GetPassword(),
+        [SecureString]$PrivateKey = [PasswordManager]::GetPassword(),
 
         [Parameter(Mandatory = $true, Position = 2, ParameterSetName = '__AllParameterSets')]
         [ValidateNotNullOrEmpty()]

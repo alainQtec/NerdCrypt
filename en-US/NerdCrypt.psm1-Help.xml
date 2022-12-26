@@ -489,10 +489,10 @@ $vault.RetrieveAll() | % { $vault.Remove($vault.Retrieve($_.Resource, $_.UserNam
 				<maml:introduction>
 					<maml:para></maml:para>
 				</maml:introduction>
-				<dev:code>PS C:\&gt; $enc = Encrypt-Object -Object &quot;Hello World!&quot; -Password $([K3Y]::GetPassword()) -KeyOutFile .\PublicKee.txt
+				<dev:code>PS C:\&gt; $enc = Encrypt-Object -Object &quot;Hello World!&quot; -Password $([PasswordManager]::GetPassword()) -KeyOutFile .\PublicKee.txt
 </dev:code>
 				<dev:remarks>
-					<maml:para>$dec = Decrypt-Object -InputBytes $enc -Password $([K3Y]::GetPassword()) -PublicKey $(cat .\PublicKee.txt)</maml:para>
+					<maml:para>$dec = Decrypt-Object -InputBytes $enc -Password $([PasswordManager]::GetPassword()) -PublicKey $(cat .\PublicKee.txt)</maml:para>
 
 				</dev:remarks>
 			</command:example>
@@ -792,9 +792,9 @@ $vault.RetrieveAll() | % { $vault.Remove($vault.Retrieve($_.Resource, $_.UserNam
 				<dev:code>PS C:\&gt; $msg = &quot;This is my email, don&#39;t show it to anyone. alain.1337dev@outlook.com&quot;
 </dev:code>
 				<dev:remarks>
-					<maml:para>$enc = Encrypt-Object $msg -Password $([K3Y]::GetPassword()) -KeyOutFile .\PublicKee.txt
+					<maml:para>$enc = Encrypt-Object $msg -Password $([PasswordManager]::GetPassword()) -KeyOutFile .\PublicKee.txt
 
-$dec = Decrypt-Object $enc -Password $([K3Y]::GetPassword()) -PublicKey $(cat .\PublicKee.txt)</maml:para>
+$dec = Decrypt-Object $enc -Password $([PasswordManager]::GetPassword()) -PublicKey $(cat .\PublicKee.txt)</maml:para>
 
 				</dev:remarks>
 			</command:example>
