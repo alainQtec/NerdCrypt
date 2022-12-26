@@ -1080,6 +1080,50 @@ class PasswordManager {
         return $result
     }
 }
+
+#region    FipsHMACSHA256
+# .SYNOPSIS
+#     A PowerShell class to provide a FIPS compliant alternative to the built-in [System.Security.Cryptography.HMACSHA256]
+# .DESCRIPTION
+#     FIPS (Federal Information Processing Standard) is a set of guidelines that specify the security requirements for cryptographic algorithms and protocols used in the United States government.
+#     A FIPS compliant algorithm is one that has been reviewed and approved by the National Institute of Standards and Technology (NIST) to meet certain security standards.
+#     The HMAC is a type of message authentication code that uses a secret key to verify the authenticity and integrity of a message.
+#     It is based on a hash function, such as SHA-256, which is a cryptographic function that produces a fixed-size output (called a hash or message digest) from a variable-size input.
+#     The built-in HMACSHA256 class in .NET Framework and PowerShell is a class that implements the HMAC using the SHA-256 hash function.
+#     However, in older versions of these platforms the HMACSHA256 class may not be FIPS compliant.
+# .EXAMPLE
+#     [FipsHmacSha256]::new() ....
+#     Explanation of the ... or .... result
+class FipsHmacSha256 : System.Security.Cryptography.HMAC {
+    static hidden $rng
+    FipsHmacSha256() {
+        $this | Add-Member -Type NoteProperty -Name "rng" -Value $(
+            if (![FipsHmacSha256]::rng) {
+                [FipsHmacSha256]::rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::new()
+            } else { [FipsHmacSha256]::rng }
+        ) -Force
+        $this.FipsHmacSha256([FipsHmacSha256]::GetRandomBytes(64));
+    }
+
+    FipsHmacSha256([Byte[]] $key) {
+        $flags = [Reflection.BindingFlags]'Instance, NonPublic'
+        [Reflection.FieldInfo]$m_hashName = [System.Security.Cryptography.HMAC].GetField('m_hashName', $flags)
+        [Reflection.FieldInfo]$m_hash1 = [System.Security.Cryptography.HMAC].GetField('m_hash1', $flags)
+        [Reflection.FieldInfo]$m_hash2 = [System.Security.Cryptography.HMAC].GetField('m_hash2', $flags)
+        $m_hashName.SetValue($this, 'SHA256')
+        $m_hash1.SetValue($this, [System.Security.Cryptography.SHA256CryptoServiceProvider]::new())
+        $m_hash2.SetValue($this, [System.Security.Cryptography.SHA256CryptoServiceProvider]::new())
+        $this.HashSizeValue = 256
+        $this.Key = $key
+    }
+    static [Byte[]] GetRandomBytes($keyLength) {
+        [Byte[]] $array = New-Object Byte[] $keyLength
+        [FipsHmacSha256]::rng.GetBytes($array)
+        return $array
+    }
+}
+#endregion FipsHMACSHA256
+
 # .SYNOPSIS
 #     PBKDF2 Password String Hashing Class.
 # .DESCRIPTION
