@@ -1393,37 +1393,6 @@ class NativeCredential {
     }
 }
 # Static class for calling the native credential functions
-class Advapi32 {
-    $API
-    Advapi32() {
-        # Import native functions from Advapi32.dll
-        # I had no choice but to use Add-Type. ie: https://stackoverflow.com/questions/64405866/invoke-runtime-interopservices-dllimportattribute
-        # So CredentialManager.Advapi32+functionName it is!
-        if (![bool]('CredentialManager.Advapi32' -as 'type')) {
-            Add-Type -Namespace CredentialManager -Name Advapi32 -MemberDefinition @'
-    public enum CredType : uint {
-        Generic = 1, DomainPassword = 2, DomainCertificate = 3, DomainVisiblePassword = 4, GenericCertificate = 5, DomainExtended = 6, Maximum = 7, MaximumEx = (Maximum + 1000)
-    }
-    public enum CredPersist : uint {
-        Session = 1, LocalMachine = 2, Enterprise = 3
-    }
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    public struct Credential{
-        public uint Flags; public CredType Type; public string TargetName; public string Comment; public DateTime LastWritten; public uint PaswordSize; public string Password; public System.Security.SecureString SecurePassword; public CredPersist Persist; public uint AttributeCount; public IntPtr Attributes; public string TargetAlias; public string UserName;
-    }
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    public struct NativeCredential {
-        public uint Flags; public CredType Type; public IntPtr TargetName; public IntPtr Comment; public System.Runtime.InteropServices.ComTypes.FILETIME LastWritten; public uint CredentialBlobSize; public IntPtr CredentialBlob; public uint Persist; public uint AttributeCount; public IntPtr Attributes; public IntPtr TargetAlias; public IntPtr UserName;
-    }
-    [DllImport("Advapi32.dll", EntryPoint = "CredReadW", CharSet = CharSet.Unicode, SetLastError = true)] public static extern bool CredRead([In] string target, [In] CredType type, [In] int reservedFlag, out IntPtr credentialPtr);
-    [DllImport("Advapi32.dll", EntryPoint = "CredWriteW", CharSet = CharSet.Unicode, SetLastError = true)] public static extern bool CredWrite([In] ref NativeCredential userCredential, [In] UInt32 flags);
-    [DllImport("Advapi32.dll", EntryPoint = "CredFree", SetLastError = true)] public static extern bool CredFree([In] IntPtr credentialPointer);
-    [DllImport("Advapi32.dll", SetLastError = true, EntryPoint = "CredDeleteW", CharSet = CharSet.Unicode)] public static extern bool CredDelete([In] string target, [In] CredType type, [In] int reservedFlag);
-'@
-        }
-        $this.API = New-Object -TypeName CredentialManager.Advapi32;
-    }
-}
 class CredentialNotFoundException : System.Exception, System.Runtime.Serialization.ISerializable {
     [string]$Message; [Exception]$InnerException; hidden $Info; hidden $Context
     CredentialNotFoundException() { $this.Message = 'CredentialNotFound' }
@@ -1431,27 +1400,28 @@ class CredentialNotFoundException : System.Exception, System.Runtime.Serializati
     CredentialNotFoundException([string]$message, [Exception]$InnerException) { ($this.Message, $this.InnerException) = ($message, $InnerException) }
     CredentialNotFoundException([System.Runtime.Serialization.SerializationInfo]$info, [System.Runtime.Serialization.StreamingContext]$context) { ($this.Info, $this.Context) = ($info, $context) }
 }
-# See Usage Example in the Wiki
 class CredentialManager {
-    #  [ CONSTANTS ]
-    static hidden $ERROR_SUCCESS = 0
-    static hidden $ERROR_NOT_FOUND = 1168
-    static hidden $ERROR_INVALID_FLAGS = 1004
-    static hidden $CRED_PERSIST_LOCAL_MACHINE = 2
-    static hidden $CRED_MAX_USERNAME_LENGTH = 514
-    static hidden $CRED_MAX_CREDENTIAL_BLOB_SIZE = 512
-    static hidden $CRED_MAX_GENERIC_TARGET_NAME_LEN = 32767
-    #  [ variables ]
-    static hidden $LastErrorCode
     hidden $Advapi32
-
+    static hidden $LastErrorCode
     CredentialManager() {
-        # Load the Credentials and PasswordVault assemblies (!not tested!)
-        # if (![bool]('Windows.Security.Credentials.PasswordVault' -as 'type')) {
-        #     [void][Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
-        # }
-        $this.Advapi32 = [Advapi32]::new().API;
-        if (Get-Service vaultsvc -ErrorAction SilentlyContinue) { Start-Service vaultsvc }
+        #  [ CONSTANTS ]
+        $this | Add-Member -Type NoteProperty -Name ERROR_SUCCESS -Value 0 -Force
+        $this | Add-Member -Type NoteProperty -Name ERROR_NOT_FOUND -Value 1168 -Force
+        $this | Add-Member -Type NoteProperty -Name ERROR_INVALID_FLAGS -Value 1004 -Force
+        $this | Add-Member -Type NoteProperty -Name CRED_PERSIST_LOCAL_MACHINE -Value 2 -Force
+        $this | Add-Member -Type NoteProperty -Name CRED_MAX_USERNAME_LENGTH -Value 514 -Force
+        $this | Add-Member -Type NoteProperty -Name CRED_MAX_CREDENTIAL_BLOB_SIZE -Value 512 -Force
+        $this | Add-Member -Type NoteProperty -Name CRED_MAX_GENERIC_TARGET_LENGTH -Value 32767 -Force
+        # Import native functions from Advapi32.dll
+        # I had no choice but to use Add-Type. ie: https://stackoverflow.com/questions/64405866/invoke-runtime-interopservices-dllimportattribute
+        # So CredentialManager.Advapi32+functionName it is!
+        if (![bool]('CredentialManager.Advapi32' -as 'type')) { Add-Type -Namespace CredentialManager -Name Advapi32 -MemberDefinition ([xconvert]::ToDeCompressed('H4sIAAAAAAAEALVUS2/aQBC+91eMOIFqWQT6kIo4UB4VKkQohuYQ5bDYA1lpvUt31zSk6n/vrB+AMW1a2vhge+f5ffONDQCwSZaCh4AyiaGvMZrvNggfIOHSwvdXkF+fUKKmsC5ceTBQMeNyxoz5pnREtlZh66O2fMVDZpHM7cL8hRu+FHiU8cYrSpZT3hYpw0eLMkIX+86DKXvkMQHswvv9YfhIx3rheQ1XzWazkQL+kd5Pic1QG25slVuAxnAlM24TFTIxZeEDl5gxG0qLeqO5SSkdNbgLrE5CO2E7ldh69vjMZeQH+DVBaTkTHvQfmA7QUmr+5i8kD1WEjftjlCYtleLMMg/w8ogU9EiwtekUpr1c7tY5KsXlGuZMr9Fes7ji6as4piZ784BGP+cxwoQZe6u5pcl3Sm1JOKdbwJ8qxQpN9/ZgZyzGNIMwoVK77AWDLDo7VHKO5cmfZQA9S/nLxGJfJUfIx9LOrD54zfkh9ARnFdfCoE6n87KKXjPLt3jQFS4XNmd7RtjccypsLsUNjYzk9cdukdUmQL3lIRqfwl1944/Gk+F8PB3+egEO+D8KtSztQdG7FHGyPv9F0hL9sqS566ykAyHG8UZpW6/1oi3b8HbLj4SopR+23s2UA9OFmiNwgyy6rf1GYo822LopDbVWmvwkMul+0JzUpl8O/bu0hKVSAoqy9buxvC92z6YcPEhte7Et3XKbw6SR6GwxcqvhAW1iQTPcj5pOjc7f03QS4wvwTOtmRDWuqqufEKHDMae6IFbtFqzcB3AJmZFGrF2G16VmcKuTdS3wD6Z7pu85lAMU+MzMn4Wb1fi3RWp0fgKYas6b9AcAAA==')) }
+        $this.Advapi32 = (New-Object -TypeName CredentialManager.Advapi32)
+        if (Get-Service vaultsvc -ErrorAction SilentlyContinue) { Start-Service vaultsvc -ErrorAction Stop }
+        #Load the Credentials and PasswordVault assemblies (!not tested!)
+        #if (![bool]('Windows.Security.Credentials.PasswordVault' -as 'type')) {
+        #    [void][Windows.Security.Credentials.PasswordVault, Windows.Security.Credentials, ContentType = WindowsRuntime]
+        #}
     }
     [void]SaveCredential([string]$title, [SecureString]$SecureString) {
         $UserName = [System.Environment]::GetEnvironmentVariable('UserName');
@@ -1509,7 +1479,7 @@ class CredentialManager {
         [CredentialManager]::LastErrorCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error();
         if (!$result) {
             $errorCode = [CredentialManager]::LastErrorCode
-            if ($errorCode -eq [CredentialManager]::ERROR_NOT_FOUND) {
+            if ($errorCode -eq $this.ERROR_NOT_FOUND) {
                 $(Get-Variable host).value.UI.WriteErrorLine("`nERROR_NOT_FOUND: Credential '$target' not found in Windows Credential Vault. Returning Empty Object ...`n");
                 return [CredManaged]::new();
             } else {
@@ -2350,55 +2320,55 @@ class ECC {
 }
 #endregion ecc
 
+#region    MD5
+class MD5 {
+    MD5() {}
+    [byte[]] static Encrypt([byte[]]$data, [string]$hash) {
+        $md5 = [System.Security.Cryptography.MD5CryptoServiceProvider]::new()
+        $encoderShouldEmitUTF8Identifier = $false
+        $encoder = [System.Text.UTF8Encoding]::new($encoderShouldEmitUTF8Identifier)
+        $keys = [byte[]]$md5.ComputeHash($encoder.GetBytes($hash));
+        return [TripleDES]::Encrypt($data, $keys);
+    }
+    [byte[]] static Decrypt([byte[]]$data, [string]$hash) {
+        $md5 = [System.Security.Cryptography.MD5CryptoServiceProvider]::new()
+        $encoderShouldEmitUTF8Identifier = $false
+        $encoder = [System.Text.UTF8Encoding]::new($encoderShouldEmitUTF8Identifier)
+        $keys = [byte[]]$md5.ComputeHash($encoder.GetBytes($hash));
+        return [TripleDES]::Decrypt($data, $keys);
+    }
+}
+#endregion MD5
+
 #region    TripleDES
-class TDES : NcObject {
-    [string]hidden $String = "This is plaintext message.";
-    [byte[]]hidden $Key
-    [byte[]]hidden $IV
-    TDES() {
-        if ($null -eq $this.Bytes) { $this.SetBytes($this.String) } # Uncomment, when Testing stuff
+class TripleDES {
+    [byte[]] static Encrypt([Byte[]]$data, [Byte[]]$Key) {
+        return [TripleDES]::Encrypt($data, $Key, $null, 1)
     }
-    [byte[]]Encrypt() {
-        return $this.Encrypt(1);
+    [byte[]] static Encrypt([Byte[]]$data, [Byte[]]$Key, [Byte[]]$IV) {
+        return [TripleDES]::Encrypt($data, $Key, $IV, 1)
     }
-    [byte[]]Decrypt() {
-        return $this.Decrypt(1);
+    [byte[]]static Encrypt([Byte[]]$data, [Byte[]]$Key, [Byte[]]$IV, [int]$iterations) {
+        for ($i = 1; $i -le $iterations; $i++) { $data = [TripleDES]::Get_ED($data, $Key, $IV, $true) }
+        return $data
     }
-    [byte[]]Encrypt([int]$iterations) {
-        if ($null -eq $this.Bytes) { throw ([System.ArgumentNullException]::new('$this.Bytes')) }
-        return $this.Encrypt($this.Bytes, $this.Key, $this.IV, $iterations)
+    [byte[]]static Decrypt([Byte[]]$data, [Byte[]]$Key) {
+        return [TripleDES]::Decrypt($data, $Key, $null, 1);
     }
-    [byte[]]Decrypt([int]$iterations) {
-        if ($null -eq $this.Bytes) { throw ([System.ArgumentNullException]::new('$this.Bytes')) }
-        if ($null -eq $this.Key) { throw ([System.ArgumentNullException]::new('$this.Key')) }
-        if ($null -eq $this.IV) { throw ([System.ArgumentNullException]::new('$this.IV')) }
-        return $this.Decrypt($this.Bytes, $this.Key, $this.IV, $iterations)
+    [byte[]]static Decrypt([Byte[]]$data, [Byte[]]$Key, [Byte[]]$IV) {
+        return [TripleDES]::Decrypt($data, $Key, $IV, 1);
     }
-    [byte[]]Encrypt([Byte[]]$data, [Byte[]]$Key, [Byte[]]$IV) {
-        return $this.Encrypt($data, $Key, $IV, 1)
+    [byte[]]static Decrypt([Byte[]]$data, [Byte[]]$Key, [Byte[]]$IV, [int]$iterations) {
+        for ($i = 1; $i -le $iterations; $i++) { $data = [TripleDES]::Get_ED($data, $Key, $IV, $false) }
+        return $data
     }
-    [byte[]]Encrypt([Byte[]]$data, [Byte[]]$Key, [Byte[]]$IV, [int]$iterations) {
-        for ($i = 1; $i -le $iterations; $i++) {
-            $this.SetBytes($this.Get_ED($data, $Key, $IV, $true));
-        }
-        return $this.Bytes
-    }
-    [byte[]]Decrypt([Byte[]]$data, [Byte[]]$Key, [Byte[]]$IV) {
-        return $this.Decrypt($data, $Key, $IV, 1);
-    }
-    [byte[]]Decrypt([Byte[]]$data, [Byte[]]$Key, [Byte[]]$IV, [int]$iterations) {
-        for ($i = 1; $i -le $iterations; $i++) {
-            $this.SetBytes($this.Get_ED($data, $Key, $IV, $false));
-        }
-        return $this.Bytes
-    }
-    [byte[]]hidden Get_ED([Byte[]]$data, [Byte[]]$Key, [Byte[]]$IV, [bool]$IEncryption) {
-        $ms = [System.IO.MemoryStream]::new(); $cs = $null
-        $result = [byte[]]::new(0)
+    [byte[]] static hidden Get_ED([Byte[]]$data, [Byte[]]$Key, [Byte[]]$IV, [bool]$Encrypt) {
+        $result = [byte[]]::new(0); $ms = [System.IO.MemoryStream]::new(); $cs = $null
         try {
             $tdes = [System.Security.Cryptography.TripleDESCryptoServiceProvider]::new()
-            ($tdes.Key, $tdes.IV) = ($this.Key, $this.IV) = $(if ($null -eq $Key -or $null -eq $IV) { [void]$tdes.GenerateKey(); [void]$tdes.GenerateIV(); ($tdes.Key, $tdes.IV) } else { ($Key, $IV) })
-            $CryptoTransform = [System.Security.Cryptography.ICryptoTransform]$(if ($IEncryption) { $tdes.CreateEncryptor() }else { $tdes.CreateDecryptor() })
+            if ($null -eq $Key) { throw '' }else { $tdes.Key = $Key }
+            if ($null -eq $IV) { [void]$tdes.GenerateIV() }else { $tdes.IV = $IV }
+            $CryptoTransform = [System.Security.Cryptography.ICryptoTransform]$(if ($Encrypt) { $tdes.CreateEncryptor() }else { $tdes.CreateDecryptor() })
             $cs = [System.Security.Cryptography.CryptoStream]::new($ms, $CryptoTransform, [System.Security.Cryptography.CryptoStreamMode]::Write)
             [void]$cs.Write($data, 0, $data.Length)
             [void]$cs.FlushFinalBlock()
@@ -2408,7 +2378,7 @@ class TDES : NcObject {
         } catch [System.Security.Cryptography.CryptographicException] {
             if ($_.exception.message -notlike "*data is not a complete block*") { throw $_.exception }
         } finally {
-            Invoke-Command -ScriptBlock { $cs.Close(); $ms.Dispose() } -ErrorAction SilentlyContinue
+            Invoke-Command -ScriptBlock { $tdes.Clear(); $cs.Close(); $ms.Dispose() } -ErrorAction SilentlyContinue
         }
         return $result
     }
@@ -2587,26 +2557,26 @@ class ChaCha20 {
                     ($state[1] + $state[5]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
                     ($state[2] + $state[6]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
                     ($state[3] + $state[7]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[12] xor ($state[0] >> 16) xor ($state[0] << 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[13] xor ($state[1] >> 16) xor ($state[1] << 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[14] xor ($state[2] >> 16) xor ($state[2] << 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[15] xor ($state[3] >> 16) xor ($state[3] << 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff }
+                    ($state[12] -xor ($state[0] >> 16) -xor ($state[0] << 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[13] -xor ($state[1] >> 16) -xor ($state[1] << 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[14] -xor ($state[2] >> 16) -xor ($state[2] << 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[15] -xor ($state[3] >> 16) -xor ($state[3] << 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff }
                 )
                 $state = @(
-                    ($state[0] xor ($state[12] >> 8) xor ($state[12] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[1] xor ($state[13] >> 8) xor ($state[13] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[2] xor ($state[14] >> 8) xor ($state[14] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[3] xor ($state[15] >> 8) xor ($state[15] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[4] xor ($state[0] >> 8) xor ($state[0] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[5] xor ($state[1] >> 8) xor ($state[1] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[6] xor ($state[2] >> 8) xor ($state[2] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[7] xor ($state[3] >> 8) xor ($state[3] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff }
+                    ($state[0] -xor ($state[12] >> 8) -xor ($state[12] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[1] -xor ($state[13] >> 8) -xor ($state[13] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[2] -xor ($state[14] >> 8) -xor ($state[14] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[3] -xor ($state[15] >> 8) -xor ($state[15] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[4] -xor ($state[0] >> 8) -xor ($state[0] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[5] -xor ($state[1] >> 8) -xor ($state[1] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[6] -xor ($state[2] >> 8) -xor ($state[2] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[7] -xor ($state[3] >> 8) -xor ($state[3] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff }
                 )
                 $state = @(
-                    ($state[0] xor ($state[5] >> 7) xor ($state[5] << 25)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[1] xor ($state[6] >> 7) xor ($state[6] << 25)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[2] xor ($state[7] >> 7) xor ($state[7] << 25)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[3] xor ($state[4] >> 7) xor ($state[4] << 25)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[0] -xor ($state[5] >> 7) -xor ($state[5] << 25)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[1] -xor ($state[6] >> 7) -xor ($state[6] << 25)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[2] -xor ($state[7] >> 7) -xor ($state[7] << 25)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[3] -xor ($state[4] >> 7) -xor ($state[4] << 25)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
                     $state[4],
                     $state[5],
                     $state[6],
