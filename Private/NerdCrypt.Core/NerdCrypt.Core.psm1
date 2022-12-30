@@ -1568,9 +1568,17 @@ class CredentialManager {
 Class OIsecret {
     [OIsecretType]$type
     [securestring]$Value
-    OIsecret([string]$type, [string]$secret) {
+    OIsecret([string]$secret, [string]$type) {
         $this.type = [OIsecretType]$type
         $this.Value = [xconvert]::TosecureString($secret)
+    }
+    OIsecret([string]$secret) {
+        $this.type = [OIsecretType]::SecTokken
+        $this.Value = [XConvert]::TosecureString($secret)
+    }
+    OIsecret([securestring]$secret) {
+        $this.type = [OIsecretType]::Password
+        $this.Value = $secret
     }
 }
 class URL {
@@ -1637,17 +1645,19 @@ class OI {
     [System.Collections.Generic.List[URL]]$Url
     [System.Collections.Generic.List[OIsecret]]$secrets
     OI([string]$Title, [string]$userName) {
-        $this.Title = $Title
+        $this._init(); $this.Title = $Title
         $this.User = [OIuser]::new($userName)
-        $this.Url = [System.Collections.Generic.List[URL]]::new()
-        $this.secrets = [System.Collections.Generic.List[OIsecret]]::new()
+    }
+    OI([string]$Title, [string]$userName, [string[]]$secrets) {
+        $this._init(); $this.Title = $Title
+        $this.User = [OIuser]::new($userName)
+        foreach ($sec in $secrets) { $this.AddSecret($sec) }
     }
     OI([string]$Title, [string]$userName, [string[]]$Emails, [string[]]$Urls, [OIsecret[]]$secrets) {
-        $this.Title = $Title
+        $this._init(); $this.Title = $Title
         $this.User = [OIuser]::new($userName, $Emails)
-        $this.Url = [System.Collections.Generic.List[URL]]::new()
-        $this.secrets = [System.Collections.Generic.List[OIsecret]]::new()
         foreach ($url in $Urls) { [void]$this.Url.Add([URL]::new($url)) }
+        foreach ($sec in $secrets) { $this.AddSecret($sec) }
     }
     [void] AddEmail([string]$Email) {
         $this.User.AddEmail($Email)
@@ -1661,8 +1671,561 @@ class OI {
     [void] AddUrl([URL]$url) {
         [void]$this.Url.Add($url)
     }
+    [void] AddSecret([OIsecret]$secret) {
+        $this.secrets.Add($secret)
+    }
+    [void] AddSecret([string]$secret) {
+        $this.secrets.Add([OIsecret]::new($secret))
+    }
+    [void] AddSecret([securestring]$secret) {
+        $this.secrets.Add([OIsecret]::new($secret))
+    }
+    [psobject[]]hidden UploadToVault() {
+        $object = $this
+        $Clrsec = @()
+        $object.secrets | ForEach-Object {
+            $Clrsec += [PSCustomObject]@{
+                type  = $_.type.Tostring()
+                value = [XConvert]::Tostring($_.value)
+            }
+        }
+        $object.secrets = $Clrsec
+        return $object
+    }
+    [void]hidden _init() {
+        $this.Url = [System.Collections.Generic.List[URL]]::new()
+        $this.secrets = [System.Collections.Generic.List[OIsecret]]::new()
+    }
 }
 #endregion OnlineIdentityVault
+
+class OneDriveClient {
+    [string]$clientId
+    [string]$clientSecret
+    [string]$vaultUrl # your OneDrive Vault URL ex: "https://your-organization-name.sharepoint.com/sites/vault"
+    [string]$tenantId # the tenant ID of your organization
+    [string]$resourceId # the resource ID of OneDrive for Business
+    [string]$redirectUri # the redirect URI for your app
+    [string]$tokenEndpoint # the OAuth 2.0 token endpoint for your tenant
+    [string]$authorizationEndpoint # the OAuth 2.0 authorization endpoint for your tenant
+    [string]$logoutEndpoint # the OAuth 2.0 logout endpoint for your tenant
+    [string]$scope # the scope for the OAuth 2.0 authorization request
+    [string]$responseType # the response type for the OAuth 2.0 authorization request
+    [string]$grantType # the grant type for the OAuth 2.0 token request
+    [string]$clientCredentials # Set the client credentials for the OAuth 2.0 token request
+    [string]$contentType # Set the content type for the HTTP POST request
+    [string]$userAgent # Set the user agent for the HTTP request
+    [int]$requestTimeout # Set the request timeout
+    [int]$maxRetries # the maximum number of retries for failed requests
+    [int]$retryInterval # the retry interval for failed requests
+    [int]$retryIncrement # the retry increment for failed requests
+    [int]$pageSize # the maximum number of items to return per page
+    [int]$maxPages # the maximum number of pages to return
+    [string]$apiUrl # the base URL for the OneDrive API
+    [string]$pickerUrl # the base URL for the OneDrive file picker
+    [string]$sharingUrl # the base URL for the OneDrive sharing links
+
+    OneDriveClient ([string]$clientId, [string]$clientSecret) {
+        $this.clientId = $clientId
+        $this.clientSecret = $clientSecret
+        $this.vaultUrl = "https://your-organization-name.sharepoint.com/sites/vault"
+        $this.tenantId = "your_tenant_id"
+        $this.resourceId = "https://your-organization-name-my.sharepoint.com/"
+        $this.redirectUri = "http://localhost"
+        $this.tokenEndpoint = "https://login.microsoftonline.com/$($this.tenantId)/oauth2/token"
+        $this.authorizationEndpoint = "https://login.microsoftonline.com/$($this.tenantId)/oauth2/authorize"
+        $this.logoutEndpoint = "https://login.microsoftonline.com/$($this.tenantId)/oauth2/logout"
+        $this.scope = "https://your-organization-name.sharepoint.com/sites/vault/.default"
+        $this.responseType = "code"
+        $this.grantType = "authorization_code"
+        $this.clientCredentials = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("$($this.clientId):$($this.clientSecret)"));
+        $this.contentType = "application/x-www-form-urlencoded"
+        $this.userAgent = "PowerShell/OneDriveVaultHelper"
+        $this.requestTimeout = 30
+        $this.maxRetries = 3
+        $this.retryInterval = 1
+        $this.retryIncrement = 1
+        $this.pageSize = 100
+        $this.maxPages = 10
+        $this.apiUrl = "https://your-organization-name-my.sharepoint.com/_api/v2.0"
+        $this.pickerUrl = "https://your-organization-name-my.sharepoint.com/personal/user_name/_layouts/15/onedrive.aspx"
+        $this.sharingUrl
+        $this.CheckValidProps($true)
+    }
+    # Get the authorization URL for the OAuth 2.0 authorization request
+    [string] GetAuthorizationUrl() {
+        # Build the query string for the OAuth 2.0 authorization request
+        $query = [System.Web.HttpUtility]::ParseQueryString([string]::Empty)
+        $query["client_id"] = $this.clientIdclientId
+        $query["redirect_uri"] = $this.redirectUri
+        $query["response_type"] = $this.responseType
+        $query["scope"] = $this.scope
+
+        # Return the authorization URL
+        return "$($this.authorizationEndpoint)?$($query)"
+    }
+    # Get the access token for the OAuth 2.0 token request
+    [System.Collections.Generic.Dictionary[string, string]] GetAccessToken([string]$code) {
+        # Build the body for the OAuth 2.0 token request
+        $body = [System.Web.HttpUtility]::ParseQueryString([string]::Empty)
+        $body["client_id"] = $this.clientId
+        $body["redirect_uri"] = $this.redirectUri
+        $body["client_secret"] = $this.clientSecret
+        $body["code"] = $code
+        $body["grant_type"] = $this.grantType
+        $body["scope"] = $this.scope
+
+        # Build the HTTP request for the OAuth 2.0 token request
+        $request = [System.Net.WebRequest]::Create($this.tokenEndpoint)
+        $request.Method = "POST"
+        $request.ContentType = $this.contentType
+        $request.UserAgent = $this.userAgent
+        $request.Timeout = $this.requestTimeout
+        $request.Headers.Add("Authorization", "Basic $($this.clientCredentials)")
+        $request.ContentLength = $body.ToString().Length
+        $requestStream = $request.GetRequestStream()
+        $requestStream.Write([System.Text.Encoding]::ASCII.GetBytes($body.ToString()), 0, $body.ToString().Length)
+        $requestStream.Close()
+
+        # Send the OAuth 2.0 token request and get the response
+        $response = $request.GetResponse()
+        $responseStream = $response.GetResponseStream()
+        $responseReader = New-Object System.IO.StreamReader($responseStream)
+        $responseText = $responseReader.ReadToEnd()
+        $responseReader.Close()
+        $responseStream.Close()
+        $response.Close()
+
+        # Parse the response and return the access token
+        $responseJson = ConvertFrom-Json $responseText
+        return [System.Collections.Generic.Dictionary[string, string]]@{
+            "access_token"  = $responseJson.access_token
+            "refresh_token" = $responseJson.refresh_token
+            "expires_in"    = $responseJson.expires_in
+        }
+    }
+    # Refresh the access token for the OAuth 2.0 token request
+    [System.Collections.Generic.Dictionary[string, string]] RefreshAccessToken([string]$refreshToken) {
+        # Build the body for the OAuth 2.0 token request
+        $body = [System.Web.HttpUtility]::ParseQueryString([string]::Empty)
+        $body["client_id"] = $this.clientId
+        $body["redirect_uri"] = $this.redirectUri
+        $body["client_secret"] = $this.clientSecret
+        $body["refresh_token"] = $refreshToken
+        $body["grant_type"] = "refresh_token"
+        $body["scope"] = $this.scope
+
+        # Build the HTTP request for the OAuth 2.0 token request
+        $request = [System.Net.WebRequest]::Create($this.tokenEndpoint)
+        $request.Method = "POST"
+        $request.ContentType = $this.contentType
+        $request.UserAgent = $this.userAgent
+        $request.Timeout = $this.requestTimeout
+        $request.Headers.Add("Authorization", "Basic $($this.clientCredentials)")
+        $request.ContentLength = $body.ToString().Length
+        $requestStream = $request.GetRequestStream()
+        $requestStream.Write([System.Text.Encoding]::ASCII.GetBytes($body.ToString()), 0, $body.ToString().Length)
+        $requestStream.Close()
+
+        # Send the OAuth 2.0 token request and get the response
+        $response = $request.GetResponse()
+        $responseStream = $response.GetResponseStream()
+        $responseReader = New-Object System.IO.StreamReader($responseStream)
+        $responseText = $responseReader.ReadToEnd()
+        $responseReader.Close()
+        $responseStream.Close()
+        $response.Close()
+
+        # Parse the response and return the access token
+        $responseJson = ConvertFrom-Json $responseText
+        return [System.Collections.Generic.Dictionary[string, string]]@{
+            "access_token"  = $responseJson.access_token
+            "refresh_token" = $responseJson.refresh_token
+            "expires_in"    = $responseJson.expires_in
+        }
+    }
+    # Get the drive ID for the OneDrive Vault
+    [string] GetDriveId([string]$accessToken) {
+        # Set the retry counter
+        $retries = 0
+
+        # Set the drive ID to null
+        $driveId = $null
+
+        # Get the drive ID
+        while ($retries -lt $this.maxRetries -and -not $driveId) {
+            try {
+                # Build the HTTP request for the OneDrive API
+                $request = [System.Net.WebRequest]::Create("$($this.apiUrl)/sites/$($this.vaultUrl)/drive")
+                $request.Method = "GET"
+                $request.ContentType = $this.contentType
+                $request.UserAgent = $this.userAgent
+                $request.Timeout = $this.requestTimeout
+                $request.Headers.Add("Authorization", "Bearer $accessToken")
+
+                # Send the OneDrive API request and get the response
+                $response = $request.GetResponse()
+                $responseStream = $response.GetResponseStream()
+                $responseReader = New-Object System.IO.StreamReader($responseStream)
+                $responseText = $responseReader.ReadToEnd()
+                $responseReader.Close()
+                $responseStream.Close()
+                $response.Close()
+
+                # Parse the response and set the drive ID
+                $responseJson = ConvertFrom-Json $responseText
+                $driveId = $responseJson.id
+            } catch [System.Net.WebException] {
+                # Increment the retry counter
+                $retries++
+
+                # Wait for the retry interval
+                Start-Sleep -Milliseconds $this.retryInterval
+
+                # Increase the retry interval
+                $this.retryInterval += $this.retryIncrement
+            }
+        }
+
+        # Return the drive ID
+        return $driveId
+    }
+    # Get the root folder ID for the OneDrive Vault
+    [string] GetRootFolderId([string]$accessToken, [string]$driveId) {
+        # Set the retry counter
+        $retries = 0
+
+        # Set the root folder ID to null
+        $rootFolderId = $null
+
+        # Get the root folder ID
+        while ($retries -lt $this.maxRetries -and -not $rootFolderId) {
+            try {
+                # Build the HTTP request for the OneDrive API
+                $request = [System.Net.WebRequest]::Create("$($this.apiUrl)/drives/$driveId/root")
+                $request.Method = "GET"
+                $request.ContentType = $this.contentType
+                $request.UserAgent = $this.userAgent
+                $request.Timeout = $this.requestTimeout
+                $request.Headers.Add("Authorization", "Bearer $accessToken")
+
+                # Send the OneDrive API request and get the response
+                $response = $request.GetResponse()
+                $responseStream = $response.GetResponseStream()
+                $responseReader = New-Object System.IO.StreamReader($responseStream)
+                $responseText = $responseReader.ReadToEnd()
+                $responseReader.Close()
+                $responseStream.Close()
+                $response.Close()
+
+                # Parse the response and set the root folder ID
+                $responseJson = ConvertFrom-Json $responseText
+                $rootFolderId = $responseJson.id
+            } catch [System.Net.WebException] {
+                # Increment the retry counter
+                $retries++
+
+                # Wait for the retry interval
+                Start-Sleep -Milliseconds $this.retryInterval
+
+                # Increase the retry interval
+                $this.retryInterval += $this.retryIncrement
+            }
+        }
+
+        # Return the root folder ID
+        return $rootFolderId
+    }
+    # Get the folder ID for the specified folder path
+    [string] GetFolderId([string]$accessToken, [string]$driveId, [string]$folderPath) {
+        # Set the retry counter & folder ID
+        $retries = 0; $folderId = $null
+        # Get the folder ID
+        while ($retries -lt $this.maxRetries -and -not $folderId) {
+            try {
+                # Build the HTTP request for the OneDrive API
+                $request = [System.Net.WebRequest]::Create("$($this.apiUrl)/drives/${driveId}/root:/${folderPath}:/id")
+                $request.Method = "GET"
+                $request.ContentType = $this.contentType
+                $request.UserAgent = $this.userAgent
+                $request.Timeout = $this.requestTimeout
+                $request.Headers.Add("Authorization", "Bearer $accessToken")
+
+                # Send the OneDrive API request and get the response
+                $response = $request.GetResponse()
+                $responseStream = $response.GetResponseStream()
+                $responseReader = New-Object System.IO.StreamReader($responseStream)
+                $responseText = $responseReader.ReadToEnd()
+                $responseReader.Close()
+                $responseStream.Close()
+                $response.Close()
+
+                # Parse the response and set the folder ID
+                $responseJson = ConvertFrom-Json $responseText
+                $folderId = $responseJson.id
+            } catch [System.Net.WebException] {
+                # Increment the retry counter
+                $retries++
+                # Wait for the retry interval
+                Start-Sleep -Milliseconds $this.retryInterval
+                # Increase the retry interval
+                $this.retryInterval += $this.retryIncrement
+            }
+        }
+
+        # Return the folder ID
+        return $folderId
+    }
+    # Create a folder with the specified name and parent folder ID
+    [string] CreateFolder([string]$accessToken, [string]$driveId, [string]$folderName, [string]$parentFolderId) {
+        # Set the retry counter
+        $retries = 0
+
+        # Set the folder ID to null
+        $folderId = $null
+
+        # Create the folder
+        while ($retries -lt $this.maxRetries -and -not $folderId) {
+            try {
+                # Build the body for the OneDrive API request
+                $body = @{
+                    "name"            = $folderName
+                    "folder"          = @{}
+                    "parentReference" = @{
+                        "driveId" = $driveId
+                        "id"      = $parentFolderId
+                    }
+                } | ConvertTo-Json -Depth 10
+
+                # Build the HTTP request for the OneDrive API
+                $request = [System.Net.WebRequest]::Create("$($this.apiUrl)/drives/$driveId/items/$parentFolderId/children")
+                $request.Method = "POST"
+                $request.ContentType = $this.contentType
+                $request.UserAgent = $this.userAgent
+                $request.Timeout = $this.requestTimeout
+                $request.Headers.Add("Authorization", "Bearer $accessToken")
+                $request.ContentLength = $body.Length
+                $requestStream = $request.GetRequestStream()
+                $requestStream.Write([System.Text.Encoding]::ASCII.GetBytes($body), 0, $body.Length)
+                $requestStream.Close()
+
+                # Send the OneDrive API request and get the response
+                $response = $request.GetResponse()
+                $responseStream = $response.GetResponseStream()
+                $responseReader = New-Object System.IO.StreamReader($responseStream)
+                $responseText = $responseReader.ReadToEnd()
+                $responseReader.Close()
+                $responseStream.Close()
+                $response.Close()
+
+                # Parse the response and set the folder ID
+                $responseJson = ConvertFrom-Json $responseText
+                $folderId = $responseJson.id
+            } catch [System.Net.WebException] {
+                # Increment the retry counter
+                $retries++
+                # Wait for the retry interval
+                Start-Sleep -Milliseconds $this.retryInterval
+                # Increase the retry interval
+                $this.retryInterval += $this.retryIncrement
+            }
+        }
+
+        # Return the folder ID
+        return $folderId
+    }
+    # Upload a file to the specified folder ID
+    [string] UploadFile([string]$accessToken, [string]$driveId, [string]$folderId, [string]$fileName, [string]$filePath) {
+        # Set the retry counter
+        $retries = 0
+
+        # Set the file ID to null
+        $fileId = $null
+
+        # Upload the file
+        while ($retries -lt $this.maxRetries -and -not $fileId) {
+            try {
+                # Build the body for the OneDrive API request
+                $body = @{
+                    "name"            = $fileName
+                    "file"            = @{}
+                    "parentReference" = @{
+                        "driveId" = $driveId
+                        "id"      = $folderId
+                    }
+                } | ConvertTo-Json -Depth 10
+
+                # Build the HTTP request for the OneDrive API
+                $request = [System.Net.WebRequest]::Create("$($this.apiUrl)/drives/$driveId/items/$folderId/children")
+                $request.Method = "POST"
+                $request.ContentType = "application/json"
+                $request.UserAgent = $this.userAgent
+                $request.Timeout = $this.requestTimeout
+                $request.Headers.Add("Authorization", "Bearer $accessToken")
+                $request.ContentLength = $body.Length
+                $requestStream = $request.GetRequestStream()
+                $requestStream.Write([System.Text.Encoding]::ASCII.GetBytes($body), 0, $body.Length)
+                $requestStream.Close()
+
+                # Send the OneDrive API request and get the response
+                $response = $request.GetResponse()
+                $responseStream = $response.GetResponseStream()
+                $responseReader = New-Object System.IO.StreamReader($responseStream)
+                $responseText = $responseReader.ReadToEnd()
+                $responseReader.Close()
+                $responseStream.Close()
+                $response.Close()
+
+                # Parse the response and set the file ID
+                $responseJson = ConvertFrom-Json $responseText
+                $fileId = $responseJson.id
+
+                # Get the upload URL
+                $request = [System.Net.WebRequest]::Create("$($this.apiUrl)/drives/$driveId/items/$fileId/content")
+                $request.Method = "GET"
+                $request.ContentType = "application/json"
+                $request.UserAgent = $this.userAgent
+                $request.Timeout = $this.requestTimeout
+                $request.Headers.Add("Authorization", "Bearer $accessToken")
+                $response = $request.GetResponse()
+                $uploadUrl = $response.ResponseUri.ToString()
+                $response.Close()
+
+                # Read the file data
+                $fileData = [System.IO.File]::ReadAllBytes($filePath)
+
+                # Build the HTTP request for the OneDrive API
+                $request = [System.Net.WebRequest]::Create($uploadUrl)
+                $request.Method = "PUT"
+                $request.ContentType = "application/octet-stream"
+                $request.UserAgent = $this.userAgent
+                $request.Timeout = $this.requestTimeout
+                $request.Headers.Add("Authorization", "Bearer $accessToken")
+                $request.ContentLength = $fileData.Length
+                $requestStream = $request.GetRequestStream()
+                $requestStream.Write($fileData, 0, $fileData.Length)
+                $requestStream.Close()
+                # Send the OneDrive API request
+                $response = $request.GetResponse()
+                $response.Close()
+            } catch [System.Net.WebException] {
+                # Increment the retry counter
+                $retries++
+                # Wait for the retry interval
+                Start-Sleep -Milliseconds $this.retryInterval
+                # Increase the retry interval
+                $this.retryInterval += $this.retryIncrement
+            }
+        }
+        # Return the file ID
+        return $fileId
+    }
+    # Download a file with the specified ID
+    [void] DownloadFile([string]$accessToken, [string]$driveId, [string]$fileId, [string]$filePath) {
+        # Set the retry counter
+        $retries = 0
+        # Download the file
+        while ($retries -lt $this.maxRetries) {
+            try {
+                $request = [System.Net.WebRequest]::Create("$($this.apiUrl)/drives/$driveId/items/$fileId/content")
+                $request.Method = "GET"
+                $request.ContentType = "application/octet-stream"
+                $request.UserAgent = $this.userAgent
+                $request.Timeout = $this.requestTimeout
+                $request.Headers.Add("Authorization", "Bearer $accessToken")
+
+                # Send the OneDrive API request and get the response
+                $response = $request.GetResponse()
+                $responseStream = $response.GetResponseStream()
+
+                # Save the file
+                [System.IO.File]::WriteAllBytes($filePath, [System.IO.Stream]::ReadAllBytes($responseStream))
+                $responseStream.Close()
+                $response.Close()
+
+                # Exit the loop
+                break
+            } catch [System.Net.WebException] {
+                # Increment the retry counter
+                $retries++
+                # Wait for the retry interval
+                Start-Sleep -Milliseconds $this.retryInterval
+                # Increase the retry interval
+                $this.retryInterval += $this.retryIncrement
+            }
+        }
+    }
+    [bool]hidden CheckValidProps () {
+        return $this.CheckValidProps($true)
+    }
+    [bool]hidden CheckValidProps ([bool]$ThrowOnFailure) {
+        $Hasvp = $true; $err = @(); $res = @()
+        if (-not $this.userAgent) {
+            $res = [PSCustomObject]@{
+                Hasvp = $Hasvp -and $false
+                Err   = $err += "The user agent is not set. Please set the userAgent variable."
+            }
+        }
+        if (-not $this.requestTimeout) {
+            $res = [PSCustomObject]@{
+                Hasvp = $Hasvp -and $false
+                Err   = $err += "The request timeout is not set. Please set the requestTimeout variable."
+            }
+        }
+        if (-not $this.maxRetries) {
+            $res = [PSCustomObject]@{
+                Hasvp = $Hasvp -and $false
+                Err   = $err += "The user agent is not set. Please set the userAgent variable."
+            }
+        }
+        if (-not $this.retryInterval) {
+            $res = [PSCustomObject]@{
+                Hasvp = $Hasvp -and $false
+                Err   = $err += "The user agent is not set. Please set the userAgent variable."
+            }
+        }
+        if (-not $this.retryIncrement) {
+            $res = [PSCustomObject]@{
+                Hasvp = $Hasvp -and $false
+                Err   = $err += "The user agent is not set. Please set the userAgent variable."
+            }
+        }
+        if (-not $this.pageSize) {
+            $res = [PSCustomObject]@{
+                Hasvp = $Hasvp -and $false
+                Err   = $err += "The user agent is not set. Please set the userAgent variable."
+            }
+        }
+        if (-not $this.maxPages) {
+            $res = [PSCustomObject]@{
+                Hasvp = $Hasvp -and $false
+                Err   = $err += "The user agent is not set. Please set the userAgent variable."
+            }
+        }
+        if (-not $this.apiUrl) {
+            $res = [PSCustomObject]@{
+                Hasvp = $Hasvp -and $false
+                Err   = $err += "The user agent is not set. Please set the userAgent variable."
+            }
+        }
+        if (-not $this.pickerUrl) {
+            $res = [PSCustomObject]@{
+                Hasvp = $Hasvp -and $false
+                Err   = $err += "The user agent is not set. Please set the userAgent variable."
+            }
+        }
+        if (-not $this.sharingUrl) {
+            $res = [PSCustomObject]@{
+                Hasvp = $Hasvp -and $false
+                Err   = $err += "The user agent is not set. Please set the userAgent variable."
+            }
+        }
+        if ($ThrowOnFailure) {
+            throw [System.Exception]::new([string]($res.err -join "`n"))
+        }
+        return $res.Hasvp
+    }
+}
 
 #endregion vaultStuff
 
