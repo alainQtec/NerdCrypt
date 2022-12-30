@@ -101,6 +101,15 @@ enum CredentialPersistence {
     LocalComputer = 2
     Enterprise = 3
 }
+enum OISecretType {
+    Password
+    SecTokken
+}
+
+enum EmailType {
+    Primary
+    Secondary
+}
 #endregion enums
 
 #region    Custom_Stuff_generators
@@ -962,6 +971,7 @@ class PasswordManager {
     [string]static GeneratePassword([int]$iterations, [int]$Length) {
         return [string][PasswordManager]::GeneratePassword($iterations, $Length, $Length);
     }
+    # [uint32]$Length, [bool]$StartWithLetter [bool]$NoSymbols, [bool]$UseAmbiguousCharacters, [bool]$UseExtendedAscii
     [string]static GeneratePassword([int]$iterations, [int]$minLength, [int]$maxLength) {
         # https://stackoverflow.com/questions/55556/characters-to-avoid-in-automatically-generated-passwords
         $Passw0rd = [string]::Empty; [string]$possibleCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;':\`",./<>?";
@@ -1092,8 +1102,8 @@ class PasswordManager {
 #     The built-in HMACSHA256 class in .NET Framework and PowerShell is a class that implements the HMAC using the SHA-256 hash function.
 #     However, in older versions of these platforms the HMACSHA256 class may not be FIPS compliant.
 # .EXAMPLE
-#     [FipsHmacSha256]::new() ....
-#     Explanation of the ... or .... result
+#     $hc = [FipsHmacSha256]::new() ....
+#     $hc.ComputeHash($bytesArray)
 class FipsHmacSha256 : System.Security.Cryptography.HMAC {
     static hidden $rng
     FipsHmacSha256() {
@@ -1554,6 +1564,106 @@ class CredentialManager {
         return $credList
     }
 }
+#region    OnlineIdentityVault
+Class OIsecret {
+    [OIsecretType]$type
+    [securestring]$Value
+    OIsecret([string]$type, [string]$secret) {
+        $this.type = [OIsecretType]$type
+        $this.Value = [xconvert]::TosecureString($secret)
+    }
+}
+class URL {
+    [string]$Name
+    URL ([string]$url) {
+        if ([URL]::IsValid($url)) { $this.Name = $url }
+    }
+    [bool]static IsValid([string]$Name) {
+        return [URL]::IsValid($Name, $true)
+    }
+    [bool]static IsValid([string]$Name, [bool]$throwOnFailure) {
+        $Isvalid = $Name -match '^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$'
+        if (!$Isvalid -and $throwOnFailure) {
+            throw [System.ArgumentException]'Ivalid Url string.'
+        }
+        return $Isvalid
+    }
+}
+class Email {
+    [string]$Name
+    [EmailType]$type
+    Email ([string]$email) {
+        if ([Email]::IsValid($email)) { $this.Name = $email }
+        $this.type = [EmailType]::Primary
+    }
+    [bool]static IsValid([string]$Email) {
+        return [Email]::IsValid($Email, $true)
+    }
+    [bool]static IsValid([string]$Email, [bool]$throwOnFailure) {
+        $Isvalid = $Email -match '^[a-zA-Z0-9.!#$%&''*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$'
+        if (!$Isvalid -and $throwOnFailure) {
+            throw [System.ArgumentException]'Ivalid Email address.'
+        }
+        return $Isvalid
+    }
+}
+class  OIuser {
+    [ValidateNotNullOrEmpty()][string]$Name
+    [System.Collections.Generic.List[Email]]$Emails
+    OIuser([string]$Name) {
+        $this.Name = $Name
+        $this.Emails = [System.Collections.Generic.List[Email]]::new()
+    }
+    OIuser([string]$Name, [Email[]]$Emails) {
+        $this.Name = $Name
+        $this.Emails = [System.Collections.Generic.List[Email]]::new()
+        foreach ($email in $Emails) { $this.AddEmail($email) }
+    }
+    OIuser([string]$Name, [string[]]$Emails) {
+        $this.Name = $Name
+        foreach ($email in $Emails) { $this.AddEmail($email) }
+    }
+    [void] AddEmail([string]$Email) {
+        [void]$this.Emails.Add([Email]::new($Email))
+    }
+    [void] AddEmail([Email]$Email) {
+        [void]$this.Emails.Add($Email)
+    }
+}
+#Online Identity Entry
+class OI {
+    [string]$Title
+    [OIuser]$User
+    [System.Collections.Generic.List[URL]]$Url
+    [System.Collections.Generic.List[OIsecret]]$secrets
+    OI([string]$Title, [string]$userName) {
+        $this.Title = $Title
+        $this.User = [OIuser]::new($userName)
+        $this.Url = [System.Collections.Generic.List[URL]]::new()
+        $this.secrets = [System.Collections.Generic.List[OIsecret]]::new()
+    }
+    OI([string]$Title, [string]$userName, [string[]]$Emails, [string[]]$Urls, [OIsecret[]]$secrets) {
+        $this.Title = $Title
+        $this.User = [OIuser]::new($userName, $Emails)
+        $this.Url = [System.Collections.Generic.List[URL]]::new()
+        $this.secrets = [System.Collections.Generic.List[OIsecret]]::new()
+        foreach ($url in $Urls) { [void]$this.Url.Add([URL]::new($url)) }
+    }
+    [void] AddEmail([string]$Email) {
+        $this.User.AddEmail($Email)
+    }
+    [void] AddEmail([Email]$Email) {
+        $this.User.AddEmail($Email)
+    }
+    [void] AddUrl([string]$url) {
+        [void]$this.Url.Add([URL]::new($url))
+    }
+    [void] AddUrl([URL]$url) {
+        [void]$this.Url.Add($url)
+    }
+}
+#endregion OnlineIdentityVault
+
 #endregion vaultStuff
 
 #region    securecodes~Expiration
