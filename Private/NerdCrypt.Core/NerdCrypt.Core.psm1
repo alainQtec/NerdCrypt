@@ -1727,7 +1727,7 @@ class OneDriveClient {
     [string]$clientId # aka the ApplicationID. https://learn.microsoft.com/en-us/onedrive/developer/rest-api/getting-started/msa-oauth?view=odsp-graph-online
     [string]$clientSecret
     [string]$tenantId # the tenant ID of your organization
-    [string]$vaultUrl = [string]::Empty # ex: "https://your-organization-name.sharepoint.com/sites/vault". If you are accessing your personal OneDrive account, you don't need to use the vaultUrl parameter. Instead, you can use the Microsoft Graph API to access your OneDrive account.
+    [string]$Url = [string]::Empty # ex: "https://your-organization-name.sharepoint.com/sites/vault". If you are accessing your personal OneDrive account, you don't need to use the Url parameter. Instead, you can use the Microsoft Graph API to access your OneDrive account.
     [string]$resourceId = "https://graph.microsoft.com" # the resource ID of OneDrive for Business
     [string]$redirectUri = "https://login.microsoftonline.com/common/oauth2/nativeclient" # or "http://localhost" ( the redirect URI for your app)
     [string]$tokenEndpoint # the OAuth 2.0 token endpoint for your tenant
@@ -1855,6 +1855,7 @@ class OneDriveClient {
     # Authenticate the user and get an access token
     [System.Collections.Generic.Dictionary[string, string]] Authenticate() {
         $authUrl = $this.GetAuthorizationUrl() # Get the authorization URL
+        # todo: Fix this method
         # Start-Process $authUrl # Open the authorization URL in the default web browser
         # $code = Read-Host -Prompt "Enter the authorization code"
         Set-Content "$env:temp\getCode.js" -Value "async function getCode() {
@@ -1926,7 +1927,7 @@ class OneDriveClient {
         while ($retries -lt $this.maxRetries -and -not $driveId) {
             try {
                 # Build the HTTP request for the OneDrive API
-                $request = [System.Net.WebRequest]::Create("$($this.apiUrl)/sites/$($this.vaultUrl)/drive")
+                $request = [System.Net.WebRequest]::Create("$($this.apiUrl)/sites/$($this.Url)/drive")
                 $request.Method = "GET"
                 $request.ContentType = $this.contentType
                 $request.UserAgent = $this.userAgent
@@ -2229,7 +2230,7 @@ class OneDriveClient {
         return $this.CheckValidProps($true)
     }
     [bool]hidden CheckValidProps ([bool]$ThrowOnFailure) {
-        $Hasvp = $true; $err = @(); $res = @(); $props = $this.PsObject.Properties | Where-Object { $_.Name -ne "vaultUrl" }
+        $Hasvp = $true; $err = @(); $res = @(); $props = $this.PsObject.Properties | Where-Object { $_.Name -ne "Url" }
         foreach ($prop in $props) {
             if ($null -eq $prop.value) {
                 $res = [PSCustomObject]@{
@@ -2250,6 +2251,166 @@ class OneDriveClient {
         $this.logoutEndpoint = "https://login.microsoftonline.com/$($this.tenantId)/oauth2/logout"
         $this.clientCredentials = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("$($this.clientId):$($this.clientSecret)"));
         $this.CheckValidProps($ThrowOnFailure)
+    }
+}
+
+# .DESCRIPTION
+#     Hashicorp VaultClient helper class for interacting with a Vault server by the Vault API.
+# .EXAMPLE
+#     $vaucl = [VaultClient]::new('<VAULT_ADDRESS>', '<VAULT_TOKEN>', '<VAULT_PROTOCOL>')
+#     $vault = $vaucl.GetVaultServer()
+#     $secrets = $vaucl.GetVaultSecretList('<VAULT_PATH>')
+#     $vaucl.SetVaultSecret('<VAULT_PATH>', @{key = 'value'})
+class VaultClient {
+    # Properties
+    [string] $Address
+    [string] $Token
+    [string] $Protocol
+    [string] $Url = [string]::Empty
+    [PSCustomObject] hidden $ClientObj = $null
+
+    # Constructor for the VaultClient class
+    VaultClient([string]$address, [string]$token, [string]$protocol) {
+        $this.Address = $address
+        $this.Token = $token
+        $this.Protocol = $protocol
+        # Set the Vault URL
+        $this.Url = "{0}://{1}/v1/" -f $protocol, $address
+        # Generate the vaultClient object
+        $this.GenerateVaultClient($token)
+    }
+
+    # Method to generate the vaultClient object
+    [void] GenerateVaultClient([string]$token) {
+        # Set the Vault token
+        $this.ClientObj = @{
+            Token   = $token
+            Headers = @{ 'X-Vault-Token' = $token }
+            BaseUri = $this.Url
+        }
+    }
+
+    # Method to get a Vault server
+    [PSCustomObject] GetVaultServer() {
+        # Create a custom object with the vaultClient object
+        $vault = New-Object -TypeName PSObject -Property $this.ClientObj
+        # Return the custom object
+        return $vault
+    }
+
+    # Method to get a Vault secret
+    [Hashtable] GetVaultSecret([string]$path) {
+        # Get the server
+        $vault = $this.GetVaultServer()
+        # Get the secret at the specified path
+        $uri = $vault.BaseUri + $path
+        $secret = Invoke-WebRequest -Uri $uri -Headers $vault.Headers | Select-Object -ExpandProperty Content | ConvertFrom-Json | Select-Object -ExpandProperty data
+        # Return the secret
+        return $secret
+    }
+
+    # Method to get a list of Vault secrets
+    [string[]] GetVaultSecretList([string]$path) {
+        return $this.GetVaultSecretList($path, $null)
+    }
+    # Method to get a list of Vault secrets
+    [string[]] GetVaultSecretList([string]$path, [PSCustomObject]$vault = $null) {
+        # Get the server
+        if (!$vault) { $vault = $this.GetVaultServer() }
+        # Get the list of secrets
+        $uri = $vault.BaseUri + $path
+        $secrets = Invoke-WebRequest -Uri $uri -Headers $vault.Headers -CustomMethod 'list' | Select-Object -ExpandProperty Content | ConvertFrom-Json | Select-Object -ExpandProperty data | Select-Object -ExpandProperty keys | ForEach-Object {
+            if ($_ -like '*/') {
+                $this.GetVaultSecretList($("$path/$_").Trim("/"), $vault)
+            } else {
+                "$path/$_"
+            }
+        }
+        # Return the list of secrets
+        return $secrets
+    }
+
+    # Method to set a Vault secret
+    [void] SetVaultSecret([string]$path, [Hashtable]$secret) {
+        $vault = $this.GetVaultServer()
+        # Set the secret at the specified path
+        $uri = $vault.BaseUri + $path
+        $data = @{data = $secret } | ConvertTo-Json
+        Invoke-WebRequest -Uri $uri -Headers $vault.Headers -Method 'POST' -Body $data | Select-Object -ExpandProperty Content | ConvertFrom-Json | Select-Object -ExpandProperty data
+    }
+    # Method to remove a Vault secret
+    [void] RemoveVaultSecret([string]$path) {
+        $vault = $this.GetVaultServer()
+        # Remove the secret at the specified path
+        $uri = $vault.BaseUri + $path
+        Invoke-WebRequest -Uri $uri -Headers $vault.Headers -Method 'DELETE'
+    }
+
+    # Method to get a Vault group
+    [Hashtable] GetVaultGroup([string]$name) {
+        $vault = $this.GetVaultServer()
+        # Get the group with the specified name
+        $uri = $vault.BaseUri + "identity/group/name/$name"
+        $group = Invoke-WebRequest -Uri $uri -Headers $vault.Headers | Select-Object -ExpandProperty Content | ConvertFrom-Json | Select-Object -ExpandProperty data
+
+        # Return the group
+        return $group
+    }
+
+    # Method to set a Vault group
+    [void] SetVaultGroup([Hashtable]$group) {
+        $vault = $this.GetVaultServer()
+        # Set the group
+        $uri = $vault.BaseUri + "identity/group"
+        $data = $group | ConvertTo-Json
+        Invoke-WebRequest -Uri $uri -Headers $vault.Headers -Method 'POST' -Body $data
+    }
+
+    # Method to remove a Vault group
+    [void] RemoveVaultGroup([string]$name) {
+        $vault = $this.GetVaultServer()
+        # Remove the group with the specified name
+        $uri = $vault.BaseUri + "identity/group/name/$name"
+        Invoke-WebRequest -Uri $uri -Headers $vault.Headers -Method 'DELETE'
+    }
+
+    # Method to get a Vault policy
+    [string] GetVaultPolicy([string]$name) {
+        $vault = $this.GetVaultServer()
+        # Get the policy with the specified name
+        $uri = $vault.BaseUri + "sys/policy/$name"
+        $policy = Invoke-WebRequest -Uri $uri -Headers $vault.Headers | Select-Object -ExpandProperty Content | ConvertFrom-Json | Select-Object -ExpandProperty data | Select-Object -ExpandProperty rules
+
+        # Return the policy
+        return $policy
+    }
+
+    # Method to set a Vault policy
+    [void] SetVaultPolicy([string]$name, [string]$rules) {
+        $vault = $this.GetVaultServer()
+        # Set the policy with the specified name
+        $uri = $vault.BaseUri + "sys/policy/$name"
+        $data = @{rules = $rules } | ConvertTo-Json
+        Invoke-WebRequest -Uri $uri -Headers $vault.Headers -Method 'POST' -Body $data
+    }
+
+    # Method to remove a Vault policy
+    [void] RemoveVaultPolicy([string]$name) {
+        $vault = $this.GetVaultServer()
+        # Remove the policy with the specified name
+        $uri = $vault.BaseUri + "sys/policy/$name"
+        Invoke-WebRequest -Uri $uri -Headers $vault.Headers -Method 'DELETE'
+    }
+
+    # Method to get a list of Vault policies
+    [string[]] GetVaultPolicyList() {
+        $vault = $this.GetVaultServer()
+        # Get the list of policies
+        $uri = $vault.BaseUri + "sys/policy"
+        $policies = Invoke-WebRequest -Uri $uri -Headers $vault.Headers | Select-Object -ExpandProperty Content | ConvertFrom-Json | Select-Object -ExpandProperty data | Select-Object -ExpandProperty keys
+
+        # Return the list of policies
+        return $policies
     }
 }
 #endregion vaultStuff
