@@ -156,7 +156,7 @@ class xgen {
     }
     [byte[]]static Key([int]$iterations) {
         $password = $null; $salt = $null;
-        Set-Variable -Name password -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToSecurestring([PasswordManager]::GeneratePassword($Iterations)));
+        Set-Variable -Name password -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToSecurestring([PasswordManager]::GeneratePassword()));
         Set-Variable -Name salt -Scope Local -Visibility Private -Option Private -Value $([xgen]::Salt($Iterations));
         return [xgen]::Key($password, $salt)
     }
@@ -265,7 +265,7 @@ class xgen {
     [System.Security.Cryptography.Aes]static Aes() { return [xgen]::Aes(1) }
     [System.Security.Cryptography.Aes]static Aes([int]$Iterations) {
         $salt = $null; $password = $null;
-        Set-Variable -Name password -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToSecurestring([PasswordManager]::GeneratePassword($Iterations)));
+        Set-Variable -Name password -Scope Local -Visibility Private -Option Private -Value $([xconvert]::ToSecurestring([PasswordManager]::GeneratePassword()));
         Set-Variable -Name salt -Scope Local -Visibility Private -Option Private -Value $([xgen]::Salt($Iterations));
         return [xgen]::Aes($password, $salt, $Iterations)
     }
@@ -3438,11 +3438,11 @@ class K3Y {
     [ValidateNotNullOrEmpty()][byte[]]hidden $rgbSalt = [System.Text.Encoding]::UTF7.GetBytes('hR#ho"rK6FMu mdZFXp}JMY\?NC]9(.:6;>oB5U>.GkYC-JD;@;XRgXBgsEi|%MqU>_+w/RpUJ}Kt.>vWr[WZ;[e8GM@P@YKuT947Z-]ho>E2"c6H%_L2A:O5:E)6Fv^uVE; aN\4t\|(*;rPRndSOS(7& xXLRKX)VL\/+ZB4q.iY { %Ko^<!sW9n@r8ihj*=T $+Cca-Nvv#JnaZh'); #this is the default salt, change it if you want.
 
     K3Y() {
-        $this.User = [CredManaged]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([PasswordManager]::GeneratePassword(1, 64))));
+        $this.User = [CredManaged]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([PasswordManager]::GeneratePassword(64))));
         $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([Datetime]$Expiration) {
-        $this.User = [CredManaged]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([PasswordManager]::GeneratePassword(1, 64))));
+        $this.User = [CredManaged]::new([pscredential]::new($Env:USERNAME, [securestring][xconvert]::ToSecurestring([PasswordManager]::GeneratePassword(64))));
         $this.Expiration = [Expiration]::new($Expiration); $this.UID = [securestring][xconvert]::ToSecurestring($this.GetK3YIdSTR());
     }
     K3Y([pscredential]$User, [Datetime]$Expiration) {
@@ -4685,8 +4685,8 @@ function New-Password {
     .SYNOPSIS
         Creates a password string
     .DESCRIPTION
-        Creates a password containing minimum of 8 characters, 1 lowercase, 1 uppercase, 1 numeric, and 1 special character.
-        Created password can not exceed 999 characters
+        Creates a password containing minimum of 9 characters, 1 lowercase, 1 uppercase, 1 numeric, and 1 special character.
+        Can not exceed 999 characters
     .LINK
         https://github.com/alainQtec/NerdCrypt/blob/main/Private/NerdCrypt.Core/NerdCrypt.Core.psm1
     .EXAMPLE
@@ -4694,49 +4694,38 @@ function New-Password {
         Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'No system state is being changed')]
-    [CmdletBinding(DefaultParameterSetName = 'ByLength')]
+    [CmdletBinding(DefaultParameterSetName = 'asSecureString')]
     param (
         # Exact password Length
-        [Parameter(Position = 0, Mandatory = $false, ParameterSetName = 'ByLength')]
+        [Parameter(Position = 0, Mandatory = $false, ParameterSetName = '__AllParameterSets')]
         [Alias('l')][ValidateRange(9, 999)]
-        [int]$Length,
-        # Minimum Length
-        [Parameter(Position = 0, Mandatory = $false, ParameterSetName = 'ByMinMax')]
-        [Alias('min')]
-        [int]$minLength,
-        # Minimum Length
-        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'ByMinMax')]
-        [Alias('max')]
-        [int]$maxLength,
-        # Retries / Iterations to randomise results
-        [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'ByLength')]
-        [Parameter(Position = 2, Mandatory = $false, ParameterSetName = 'ByMinMax')]
-        [Alias('r')][ValidateRange(1, 100)][ValidateNotNullOrEmpty()]
-        [int]$Iterations
+        [int]$Length = 19,
+
+        [Parameter(Mandatory = $false, ParameterSetName = '__AllParameterSets')]
+        [switch]$StartWithLetter,
+
+        [Parameter(Mandatory = $false, ParameterSetName = '__AllParameterSets')]
+        [switch]$NoSymbols,
+
+        [Parameter(Mandatory = $false, ParameterSetName = '__AllParameterSets')]
+        [switch]$UseAmbiguousCharacters,
+
+        [Parameter(Mandatory = $false, ParameterSetName = '__AllParameterSets')]
+        [switch]$UseExtendedAscii,
+
+        [Parameter(Mandatory = $false, ParameterSetName = 'PlainText')]
+        [switch]$AsPlainText
     )
 
     begin {
         $Pass = [string]::Empty
-        $params = $PSCmdlet.MyInvocation.BoundParameters
+        # $params = $PSCmdlet.MyInvocation.BoundParameters
     }
 
     process {
-        if ($PSCmdlet.ParameterSetName -eq 'ByLength') {
-            if ($params.ContainsKey('Length') -and $params.ContainsKey('Iterations')) {
-                $Pass = [PasswordManager]::GeneratePassword($Iterations, $Length);
-            } elseif ($params.ContainsKey('Length') -and !$params.ContainsKey('Iterations')) {
-                $Pass = [PasswordManager]::GeneratePassword(1, $Length);
-            } else {
-                $Pass = [PasswordManager]::GeneratePassword();
-            }
-        } elseif ($PSCmdlet.ParameterSetName -eq 'ByMinMax') {
-            if ($params.ContainsKey('Iterations')) {
-                $pass = [PasswordManager]::GeneratePassword($Iterations, $minLength, $maxLength);
-            } else {
-                $Pass = [PasswordManager]::GeneratePassword(1, $minLength, $maxLength);
-            }
-        } else {
-            throw [System.Management.Automation.ParameterBindingException]::new("Could Not Resolve ParameterSetname.");
+        $Pass = [PasswordManager]::GeneratePassword($Length, $StartWithLetter, $NoSymbols, $UseAmbiguousCharacters, $UseExtendedAscii);
+        if ($PSCmdlet.ParameterSetName -eq 'asSecureString') {
+            $pass = [xconvert]::ToSecurestring($Pass)
         }
     }
     end {
