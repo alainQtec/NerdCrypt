@@ -19,6 +19,7 @@
     PS C:\> #You get back: Crypt0gr4Phy Rocks!
 #>
 # Import the necessary assemblies
+Add-Type -AssemblyName System.Web
 Add-Type -AssemblyName System.Security;
 Add-Type -AssemblyName System.Runtime.InteropServices;
 
@@ -1698,71 +1699,57 @@ class OI {
     }
 }
 #endregion OnlineIdentityVault
-
+# Onedrive Helper Class to read and store files in Onedrive personal vault
+# Status: Not working! [the GetAuthorizationUrl() method is not working & idk why]
+# Read more at: https://developer.microsoft.com/en-us/onedrive & https://learn.microsoft.com/en-us/onedrive/developer/rest-api
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingInvokeExpression", '')]
 class OneDriveClient {
-    [string]$clientId
+    [string]$clientId # aka the ApplicationID. https://learn.microsoft.com/en-us/onedrive/developer/rest-api/getting-started/msa-oauth?view=odsp-graph-online
     [string]$clientSecret
-    [string]$vaultUrl # your OneDrive Vault URL ex: "https://your-organization-name.sharepoint.com/sites/vault"
     [string]$tenantId # the tenant ID of your organization
-    [string]$resourceId # the resource ID of OneDrive for Business
-    [string]$redirectUri # the redirect URI for your app
+    [string]$vaultUrl = [string]::Empty # ex: "https://your-organization-name.sharepoint.com/sites/vault". If you are accessing your personal OneDrive account, you don't need to use the vaultUrl parameter. Instead, you can use the Microsoft Graph API to access your OneDrive account.
+    [string]$resourceId = "https://graph.microsoft.com" # the resource ID of OneDrive for Business
+    [string]$redirectUri = "https://login.microsoftonline.com/common/oauth2/nativeclient" # or "http://localhost" ( the redirect URI for your app)
     [string]$tokenEndpoint # the OAuth 2.0 token endpoint for your tenant
     [string]$authorizationEndpoint # the OAuth 2.0 authorization endpoint for your tenant
     [string]$logoutEndpoint # the OAuth 2.0 logout endpoint for your tenant
-    [string]$scope # the scope for the OAuth 2.0 authorization request
-    [string]$responseType # the response type for the OAuth 2.0 authorization request
-    [string]$grantType # the grant type for the OAuth 2.0 token request
+    [string]$scope = "https://graph.microsoft.com/.default" # the scope for the OAuth 2.0 authorization request
+    [string]$responseType = "code" # the response type for the OAuth 2.0 authorization request
+    [string]$grantType = "authorization_code" # the grant type for the OAuth 2.0 token request
     [string]$clientCredentials # Set the client credentials for the OAuth 2.0 token request
-    [string]$contentType # Set the content type for the HTTP POST request
-    [string]$userAgent # Set the user agent for the HTTP request
-    [int]$requestTimeout # Set the request timeout
-    [int]$maxRetries # the maximum number of retries for failed requests
-    [int]$retryInterval # the retry interval for failed requests
-    [int]$retryIncrement # the retry increment for failed requests
-    [int]$pageSize # the maximum number of items to return per page
-    [int]$maxPages # the maximum number of pages to return
-    [string]$apiUrl # the base URL for the OneDrive API
-    [string]$pickerUrl # the base URL for the OneDrive file picker
-    [string]$sharingUrl # the base URL for the OneDrive sharing links
+    [string]$contentType = "application/x-www-form-urlencoded" # Set the content type for the HTTP POST request
+    [string]$userAgent = "OneDriveClient/1.0" # Set the user agent for the HTTP request
+    [int]$requestTimeout = 30 # Set the request timeout
+    [int]$maxRetries = 3 # the maximum number of retries for failed requests
+    [int]$retryInterval = 1000 # the retry interval for failed requests
+    [int]$retryIncrement = 1000 # the retry increment for failed requests
+    [int]$pageSize = 100# the maximum number of items to return per page
+    [int]$maxPages = 10 # the maximum number of pages to return
+    # Set the default base URLs for the OneDrive API and file picker
+    [string]$apiUrl = "https://graph.microsoft.com/v1.0" # the base URL for the OneDrive API
+    [string]$pickerUrl = "https://onedrive.live.com/picker" # the base URL for the OneDrive file picker
+    [string]$sharingUrl = "https://onedrive.live.com/sharing/v2" # the base URL for the OneDrive sharing links
 
-    OneDriveClient ([string]$clientId, [string]$clientSecret) {
+    OneDriveClient ([string]$clientId, [string]$clientSecret, [string]$tenantId) {
         $this.clientId = $clientId
         $this.clientSecret = $clientSecret
-        $this.vaultUrl = "https://your-organization-name.sharepoint.com/sites/vault"
-        $this.tenantId = "your_tenant_id"
-        $this.resourceId = "https://your-organization-name-my.sharepoint.com/"
-        $this.redirectUri = "http://localhost"
-        $this.tokenEndpoint = "https://login.microsoftonline.com/$($this.tenantId)/oauth2/token"
-        $this.authorizationEndpoint = "https://login.microsoftonline.com/$($this.tenantId)/oauth2/authorize"
-        $this.logoutEndpoint = "https://login.microsoftonline.com/$($this.tenantId)/oauth2/logout"
-        $this.scope = "https://your-organization-name.sharepoint.com/sites/vault/.default"
-        $this.responseType = "code"
-        $this.grantType = "authorization_code"
-        $this.clientCredentials = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("$($this.clientId):$($this.clientSecret)"));
-        $this.contentType = "application/x-www-form-urlencoded"
-        $this.userAgent = "PowerShell/OneDriveVaultHelper"
-        $this.requestTimeout = 30
-        $this.maxRetries = 3
-        $this.retryInterval = 1
-        $this.retryIncrement = 1
-        $this.pageSize = 100
-        $this.maxPages = 10
-        $this.apiUrl = "https://your-organization-name-my.sharepoint.com/_api/v2.0"
-        $this.pickerUrl = "https://your-organization-name-my.sharepoint.com/personal/user_name/_layouts/15/onedrive.aspx"
-        $this.sharingUrl
-        $this.CheckValidProps($true)
+        $this.tenantId = $tenantId
+        $this._init($true);
     }
     # Get the authorization URL for the OAuth 2.0 authorization request
     [string] GetAuthorizationUrl() {
         # Build the query string for the OAuth 2.0 authorization request
+        # Ex: https://login.microsoftonline.com/common/oauth2/authorize?client_id=your-client-id&redirect_uri=your-redirect-uri&response_type=code&scope=https://graph.microsoft.com/.default
         $query = [System.Web.HttpUtility]::ParseQueryString([string]::Empty)
-        $query["client_id"] = $this.clientIdclientId
-        $query["redirect_uri"] = $this.redirectUri
-        $query["response_type"] = $this.responseType
-        $query["scope"] = $this.scope
-
-        # Return the authorization URL
-        return "$($this.authorizationEndpoint)?$($query)"
+        $query['client_id'] = $this.clientId
+        $query['redirect_uri'] = $this.redirectUri
+        $query['response_type'] = $this.responseType
+        $query['scope'] = $this.scope
+        $authorizationUrl = "$($this.authorizationEndpoint)?client_id=$($query['client_id'])&redirect_uri=$($query['redirect_uri'])&response_type=$($query['response_type'])&scope=$($query['scope'])"
+        if ([string]::IsNullOrWhiteSpace($authorizationUrl)) {
+            throw 'Failed to get the Authorization Url'
+        }
+        return $authorizationUrl
     }
     # Get the access token for the OAuth 2.0 token request
     [System.Collections.Generic.Dictionary[string, string]] GetAccessToken([string]$code) {
@@ -1843,6 +1830,68 @@ class OneDriveClient {
             "refresh_token" = $responseJson.refresh_token
             "expires_in"    = $responseJson.expires_in
         }
+    }
+    # Authenticate the user and get an access token
+    [System.Collections.Generic.Dictionary[string, string]] Authenticate() {
+        $authUrl = $this.GetAuthorizationUrl() # Get the authorization URL
+        # Start-Process $authUrl # Open the authorization URL in the default web browser
+        # $code = Read-Host -Prompt "Enter the authorization code"
+        Set-Content "$env:temp\getCode.js" -Value "async function getCode() {
+                    const authUrl = '$authUrl';
+                    const response = await fetch(authUrl);
+                    const code = new URL(response.url).searchParams.get('code');
+                    return code;
+                }
+                async function main() {
+                    let authCode = await getCode();
+                    console.log(authCode);
+                }
+                main()"; $code = Invoke-Expression "node.exe '$env:temp\getCode.js'"
+        $token = $this.GetAccessToken($code) # Get the access token
+        # Return the access token
+        return $token
+    }
+    [OneDriveClient] CreateInstance() {
+        $client = [OneDriveClient]::new()
+        $client.clientId = $this.clientId
+        $client.clientSecret = $this.clientSecret
+        $client.tenantId = $this.tenantId
+        $client.resourceId = $this.resourceId
+        $client.redirectUri = $this.redirectUri
+        $client.tokenEndpoint = $this.tokenEndpoint
+        $client.authorizationEndpoint = $this.authorizationEndpoint
+        $client.logoutEndpoint = $this.logoutEndpoint
+        $client.scope = $this.scope
+        $client.responseType = $this.responseType
+        $client.grantType = $this.grantType
+        $client.clientCredentials = $this.clientCredentials
+        $client.contentType = $this.contentType
+        $client.userAgent = $this.userAgent
+        $client.requestTimeout = $this.requestTimeout
+        $client.maxRetries = $this.maxRetries
+        $client.retryInterval = $this.retryInterval
+        $client.retryIncrement = $this.retryIncrement
+        $client.pageSize = $this.pageSize
+        $client.maxPages = $this.maxPages
+        $client.apiUrl = $this.apiUrl
+        $client.pickerUrl = $this.pickerUrl
+        $client.sharingUrl = $this.sharingUrl
+        return $client
+    }
+    [string] ListFiles() {
+        # Create a new OneDriveClient instance
+        $client = $this.CreateInstance()
+        # Authenticate the app and get an access token
+        # Authenticate the user and get an access token #ie: $token = $client.Authenticate()
+        $authResponse = $client.Authenticate()
+        $accessToken = $authResponse.access_token
+        # Use the access token to make a request to the OneDrive API
+        $headers = @{
+            "Authorization" = "Bearer $accessToken"
+        }
+        $response = (Invoke-RestMethod -Uri "$($this.apiUrl)/me/drive/root/children" -Method GET -Headers $headers) | ConvertTo-Json
+        # Print the response
+        return $response
     }
     # Get the drive ID for the OneDrive Vault
     [string] GetDriveId([string]$accessToken) {
@@ -2159,74 +2208,29 @@ class OneDriveClient {
         return $this.CheckValidProps($true)
     }
     [bool]hidden CheckValidProps ([bool]$ThrowOnFailure) {
-        $Hasvp = $true; $err = @(); $res = @()
-        if (-not $this.userAgent) {
-            $res = [PSCustomObject]@{
-                Hasvp = $Hasvp -and $false
-                Err   = $err += "The user agent is not set. Please set the userAgent variable."
+        $Hasvp = $true; $err = @(); $res = @(); $props = $this.PsObject.Properties | Where-Object { $_.Name -ne "vaultUrl" }
+        foreach ($prop in $props) {
+            if ($null -eq $prop.value) {
+                $res = [PSCustomObject]@{
+                    Hasvp = $Hasvp -and $false
+                    Err   = $err += "$($prop.Name) is not set. Please set the $($prop.Name) Parameter."
+                }
             }
         }
-        if (-not $this.requestTimeout) {
-            $res = [PSCustomObject]@{
-                Hasvp = $Hasvp -and $false
-                Err   = $err += "The request timeout is not set. Please set the requestTimeout variable."
-            }
-        }
-        if (-not $this.maxRetries) {
-            $res = [PSCustomObject]@{
-                Hasvp = $Hasvp -and $false
-                Err   = $err += "The user agent is not set. Please set the userAgent variable."
-            }
-        }
-        if (-not $this.retryInterval) {
-            $res = [PSCustomObject]@{
-                Hasvp = $Hasvp -and $false
-                Err   = $err += "The user agent is not set. Please set the userAgent variable."
-            }
-        }
-        if (-not $this.retryIncrement) {
-            $res = [PSCustomObject]@{
-                Hasvp = $Hasvp -and $false
-                Err   = $err += "The user agent is not set. Please set the userAgent variable."
-            }
-        }
-        if (-not $this.pageSize) {
-            $res = [PSCustomObject]@{
-                Hasvp = $Hasvp -and $false
-                Err   = $err += "The user agent is not set. Please set the userAgent variable."
-            }
-        }
-        if (-not $this.maxPages) {
-            $res = [PSCustomObject]@{
-                Hasvp = $Hasvp -and $false
-                Err   = $err += "The user agent is not set. Please set the userAgent variable."
-            }
-        }
-        if (-not $this.apiUrl) {
-            $res = [PSCustomObject]@{
-                Hasvp = $Hasvp -and $false
-                Err   = $err += "The user agent is not set. Please set the userAgent variable."
-            }
-        }
-        if (-not $this.pickerUrl) {
-            $res = [PSCustomObject]@{
-                Hasvp = $Hasvp -and $false
-                Err   = $err += "The user agent is not set. Please set the userAgent variable."
-            }
-        }
-        if (-not $this.sharingUrl) {
-            $res = [PSCustomObject]@{
-                Hasvp = $Hasvp -and $false
-                Err   = $err += "The user agent is not set. Please set the userAgent variable."
-            }
-        }
-        if ($ThrowOnFailure) {
-            throw [System.Exception]::new([string]($res.err -join "`n"))
+        $ErrorMessage = [string]($res.err -join "`n")
+        if ($ThrowOnFailure -and !$Hasvp) {
+            throw [System.Exception]::new($ErrorMessage)
         }
         return $res.Hasvp
     }
+    [void]hidden _init([bool]$ThrowOnFailure) {
+        $this.tokenEndpoint = "https://login.microsoftonline.com/$($this.tenantId)/oauth2/token"
+        $this.authorizationEndpoint = "https://login.microsoftonline.com/$($this.tenantId)/oauth2/authorize"
+        $this.logoutEndpoint = "https://login.microsoftonline.com/$($this.tenantId)/oauth2/logout"
+        $this.clientCredentials = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("$($this.clientId):$($this.clientSecret)"));
+        $this.CheckValidProps($ThrowOnFailure)
+    }
 }
-
 #endregion vaultStuff
 
 #region    securecodes~Expiration
