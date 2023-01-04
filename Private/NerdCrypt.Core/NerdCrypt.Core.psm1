@@ -964,29 +964,49 @@ class PasswordManager {
         return $IsValid
     }
     [string]static GeneratePassword() {
-        return [string][PasswordManager]::GeneratePassword(1);
+        return [string][PasswordManager]::GeneratePassword(19);
     }
-    [string]static GeneratePassword([int]$iterations) {
-        return [string][PasswordManager]::GeneratePassword($iterations, 24, 80);
+    [string]static GeneratePassword([int]$Length) {
+        return [string][PasswordManager]::GeneratePassword($Length, $false, $false, $false, $false);
     }
-    [string]static GeneratePassword([int]$iterations, [int]$Length) {
-        return [string][PasswordManager]::GeneratePassword($iterations, $Length, $Length);
+    [string]static GeneratePassword([int]$Length, [bool]$StartWithLetter) {
+        return [string][PasswordManager]::GeneratePassword($Length, $StartWithLetter, $false, $false, $false);
     }
-    # [uint32]$Length, [bool]$StartWithLetter [bool]$NoSymbols, [bool]$UseAmbiguousCharacters, [bool]$UseExtendedAscii
-    [string]static GeneratePassword([int]$iterations, [int]$minLength, [int]$maxLength) {
+    [string]static GeneratePassword([int]$Length, [bool]$StartWithLetter, [bool]$NoSymbols, [bool]$UseAmbiguousCharacters, [bool]$UseExtendedAscii) {
         # https://stackoverflow.com/questions/55556/characters-to-avoid-in-automatically-generated-passwords
-        $Passw0rd = [string]::Empty; [string]$possibleCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;':\`",./<>?";
-        $MinrL = 8; $MaxrL = 999 # Gotta have some restrictions, or one typo could endup creating insanely long or small Passwords, ex 30000 intead of 30.
-        if ($minLength -lt $MinrL) { Write-Warning "Length is below the Minimum required 'Password Length'. Try $MinrL or greater." ; Break }
-        if ($maxLength -gt $MaxrL) { Write-Warning "Length is greater the Maximum required 'Password Length'. Try $MaxrL or lower." ; Break }
-        if ($minLength -lt 130) {
-            $Passw0rd = [string][xgen]::RandomSTR($possibleCharacters, $iterations, $minLength, $maxLength)
-        } else {
+        [string]$possibleCharacters = [char[]](33..126 + 161..254); $MinrL = 8; $MaxrL = 999 # Gotta have some restrictions, or one typo could endup creating insanely long or small Passwords, ex 30000 intead of 30.
+        if ($Length -lt $MinrL) { Write-Warning "Length is below the Minimum required 'Password Length'. Try $MinrL or greater." ; Break }
+        if ($Length -gt $MaxrL) { Write-Warning "Length is greater the Maximum required 'Password Length'. Try $MaxrL or lower." ; Break }
+        # Warn the user if they've specified mutually-exclusive options.
+        if ($NoSymbols -and $UseExtendedAscii) { Write-Warning 'The -NoSymbols parameter was also specified.  No extended ASCII characters will be used.' }
+        do {
+            $Passw0rd = [string]::Empty; $x = $null; $r = 0
             #This person Wants a really good password, so We retry Until we get a 60% strong password.
             do {
-                $Passw0rd = [string][xgen]::RandomSTR($possibleCharacters, $iterations, $minLength, $maxLength)
-            } until ([int][PasswordManager]::GetPasswordStrength($Passw0rd) -gt 60)
-        }
+                do {
+                    do {
+                        do {
+                            do {
+                                $x = [int][char][string][xgen]::RandomSTR($possibleCharacters, 1, 1, 1);
+                                # Write-Verbose "Use character: $([char]$x) : $x"
+                            } While ($x -eq 127 -Or (!$UseExtendedAscii -and $x -gt 127))
+                            # The above Do..While loop does this:
+                            #  1. Don't allow ASCII 127 (delete).
+                            #  2. Don't allow extended ASCII, unless the user wants it.
+                        } While (!$UseAmbiguousCharacters -and ($x -In @(49, 73, 108, 124, 48, 79)))
+                        # The above loop disallows 1 (ASCII 49), I (73), l (108),
+                        # | (124), 0 (48) or O (79) -- unless the user wants those.
+                    } While ($NoSymbols -and ($x -lt 48 -Or ($x -gt 57 -and $x -lt 65) -Or ($x -gt 90 -and $x -lt 97) -Or $x -gt 122))
+                    # If the -NoSymbols parameter was specified, this loop will ensure
+                    # that the character is neither a symbol nor in the extended ASCII
+                    # character set.
+                } While ($r -eq 0 -and $StartWithLetter -and !(($x -ge 65 -and $x -le 90) -Or ($x -ge 97 -and $x -le 122)))
+                # If the -StartWithLetter parameter was specified, this loop will make
+                # sure that the first character is an upper- or lower-case letter.
+                $Passw0rd = $Passw0rd.Trim()
+                $Passw0rd += [string][char]$x; $r++
+            } until ($Passw0rd.length -eq $Length)
+        } until ([int][PasswordManager]::GetPasswordStrength($Passw0rd) -gt 60)
         return $Passw0rd;
     }
     [int]static GetPasswordStrength([string]$passw0rd) {
@@ -1740,12 +1760,13 @@ class OneDriveClient {
     [string] GetAuthorizationUrl() {
         # Build the query string for the OAuth 2.0 authorization request
         # Ex: https://login.microsoftonline.com/common/oauth2/authorize?client_id=your-client-id&redirect_uri=your-redirect-uri&response_type=code&scope=https://graph.microsoft.com/.default
-        $query = [System.Web.HttpUtility]::ParseQueryString([string]::Empty)
-        $query['client_id'] = $this.clientId
-        $query['redirect_uri'] = $this.redirectUri
-        $query['response_type'] = $this.responseType
-        $query['scope'] = $this.scope
-        $authorizationUrl = "$($this.authorizationEndpoint)?client_id=$($query['client_id'])&redirect_uri=$($query['redirect_uri'])&response_type=$($query['response_type'])&scope=$($query['scope'])"
+        $query = [PSCustomObject]@{
+            client_id     = $this.clientId
+            redirect_uri  = $this.redirectUri
+            response_type = $this.responseType
+            scope         = $this.scope
+        }
+        $authorizationUrl = "$($this.authorizationEndpoint)?client_id=$($query.client_id)&redirect_uri=$($query.redirect_uri)&response_type=$($query.response_type)&scope=$($query.scope)"
         if ([string]::IsNullOrWhiteSpace($authorizationUrl)) {
             throw 'Failed to get the Authorization Url'
         }
@@ -1754,7 +1775,7 @@ class OneDriveClient {
     # Get the access token for the OAuth 2.0 token request
     [System.Collections.Generic.Dictionary[string, string]] GetAccessToken([string]$code) {
         # Build the body for the OAuth 2.0 token request
-        $body = [System.Web.HttpUtility]::ParseQueryString([string]::Empty)
+        $body = Invoke-Expression "[System.Web.HttpUtility]::ParseQueryString([string]::Empty)"
         $body["client_id"] = $this.clientId
         $body["redirect_uri"] = $this.redirectUri
         $body["client_secret"] = $this.clientSecret
@@ -1794,7 +1815,7 @@ class OneDriveClient {
     # Refresh the access token for the OAuth 2.0 token request
     [System.Collections.Generic.Dictionary[string, string]] RefreshAccessToken([string]$refreshToken) {
         # Build the body for the OAuth 2.0 token request
-        $body = [System.Web.HttpUtility]::ParseQueryString([string]::Empty)
+        $body = Invoke-Expression "[System.Web.HttpUtility]::ParseQueryString([string]::Empty)"
         $body["client_id"] = $this.clientId
         $body["redirect_uri"] = $this.redirectUri
         $body["client_secret"] = $this.clientSecret
