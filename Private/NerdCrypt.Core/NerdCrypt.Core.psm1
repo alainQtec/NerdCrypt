@@ -2256,6 +2256,8 @@ class OneDriveClient {
 
 # .DESCRIPTION
 #     Hashicorp VaultClient helper class for interacting with a Vault server by the Vault API.
+#     To use this class, you will need to have access to a running instance of Hashicorp Vault.
+#     You can download it from from the Hashicorp website at https://www.hashicorp.com/products/vault/.
 # .EXAMPLE
 #     $vaucl = [VaultClient]::new('<VAULT_ADDRESS>', '<VAULT_TOKEN>', '<VAULT_PROTOCOL>')
 #     $vault = $vaucl.GetVaultServer()
@@ -2263,11 +2265,12 @@ class OneDriveClient {
 #     $vaucl.SetVaultSecret('<VAULT_PATH>', @{key = 'value'})
 class VaultClient {
     # Properties
-    [string] $Address
-    [string] $Token
-    [string] $Protocol
+    [string] $Address # This is the URL or IP address of your Vault server, including the port number if applicable. You can find this value in the api_addr field of the vault.hcl configuration file, or you can use the vault status command to display the current address of the Vault server.
+    [string] $Token # This is a token that is used to authenticate with the Vault server. You can generate a new token using the vault token create command, or you can use the vault status command to display the current token of the Vault server.
+    [string] $Protocol # This is the protocol that will be used to communicate with the Vault server. The most common value is https, but you can also use http if you have configured your Vault server to use an insecure connection. You can find this value in the api_addr field of the vault.hcl configuration file, or you can use the vault status command to display the current protocol of the Vault server.
     [string] $Url = [string]::Empty
     [PSCustomObject] hidden $ClientObj = $null
+    [Microsoft.PowerShell.Commands.HtmlWebResponseObject] static hidden $releases
 
     # Constructor for the VaultClient class
     VaultClient([string]$address, [string]$token, [string]$protocol) {
@@ -2279,7 +2282,31 @@ class VaultClient {
         # Generate the vaultClient object
         $this.GenerateVaultClient($token)
     }
-
+    # Download and Install the latest Vault
+    [void]static Install() {
+        [console]::Write("Check Latest Version ...")
+        [VaultClient]::releases = Invoke-WebRequest "https://releases.hashicorp.com/vault/" -Verbose:$false
+        [string]$latestver = $([VaultClient]::releases.Links | ForEach-Object { $_.outerText.split('-')[0].split('_')[1] -as 'version' } | Sort-Object -Descending)[0].tostring()
+        [VaultClient]::Install($latestver)
+    }
+    [void]static Install([string]$version) {
+        [console]::WriteLine(" Found vault version: $version")
+        if ($null -eq [VaultClient]::releases) { [VaultClient]::releases = Invoke-WebRequest "https://releases.hashicorp.com/vault/" -Verbose:$false }
+        [string]$latest_dl = $(Invoke-WebRequest ("https://releases.hashicorp.com" + ([VaultClient]::releases.Links | Where-Object { $_.href -like "*/$version/*" } | Select-Object -ExpandProperty href)) -Verbose:$false).Links.href | Where-Object { $_ -like "*windows_386*" }
+        $p = Get-Variable progressPreference -ValueOnly; $progressPreference = "SilentlyContinue"
+        [string]$Outfile = [xgen]::UnResolvedPath("vault_$version.zip");
+        try {
+            [FileCryptr]::Download($latest_dl, $Outfile)
+            Expand-Archive -Path $Outfile -DestinationPath "C:\Program Files\Vault\"
+            [void][System.Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";C:\Program Files\Vault\", "Machine")
+        } catch {
+            throw $_
+        } finally {
+            Remove-Item $Outfile -Force -ErrorAction SilentlyContinue
+            $progressPreference = $p
+        }
+        # refresh env: like Update-SessionEnvironment from choco~
+    }
     # Method to generate the vaultClient object
     [void] GenerateVaultClient([string]$token) {
         # Set the Vault token
@@ -3468,89 +3495,142 @@ class ChaCha20 {
 #endregion Usual~Algorithms
 
 #region    FileCrypter
-# AES Encrypt-decrypt files.
 Class FileCryptr {
     [ValidateNotNullOrEmpty()][System.IO.FileInfo]static $File
     [ValidateNotNullOrEmpty()][securestring]static $Password
     [System.string]hidden static $Compression = 'Gzip';
+    [string[]] hidden static $CommonTextFileExtensions
 
-    FileCryptr() {}
-    FileCryptr([string]$Path) {
-        [FileCryptr]::File = [System.IO.FileInfo]::new([xgen]::ResolvedPath($Path))
-    }
-    FileCryptr([string]$Path, [SecureString]$Password) {
-        [FileCryptr]::Password = $Password;
-        [FileCryptr]::File = [System.IO.FileInfo]::new([xgen]::ResolvedPath($Path))
-    }
-    [void]static Encrypt() {
-        [FileCryptr]::File = [FileCryptr]::File
-        [FileCryptr]::Password = [FileCryptr]::Password
-        [FileCryptr]::Encrypt([FileCryptr]::File, [FileCryptr]::File, [FileCryptr]::Password)
-    }
-    [void]static Encrypt([SecureString]$Password) {
-        [FileCryptr]::File = [FileCryptr]::File
-        [FileCryptr]::Encrypt([FileCryptr]::File, [FileCryptr]::File, $Password)
-    }
-    [void]static Encrypt([string]$OutFile, [SecureString]$Password) {
-        [FileCryptr]::File = [FileCryptr]::File
-        [FileCryptr]::Encrypt([FileCryptr]::File, $OutFile, $Password)
-    }
-    [void]static Encrypt([string]$InFile, [string]$OutFile, [SecureString]$Password) {
-        if ($null -eq $InFile) { throw [System.ArgumentNullException]::new("InFile") }
-        if ($null -eq $OutFile) { throw [System.ArgumentNullException]::new("OutFile") }
-        if ($null -eq $Password) { throw [System.ArgumentNullException]::new("Password") }
+    static [bool] IsTextFile([string]$filePath) {
+        [void][FileCryptr]::Init()
+        if ([IO.Path]::GetExtension($filePath) -in [FileCryptr]::CommonTextFileExtensions) {
+            return $true;
+        }
         try {
-            $aes = [System.Security.Cryptography.Aes]::Create();
-            $InFile = [xgen]::ResolvedPath($InFile); $OutFile = [xgen]::UnResolvedPath($OutFile)
-            $aes.Mode = [System.Security.Cryptography.CipherMode]::CBC; # Use (Cipher Blocker Chaining) as its a more advanced block cipher encryption than the old ECB.
-            $aes.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7;
-            $aes.keysize = 256; $aes.BlockSize = 128;
-            $aes.Key = [xgen]::Key($Password); $aes.IV = [xgen]::RandomEntropy();
-            [byte[]]$Enc = [aeslg]::Encrypt([System.IO.File]::ReadAllBytes($InFile), $aes, [FileCryptr]::Compression, 1);
-            [System.IO.FileStream]$fs = [System.IO.File]::Create($OutFile);
-            $fs.Write($Enc, 0, $Enc.Length)
-            $fs.Flush(); $fs.Dispose()
-        } catch {
-            Write-Warning "Encryption failed!"
-            throw $_
-        } finally {
-            if ($null -ne $aes) { $aes.Clear(); $aes.Dispose() }
+            $null = [IO.File]::ReadAllText($filePath);
+            return $true;
+        } catch [Exception] {
+            return $false;
         }
     }
-    [void]static Decrypt() {
-        [FileCryptr]::File = [FileCryptr]::File
-        [FileCryptr]::Password = [FileCryptr]::Password
-        [FileCryptr]::Decrypt([FileCryptr]::File, [FileCryptr]::File, [FileCryptr]::Password)
-    }
-    [void]static Decrypt([SecureString]$Password) {
-        [FileCryptr]::File = [FileCryptr]::File
-        [FileCryptr]::Decrypt([FileCryptr]::File, [FileCryptr]::File, $Password)
-    }
-    [void]static Decrypt([string]$OutFile, [SecureString]$Password) {
-        [FileCryptr]::File = [FileCryptr]::File
-        [FileCryptr]::Decrypt([FileCryptr]::File, $OutFile, $Password)
-    }
-    [void]static Decrypt([string]$InFile, [string]$OutFile, [SecureString]$Password) {
-        if ($null -eq $InFile) { throw [System.ArgumentNullException]::new("InFile") }
-        if ($null -eq $OutFile) { throw [System.ArgumentNullException]::new("OutFile") }
-        if ($null -eq $Password) { throw [System.ArgumentNullException]::new("Password") }
-        try {
-            $aes = [System.Security.Cryptography.Aes]::Create();
-            $InFile = [xgen]::ResolvedPath($InFile); $OutFile = [xgen]::UnResolvedPath($OutFile)
-            $aes.Mode = [System.Security.Cryptography.CipherMode]::CBC;
-            $aes.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7;
-            $aes.keysize = 256; $aes.BlockSize = 128;
-            $aes.Key = [xgen]::Key($Password); $enc = [System.IO.File]::ReadAllBytes($InFile)
-            $aes.IV = $enc[0..15]; [byte[]]$dec = [aeslg]::Decrypt($enc, $aes, [FileCryptr]::Compression, 1);
-            [System.IO.FileStream]$fs = [System.IO.File]::Create($OutFile)
-            $fs.Write($dec, 0, $dec.Length)
-            $fs.Flush(); $fs.Dispose()
-        } catch {
-            Write-Warning "Decryption failed!"
-            throw $_
-        } finally {
-            if ($null -ne $aes) { $aes.Clear(); $aes.Dispose() }
+
+    static [string] Obfuscate([string]$filePath) {
+        [FileCryptr]::Init()
+        if (![FileCryptr]::IsTextFile($filePath)) {
+            throw new Exception("Error: Not a text file");
         }
+        [string]$fileContents = [IO.File]::ReadAllText($filePath);
+        return [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($fileContents));
+    }
+
+    static [string] Deobfuscate([string]$base64EncodedString) {
+        [byte[]]$bytes = [Convert]::FromBase64String($base64EncodedString);
+        return [System.Text.Encoding]::UTF8.GetString($bytes);
+    }
+    static [void] Download([string]$url, [string]$outFile ) {
+        $name = Split-Path $url -Leaf; [console]::Write("Downloading $name to $Outfile ... ")
+        if ([double][string]::Join('.', [System.Environment]::Version.Major, [System.Environment]::Version.Minor) -ge [double]'4.5') {
+            # since System.Net.Http.HttpCompletionOption enumeration is not available in .NET Framework versions prior to 4.5
+            # &yes this is faster than iwr and WebClient, so u better off update your dotnet versions.
+            $client = New-Object System.Net.Http.HttpClient
+            $client.DefaultRequestHeaders.Add("x-ms-download-header-content-disposition", "attachment")
+            $client.DefaultRequestHeaders.Add("x-ms-download-content-type", "application/octet-stream")
+            $client.DefaultRequestHeaders.Add("x-ms-download-length", "0")
+            $client.DefaultRequestHeaders.Add("x-ms-download-id", [Guid]::NewGuid().ToString())
+            $progressTracker = New-Object System.Net.Http.Handlers.ProgressMessageHandler
+            $progressTracker.HttpSendProgress += {
+                param($e)
+                $percentComplete = [int]($e.ProgressPercentage * 100)
+                Write-Progress -Activity "Downloading $name from: $url" -Status "Progress: $percentComplete%" -PercentComplete $percentComplete
+            }
+            # Download the file and save it to a Stream
+            $response = $client.GetAsync($url, ('ResponseHeadersRead' -as 'System.Net.Http.HttpCompletionOption'), $progressTracker).Result
+            $stream = $response.Content.ReadAsStreamAsync().Result
+
+            # Create a FileStream object to write the data to the file
+            $fileStream = New-Object System.IO.FileStream($outFile, [System.IO.FileMode]::Create)
+
+            # Copy the data from the Stream to the FileStream
+            $stream.CopyTo($fileStream)
+
+            # Close the Stream and FileStream
+            $stream.Close()
+            $fileStream.Close()
+        } else {
+            $stream = $null; $fileStream = $null
+            try {
+                # Create a new HttpWebRequest object
+                $request = [System.Net.HttpWebRequest]::Create($url)
+
+                # Set the user agent to a non-empty value to avoid a 403 Forbidden error
+                $request.UserAgent = "Mozilla/5.0"
+
+                # Get the response from the server
+                $response = $request.GetResponse()
+
+                # Get the length of the content
+                $contentLength = $response.ContentLength
+
+                # Get the stream containing the content from the response
+                $stream = $response.GetResponseStream()
+
+                # Create a buffer to hold the data
+                $buffer = New-Object byte[] 1024
+
+                # Create a FileStream object to write the data to the file
+                $fileStream = [System.IO.FileStream]::new($outFile, [System.IO.FileMode]::Create)
+
+                # Initialize the total bytes received and the total bytes to receive
+                $totalBytesReceived = 0
+                $totalBytesToReceive = $contentLength
+
+                # Display a progress bar
+                while ($totalBytesToReceive -gt 0) {
+                    # Read the data from the stream
+                    $bytesRead = $stream.Read($buffer, 0, 1024)
+                    $totalBytesReceived += $bytesRead
+                    $totalBytesToReceive -= $bytesRead
+
+                    # Write the data to the file
+                    $fileStream.Write($buffer, 0, $bytesRead)
+
+                    # Update the progress bar
+                    $percentComplete = [int]($totalBytesReceived / $contentLength * 100)
+                    Write-Progress -Activity "Downloading Vault from: $url" -Status "Progress: $percentComplete%" -PercentComplete $percentComplete
+                }
+            } catch {
+                throw $_
+            } finally {
+                # Close the Stream and FileStream
+                Invoke-Command -ScriptBlock { $stream.Close(); $fileStream.Close() } -ErrorAction SilentlyContinue
+                if ([IO.File]::Exists("vault.zip")) {
+                    Write-Host "Download complete!" -ForegroundColor Green
+                } else {
+                    Write-Host "Download Failed!" -ForegroundColor Red
+                }
+            }
+        }
+    }
+    static [void] hidden Init() {
+        [FileCryptr]::CommonTextFileExtensions = {
+            ".txt", ".log", ".ini", ".cfg", ".conf", ".cnf",
+            ".properties", ".props", ".prop", ".rtf", ".csv",
+            ".tsv", ".ssv", ".dsv", ".csv", ".tab", ".vcf",
+            ".js", ".json", ".py", ".pl", ".pm", ".t", ".php",
+            ".php3", ".php4", ".php5", ".phtml", ".inc", ".phps",
+            ".asp", ".aspx", ".asax", ".ascx", ".ashx", ".asmx",
+            ".css", ".html", ".htm", ".shtml", ".xhtml", ".md",
+            ".markdown", ".mdown", ".mkd", ".rst", ".xml", ".yml",
+            ".ps1", ".psm1", ".psd1", ".pssc", ".cdxml", ".clixml",
+            ".xaml", ".resx", ".restext", ".unity", ".sln", ".csproj",
+            ".vbproj", ".vcxproj", ".vcxproj.filters", ".proj", ".projitems",
+            ".shproj", ".scc", ".suo", ".sln", ".cs", ".vb", ".vc", ".vcx",
+            ".cxx", ".cpp", ".h", ".hpp", ".hh", ".hxx", ".inc", ".inl",
+            ".ipp", ".tcc", ".tpp", ".cc", ".c", ".mm", ".m", ".s",
+            ".sx", ".S", ".rs", ".rlib", ".def", ".odl", ".idl",
+            ".odl", ".hdl", ".vhd", ".vhdl", ".ucf", ".qsf",
+            ".tcl", ".tk", ".itk", ".tkm", ".blt", ".tcl"
+        };
     }
 }
 #endregion FileCrypter
