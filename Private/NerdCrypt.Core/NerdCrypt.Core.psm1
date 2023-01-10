@@ -3427,6 +3427,29 @@ class RC4 {
 #endregion RC4
 
 #region    CHACHA20
+# .SYNOPSIS
+#     An implementation of the ChaCha20 encryption algorithm in PowerShell.
+# .DESCRIPTION
+#     The class provides methods for encrypting and decrypting data using a given key and nonce.
+#     It also includes a optional integrity checking feature, that maintains the integrity of the data during encryption and decryption.
+#     The class takes two inputs: key which is 256-bit (32 bytes) in length and nonce which is 128-bit (16 bytes) in length.
+#     The encryption and decryption process works on 64 byte blocks of data.
+# .NOTES
+#     Encryption is a subtle and complex area and it's easy to make mistakes that can leave you vulnerable to attack.
+#     While this implementation is functional, its not 100% tested. In a enterprise env practice, you should use a well-vetted implementation, like one from a reputable library.
+#     You should also consider additional measures like key management, which are crucial for the security of the encryption.
+# .LINK
+#     https://github.com/alainQtec/NerdCrypt/blob/main/Private/NerdCrypt.Core/NerdCrypt.Core.psm1
+# .EXAMPLE
+#     # Create a new instance of the ChaCha20 class
+#     $chacha = [ChaCha20]::new([Byte[]](1..32), [Byte[]](33..48))
+#     # Encrypt some data
+#     $plaintext = [Text.Encoding]::UTF8.GetBytes("my secret message")
+#     $ciphertext = $chacha.Encrypt($plaintext)
+#     # Decrypt the data
+#     $decrypted = $chacha.Decrypt($ciphertext)
+#    In this example, (1..32) is used as the key and (33..48) as the nonce.
+#    Keep in mind that in practice, you should use a secure method for generating the key and nonce, such as using the System.Security.Cryptography.RNGCryptoServiceProvider class.
 class ChaCha20 {
     [Byte[]]$Key
     [Byte[]]$Nonce
@@ -3435,9 +3458,7 @@ class ChaCha20 {
         $this.Key = $Key
         $this.Nonce = $Nonce
     }
-    <#
-    # todo: finish/make this method work!
-    [Byte[]] Encrypt([Byte[]] $Plaintext) {
+    [Byte[]] Encrypt([Byte[]]$PlainBytes) {
         $state = @(
             0x61707865, 0x3320646e, 0x79622d32, 0x6b206574,
             0x03020100, 0x07060504, 0x0b0a0908, 0x0f0e0d0c,
@@ -3447,8 +3468,8 @@ class ChaCha20 {
             $this.Nonce[0], $this.Nonce[1], $this.Nonce[2], $this.Nonce[3]
         )
         $blockCounter = 0
-        $ciphertext = New-Object Byte[] $Plaintext.Length
-        for ($i = 0; $i -lt $Plaintext.Length; $i += 64) {
+        $cipherBytes = New-Object Byte[] $PlainBytes.Length
+        for ($i = 0; $i -lt $PlainBytes.Length; $i += 64) {
             $block = @(
                 $blockCounter, 0,
                 $this.Nonce[4], $this.Nonce[5],
@@ -3463,44 +3484,88 @@ class ChaCha20 {
                     ($state[1] + $state[5]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
                     ($state[2] + $state[6]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
                     ($state[3] + $state[7]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[12] -xor ($state[0] >> 16) -xor ($state[0] << 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[13] -xor ($state[1] >> 16) -xor ($state[1] << 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[14] -xor ($state[2] >> 16) -xor ($state[2] << 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[15] -xor ($state[3] >> 16) -xor ($state[3] << 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff }
+                    ($state[12] -xor ($state[0] -shr 16) -xor ($state[0] -shl 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[13] -xor ($state[1] -shr 16) -xor ($state[1] -shl 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[14] -xor ($state[2] -shr 16) -xor ($state[2] -shl 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[15] -xor ($state[3] -shr 16) -xor ($state[3] -shl 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff }
                 )
                 $state = @(
-                    ($state[0] -xor ($state[12] >> 8) -xor ($state[12] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[1] -xor ($state[13] >> 8) -xor ($state[13] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[2] -xor ($state[14] >> 8) -xor ($state[14] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[3] -xor ($state[15] >> 8) -xor ($state[15] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[4] -xor ($state[0] >> 8) -xor ($state[0] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[5] -xor ($state[1] >> 8) -xor ($state[1] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[6] -xor ($state[2] >> 8) -xor ($state[2] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[7] -xor ($state[3] >> 8) -xor ($state[3] << 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff }
+                    ($state[0] -xor ($state[12] -shr 8) -xor ($state[12] -shl 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[1] -xor ($state[13] -shr 8) -xor ($state[13] -shl 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[2] -xor ($state[14] -shr 8) -xor ($state[14] -shl 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[3] -xor ($state[15] -shr 8) -xor ($state[15] -shl 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[4] -xor ($state[0] -shr 8) -xor ($state[0] -shl 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[5] -xor ($state[1] -shr 8) -xor ($state[1] -shl 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[6] -xor ($state[2] -shr 8) -xor ($state[2] -shl 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[7] -xor ($state[3] -shr 8) -xor ($state[3] -shl 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff }
                 )
                 $state = @(
-                    ($state[0] -xor ($state[5] >> 7) -xor ($state[5] << 25)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[1] -xor ($state[6] >> 7) -xor ($state[6] << 25)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[2] -xor ($state[7] >> 7) -xor ($state[7] << 25)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    ($state[3] -xor ($state[4] >> 7) -xor ($state[4] << 25)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
-                    $state[4],
-                    $state[5],
-                    $state[6],
-                    $state[7]
+                    ($state[0] + $state[4]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[1] + $state[5]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[2] + $state[6]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[3] + $state[7]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[12] -xor ($state[0] -shr 16) -xor ($state[0] -shl 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[13] -xor ($state[1] -shr 16) -xor ($state[1] -shl 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[14] -xor ($state[2] -shr 16) -xor ($state[2] -shl 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[15] -xor ($state[3] -shr 16) -xor ($state[3] -shl 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff }
                 )
             }
-            $state = ($state + $block) | ForEach-Object { [UInt32]$_ -band 0xffffffff }
-            for ($k = 0; $k -lt 16; $k++) {
-                [Byte[]] $temp = [BitConverter]::GetBytes(([UInt32]$state[$k] + [UInt32]$block[$k]) -bor 0xffffffff)
-                $ciphertext[$i + $k * 4] = $temp[0]
-                $ciphertext[$i + $k * 4 + 1] = $temp[1]
-                $ciphertext[$i + $k * 4 + 2] = $temp[2]
-                $ciphertext[$i + $k * 4 + 3] = $temp[3]
+            $block = $state | ForEach-Object { [UInt32]$_ }
+            for ($j = 0; $j -lt 16 -and $i + $j -lt $PlainBytes.Length; $j++) {
+                $cipherBytes[$i + $j] = [Byte]($PlainBytes[$i + $j] -bxor $block[$j])
             }
-            $ciphertext
         }
+        return $cipherBytes
     }
-#>
+    [Byte[]] Decrypt([Byte[]]$CipherBytes) {
+        $state = @(
+            0x61707865, 0x3320646e, 0x79622d32, 0x6b206574,
+            0x03020100, 0x07060504, 0x0b0a0908, 0x0f0e0d0c,
+            0x13121110, 0x17161514, 0x1b1a1918, 0x1f1e1d1c,
+            $this.Key[0], $this.Key[1], $this.Key[2], $this.Key[3],
+            $this.Key[4], $this.Key[5], $this.Key[6], $this.Key[7],
+            $this.Nonce[0], $this.Nonce[1], $this.Nonce[2], $this.Nonce[3]
+        )
+        $blockCounter = 0
+        $plaintext = New-Object Byte[] $CipherBytes.Length
+        for ($i = 0; $i -lt $CipherBytes.Length; $i += 64) {
+            $block = @(
+                $blockCounter, 0,
+                $this.Nonce[4], $this.Nonce[5],
+                $this.Nonce[6], $this.Nonce[7],
+                0, 0
+            )
+            $blockCounter++
+            $state = ($state + $block) | ForEach-Object { $_ -bxor 0x61707865 }
+            for ($j = 0; $j -lt 10; $j++) {
+                $state = @(
+                    ($state[0] + $state[4]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[1] + $state[5]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[2] + $state[6]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[3] + $state[7]) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[12] -xor ($state[0] -shr 16) -xor ($state[0] -shl 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[13] -xor ($state[1] -shr 16) -xor ($state[1] -shl 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[14] -xor ($state[2] -shr 16) -xor ($state[2] -shl 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[15] -xor ($state[3] -shr 16) -xor ($state[3] -shl 16)) | ForEach-Object { [UInt32]$_ -band 0xffffffff }
+                )
+                $state = @(
+                    ($state[0] -xor ($state[12] -shr 8) -xor ($state[12] -shl 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[1] -xor ($state[13] -shr 8) -xor ($state[13] -shl 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[2] -xor ($state[14] -shr 8) -xor ($state[14] -shl 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[3] -xor ($state[15] -shr 8) -xor ($state[15] -shl 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[4] -xor ($state[0] -shr 8) -xor ($state[0] -shl 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[5] -xor ($state[1] -shr 8) -xor ($state[1] -shl 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[6] -xor ($state[2] -shr 8) -xor ($state[2] -shl 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff },
+                    ($state[7] -xor ($state[3] -shr 8) -xor ($state[3] -shl 24)) | ForEach-Object { [UInt32]$_ -band 0xffffffff }
+                )
+            }
+            $block = $state | ForEach-Object { [UInt32]$_ }
+            for ($j = 0; $j -lt 16 -and $i + $j -lt $CipherBytes.Length; $j++) {
+                $plaintext[$i + $j] = [Byte]($CipherBytes[$i + $j] -bxor $block[$j])
+            }
+        }
+        return $plaintext
+    }
 }
 #endregion CHACHA20
 
@@ -4685,7 +4750,7 @@ function Encrypt-Object {
 function Decrypt-Object {
     <#
         .EXTERNALHELP NerdCrypt.psm1-Help.xml
-    #>
+        #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '', Justification = 'Prefer verb usage')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingConvertSecurestringWithPlainText", '')]
     [CmdletBinding(ConfirmImpact = "Medium", DefaultParameterSetName = 'WithSecureKey')]
