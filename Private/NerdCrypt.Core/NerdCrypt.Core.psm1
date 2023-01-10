@@ -3442,19 +3442,19 @@ class RC4 {
 # .NOTES
 #     Encryption is a subtle and complex area and it's easy to make mistakes that can leave you vulnerable to attack.
 #     While this implementation is functional, its not 100% tested. In a enterprise env practice, you should use a well-vetted implementation, like one from a reputable library.
-#     You should also consider additional measures like key management, which are crucial for the security of the encryption.
+#     You should also consider additional measures like key management, which are crucial for the security of the encryption and use a secure method for generating the key and nonce, such as using the System.Security.Cryptography.RNGCryptoServiceProvider class.
 # .LINK
 #     https://github.com/alainQtec/NerdCrypt/blob/main/Private/NerdCrypt.Core/NerdCrypt.Core.psm1
 # .EXAMPLE
-#     # Create a new instance of the ChaCha20 class
-#     $chacha = [ChaCha20]::new([Byte[]](1..32), [Byte[]](33..48))
-#     # Encrypt some data
-#     $plaintext = [Text.Encoding]::UTF8.GetBytes("my secret message")
-#     $ciphertext = $chacha.Encrypt($plaintext)
-#     # Decrypt the data
-#     $decrypted = $chacha.Decrypt($ciphertext)
-#     In this example, (1..32) is used as the key and (33..48) as the nonce.
-#     Keep in mind that in practice, you should use a secure method for generating the key and nonce, such as using the System.Security.Cryptography.RNGCryptoServiceProvider class.
+#     $rng = New-Object System.Security.Cryptography.RNGCryptoServiceProvider
+#     $key = New-Object Byte[] 32
+#     $rng.GetBytes($key)
+#     $nonce = New-Object Byte[] 16
+#     $rng.GetBytes($nonce)
+#     $chacha = [ChaCha20]::new($key, $nonce)
+#     $PlainBytes = [Text.Encoding]::UTF8.GetBytes("my secret message")
+#     $cipherBytes = $chacha.Encrypt($PlainBytes)
+#     $decrypted = $chacha.Decrypt($cipherBytes)
 class ChaCha20 {
     [Byte[]]$Key
     [Byte[]]$Nonce
