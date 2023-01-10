@@ -3312,6 +3312,12 @@ class XOR {
     }
     [byte[]]static Encrypt([byte[]]$bytes, [SecureString]$password, [int]$iterations) {
         $xorkey = [xconvert]::BytesFromObject([xconvert]::ToString($password));
+        return [XOR]::Encrypt($bytes, $xorkey, $iterations)
+    }
+    [byte[]]static Encrypt([byte[]]$bytes, [byte[]]$xorkey, [int]$iterations) {
+        if ($null -eq $xorkey) {
+            throw 'Argument Not null exception'
+        }
         $_bytes = $bytes;
         for ($i = 1; $i -lt $iterations + 1; $i++) {
             $_bytes = [XOR]::Get_ED($_bytes, $xorkey);
@@ -3339,6 +3345,12 @@ class XOR {
     }
     [byte[]]static Decrypt([byte[]]$bytes, [SecureString]$password, [int]$iterations) {
         $xorkey = [xconvert]::BytesFromObject([XConvert]::ToString($password))
+        return [XOR]::Decrypt($bytes, $xorkey, $iterations);
+    }
+    [byte[]]static Decrypt([byte[]]$bytes, [byte[]]$xorkey, [int]$iterations) {
+        if ($null -eq $xorkey) {
+            throw 'Argument Not null exception'
+        }
         $_bytes = $bytes; for ($i = 1; $i -lt $iterations + 1; $i++) {
             $_bytes = [XOR]::Get_ED($_bytes, $xorkey)
         };
@@ -3520,12 +3532,15 @@ Class FileCryptr {
         return [FileCryptr]::GetStub($filePath, $key)
     }
     static [string] RNdvar() {
-        return [Guid]::NewGuid().Guid.replace('-', [string]::Join('', (0..9 | Get-Random -Count 1)))
+        return [FileCryptr]::RNdvar(15)
+    }
+    static [string] RNdvar([string]$Length) {
+        return [Guid]::NewGuid().Guid.subString($Length).replace('-', [string]::Join('', (0..9 | Get-Random -Count 1)))
     }
     static [string] GetStub([string]$filePath, [string]$b64key) {
         Write-Output "[*] Reading file: '$($filePath)' ..."
         $codebytes = [System.IO.File]::ReadAllBytes($filePath)
-        $stub = [string]::Empty, $compressionStream = $null
+        $stub = [string]::Empty; $compressionStream = $null
         Write-Output "[*] Starting code layer  ..."
         $paddingmodes = 'PKCS7', 'ISO10126', 'ANSIX923', 'Zeros'
         $paddingmode = $paddingmodes | Get-Random
@@ -3539,7 +3554,7 @@ Class FileCryptr {
 
         # compress
         Write-Output "[*] Compressing ..."
-        [System.IO.MemoryStream] $output = New-Object System.IO.MemoryStream
+        [System.IO.MemoryStream] $output = [System.IO.MemoryStream]::New()
         if ($compressiontype -eq "Gzip") {
             $compressionStream = New-Object System.IO.Compression.GzipStream $output, ([IO.Compression.CompressionMode]::Compress)
         } elseif ( $compressiontype -eq "Deflate") {
@@ -3598,7 +3613,7 @@ Class FileCryptr {
         $xorj = [FileCryptr]::RNdvar()
         # now its the time to XOR encrypt the reversed AES encrypted payload
         $XOREncKey = [FileCryptr]::RNdvar()
-        $base64XOREncPayload = xorEnc -string "$b64encryptedreversed" -method "encrypt" -key "$XOREncKey"
+        $base64XOREncPayload = [Convert]::ToBase64String([xor]::Encrypt([System.Text.Encoding]::UTF8.GetBytes($b64encryptedreversed), [System.Text.Encoding]::UTF8.GetBytes($XOREncKey), 1))
 
         # write
         Write-Output "[*] Finalizing code layer ..."
@@ -3617,14 +3632,15 @@ Class FileCryptr {
         $_Combinr += '${45} = [System.Text.Encoding]::UTF8.GetBytes(${44})' + "`r`n"
         # start XOR decrypt sequence
         $_Combinr += '${46} = $(for (${47} = 0; ${47} -lt ${45}.length; ) {17}' + "`r`n"
-        $_Combinr += '    for (${48} = 0; ${48} -lt ${43}.length; ${48}++) {17}' + "`r`n"
-        $_Combinr += '        ${45}[${47}] -bxor ${43}[${48}]' + "`r`n"
-        $_Combinr += '        ${47}++' + "`r`n"
-        $_Combinr += '        if (${47} -ge ${45}.Length) {17}' + "`r`n"
-        $_Combinr += '            ${48} = ${43}.length' + "`r`n"
+        $_Combinr += '        for (${48} = 0; ${48} -lt ${43}.length; ${48}++) {17}' + "`r`n"
+        $_Combinr += '            ${45}[${47}] -bxor ${43}[${48}]' + "`r`n"
+        $_Combinr += '            ${47}++' + "`r`n"
+        $_Combinr += '            if (${47} -ge ${45}.Length) {17}' + "`r`n"
+        $_Combinr += '                ${48} = ${43}.length' + "`r`n"
+        $_Combinr += '            {18}' + "`r`n"
         $_Combinr += '        {18}' + "`r`n"
         $_Combinr += '    {18}' + "`r`n"
-        $_Combinr += '{18})' + "`r`n"
+        $_Combinr += ')' + "`r`n"
         $_Combinr += '${46} = [System.Text.Encoding]::UTF8.GetString(${46})' + "`r`n"
         $stub += $_Combinr -join ''
 
