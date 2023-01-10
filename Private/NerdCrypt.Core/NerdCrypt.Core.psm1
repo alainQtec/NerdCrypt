@@ -1436,6 +1436,11 @@ class CredentialNotFoundException : System.Exception, System.Runtime.Serializati
     CredentialNotFoundException([string]$message, [Exception]$InnerException) { ($this.Message, $this.InnerException) = ($message, $InnerException) }
     CredentialNotFoundException([System.Runtime.Serialization.SerializationInfo]$info, [System.Runtime.Serialization.StreamingContext]$context) { ($this.Info, $this.Context) = ($info, $context) }
 }
+class IntegrityCheckFailedException : System.Exception {
+    IntegrityCheckFailedException() { }
+    IntegrityCheckFailedException([string]$message) { $this.message = $message }
+    IntegrityCheckFailedException([string]$message, [Exception]$innerException) { $this.message = $message; $this.innerException = $innerException }
+}
 
 class CredentialManager {
     static $LastErrorCode
@@ -3448,8 +3453,8 @@ class RC4 {
 #     $ciphertext = $chacha.Encrypt($plaintext)
 #     # Decrypt the data
 #     $decrypted = $chacha.Decrypt($ciphertext)
-#    In this example, (1..32) is used as the key and (33..48) as the nonce.
-#    Keep in mind that in practice, you should use a secure method for generating the key and nonce, such as using the System.Security.Cryptography.RNGCryptoServiceProvider class.
+#     In this example, (1..32) is used as the key and (33..48) as the nonce.
+#     Keep in mind that in practice, you should use a secure method for generating the key and nonce, such as using the System.Security.Cryptography.RNGCryptoServiceProvider class.
 class ChaCha20 {
     [Byte[]]$Key
     [Byte[]]$Nonce
@@ -3459,6 +3464,8 @@ class ChaCha20 {
         $this.Nonce = $Nonce
     }
     [Byte[]] Encrypt([Byte[]]$PlainBytes) {
+        [byte[]]$hash = [System.Security.Cryptography.SHA256CryptoServiceProvider]::new().ComputeHash($PlainBytes)
+        [byte[]]$PlainBytes = $PlainBytes + $hash # Used for integrity check ie: We append a cryptographic hash (e.g., SHA-256) before encryption, and then check the hash of the decrypted plainBytes against the original hash after decryption.
         $state = @(
             0x61707865, 0x3320646e, 0x79622d32, 0x6b206574,
             0x03020100, 0x07060504, 0x0b0a0908, 0x0f0e0d0c,
@@ -3527,7 +3534,7 @@ class ChaCha20 {
             $this.Nonce[0], $this.Nonce[1], $this.Nonce[2], $this.Nonce[3]
         )
         $blockCounter = 0
-        $plaintext = New-Object Byte[] $CipherBytes.Length
+        $decryptedBytes = New-Object Byte[] $CipherBytes.Length
         for ($i = 0; $i -lt $CipherBytes.Length; $i += 64) {
             $block = @(
                 $blockCounter, 0,
@@ -3561,10 +3568,17 @@ class ChaCha20 {
             }
             $block = $state | ForEach-Object { [UInt32]$_ }
             for ($j = 0; $j -lt 16 -and $i + $j -lt $CipherBytes.Length; $j++) {
-                $plaintext[$i + $j] = [Byte]($CipherBytes[$i + $j] -bxor $block[$j])
+                $decryptedBytes[$i + $j] = [Byte]($CipherBytes[$i + $j] -bxor $block[$j])
             }
         }
-        return $plaintext
+        # Integrity Check
+        $hash = $decryptedBytes | Select-Object -Last 32
+        $decryptedBytes = $decryptedBytes | Select-Object -First ($decryptedBytes.Length - 32)
+        if ([System.Security.Cryptography.SHA256CryptoServiceProvider]::new().ComputeHash($decryptedBytes) -eq $hash) {
+            return $decryptedBytes
+        } else {
+            throw [IntegrityCheckFailedException] "Integrity check failed"
+        }
     }
 }
 #endregion CHACHA20
