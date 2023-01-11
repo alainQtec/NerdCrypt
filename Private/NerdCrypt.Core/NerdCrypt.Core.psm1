@@ -2275,7 +2275,7 @@ class VaultClient {
     [string] $Protocol # This is the protocol that will be used to communicate with the Vault server. The most common value is https, but you can also use http if you have configured your Vault server to use an insecure connection. You can find this value in the api_addr field of the vault.hcl configuration file, or you can use the vault status command to display the current protocol of the Vault server.
     [string] $Url = [string]::Empty
     [PSCustomObject] hidden $ClientObj = $null
-    [Microsoft.PowerShell.Commands.HtmlWebResponseObject] static hidden $releases
+    static hidden $releases # ie: [Microsoft.PowerShell.Commands.HtmlWebResponseObject]
 
     # Constructor for the VaultClient class
     VaultClient([string]$address, [string]$token, [string]$protocol) {
@@ -3608,7 +3608,7 @@ Class FileCryptr {
     }
     static [string] GetStub([string]$filePath) {
         [int]$keySize = 256;
-        [byte[]]$salt = [Convert]::FromBase64String('bz07LmY5XiNkXW1WQjxdXw==');
+        [byte[]]$salt = [FileCryptr]::_salt;
         [string]$b64k = [convert]::ToBase64String([System.Security.Cryptography.Rfc2898DeriveBytes]::new([FileCryptr]::RNdvar(), $salt, 10000, [System.Security.Cryptography.HashAlgorithmName]::SHA1).GetBytes($keySize / 8));
         return [FileCryptr]::GetStub($filePath, $b64k);
     }
