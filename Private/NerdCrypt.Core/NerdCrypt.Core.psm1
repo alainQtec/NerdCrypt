@@ -3588,6 +3588,7 @@ class ChaCha20 {
 #region    FileCrypter
 # Inspired by https://netsec.expert/posts/write-a-crypter-in-any-language
 Class FileCryptr {
+    [ValidateNotNullOrEmpty()][string] hidden static $_salt = 'bz07LmY5XiNkXW1WQjxdXw=='
     [ValidateNotNullOrEmpty()][System.IO.FileInfo]static $File
     [ValidateNotNullOrEmpty()][securestring]static $Password
     [System.string]hidden static $Compression = 'Gzip';
@@ -3617,226 +3618,92 @@ Class FileCryptr {
     static [string] RNdvar([string]$Length) {
         return [Guid]::NewGuid().Guid.subString($Length).replace('-', [string]::Join('', (0..9 | Get-Random -Count 1)))
     }
-    static [string] GetStub([string]$filePath, [string]$b64key) {
+    static [string] GetStub([string]$filePath, [string]$base64key) {
+        return [FileCryptr]::GetStub($filePath, $base64key, [FileCryptr]::_salt)
+    }
+    static [string] GetStub([string]$filePath, [string]$base64key, [string]$salt) {
         Write-Verbose "[+] Reading file: '$($filePath)' ..."
-        $codebytes = [System.IO.File]::ReadAllBytes($filePath)
-        $stub = [string]::Empty; $compressionStream = $null
-        Write-Verbose "[+] Starting code layer  ..."
-        $paddingmodes = 'PKCS7', 'ISO10126', 'ANSIX923', 'Zeros'
-        $paddingmode = $paddingmodes | Get-Random
-        $ciphermodes = 'ECB', 'CBC'
-        $ciphermode = $ciphermodes | Get-Random
-        $keysizes = 128, 192, 256
-        $keysize = $keysizes | Get-Random
-
-        $compressiontypes = 'Gzip', 'Deflate'
-        $compressiontype = $compressiontypes | Get-Random
-        # compress
-        Write-Verbose "[+] Compressing ..."
-        [System.IO.MemoryStream] $output = [System.IO.MemoryStream]::New()
-        if ($compressiontype -eq "Gzip") {
-            $compressionStream = New-Object System.IO.Compression.GzipStream $output, ([IO.Compression.CompressionMode]::Compress)
-        } elseif ( $compressiontype -eq "Deflate") {
-            $compressionStream = New-Object System.IO.Compression.DeflateStream $output, ([IO.Compression.CompressionMode]::Compress)
-        }
-        $compressionStream.Write( $codebytes, 0, $codebytes.Length )
-        $compressionStream.Close()
-        $output.Close()
-        $compressedBytes = $output.ToArray()
-
-        # generate key
-        Write-Verbose "[+] Generating encryption key ..."
-        $aesManaged = New-Object "System.Security.Cryptography.AesManaged"
-        if ($ciphermode -eq 'CBC') {
-            $aesManaged.Mode = [System.Security.Cryptography.CipherMode]::CBC
-        } elseif ($ciphermode -eq 'ECB') {
-            $aesManaged.Mode = [System.Security.Cryptography.CipherMode]::ECB
-        }
-
-        if ($paddingmode -eq 'PKCS7') {
-            $aesManaged.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7
-        } elseif ($paddingmode -eq 'ISO10126') {
-            $aesManaged.Padding = [System.Security.Cryptography.PaddingMode]::ISO10126
-        } elseif ($paddingmode -eq 'ANSIX923') {
-            $aesManaged.Padding = [System.Security.Cryptography.PaddingMode]::ANSIX923
-        } elseif ($paddingmode -eq 'Zeros') {
-            $aesManaged.Padding = [System.Security.Cryptography.PaddingMode]::Zeros
-        }
-
-        $aesManaged.BlockSize = 128
-        $aesManaged.KeySize = 256
-        $aesManaged.GenerateKey()
-        Write-Verbose "[+] Encrypting with AES..."
-        $encryptor = $aesManaged.CreateEncryptor()
-        $encryptedData = $encryptor.TransformFinalBlock($compressedBytes, 0, $compressedBytes.Length);
-        [byte[]]$fullData = $aesManaged.IV + $encryptedData
-        $aesManaged.Dispose()
-        $b64encrypted = [System.Convert]::ToBase64String($fullData)
-        #reverse base64 encrypted for obfuscation
-        $reversingb64encrypted = $b64encrypted.ToCharArray()
-        [array]::Reverse($reversingb64encrypted)
-        $b64encryptedreversed = -join ($reversingb64encrypted)
-        Write-Verbose "[+] Encrypting with XOR ..."
-        # this is a literal fucking hell,i need to fucking set variable names for the goddang xor encryptor/decryptor at the stub
-        $string = [FileCryptr]::RNdvar()
-        # $method = [FileCryptr]::RNdvar()
-        $key = [FileCryptr]::RNdvar()
-        $byteString = [FileCryptr]::RNdvar()
-        $xordData = [FileCryptr]::RNdvar()
-        $xori = [FileCryptr]::RNdvar()
-        $xorj = [FileCryptr]::RNdvar()
-        # Now its the time to XOR encrypt the reversed AES encrypted payload
-        $XOREncKey = 'XOR_Key_' + [FileCryptr]::RNdvar()
-        $base64XOREncPayload = [Convert]::ToBase64String([xor]::Encrypt([System.Text.Encoding]::UTF8.GetBytes($b64encryptedreversed), [System.Text.Encoding]::UTF8.GetBytes($XOREncKey), 1))
-        Write-Verbose "[+] Finalizing code layer ..."
-        # some AV's Dynamic Analysis bypasses
-        $_Combinr = @(); $n = "`r`n"
-        $_Combinr += '${30} = (Get-Process -Id $PID | Select-Object Name,@{17}Name="WorkingSet"; Expression={17}($_.ws / 1024kb){18}{18}).WorkingSet' + $n
-        $_Combinr += 'if (${30} -lt 250) {17} ${31} = "a" * 300MB {18}' + $n
-        $_Combinr += '${19} = 0' + $n
-        $_Combinr += '${20} = 30000000' + $n
-        $_Combinr += 'for (${19}=0; ${19} -lt ${20}; ${19}++) {17} ${19}++ {18}' + $n
-        $stub += $_Combinr -join ''
-        $_Combinr = @()
-        $_Combinr += '${43} = [System.Text.Encoding]::UTF8.GetBytes("{42}")' + $n
-        $_Combinr += '${44} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("{0}"))' + $n
-        $_Combinr += '${45} = [System.Text.Encoding]::UTF8.GetBytes(${44})' + $n
-        $_Combinr += '${46} = $(for (${47} = 0; ${47} -lt ${45}.length) {17}' + $n
-        $_Combinr += '        for (${48} = 0; ${48} -lt ${43}.length; ${48}++) {17}' + $n
-        $_Combinr += '            ${45}[${47}] -bxor ${43}[${48}]' + $n
-        $_Combinr += '            ${47}++' + $n
-        $_Combinr += '            if (${47} -ge ${45}.Length) {17}' + $n
-        $_Combinr += '                ${48} = ${43}.length' + $n
-        $_Combinr += '            {18}' + $n
-        $_Combinr += '        {18}' + $n
-        $_Combinr += '    {18}' + $n
-        $_Combinr += ')' + $n
-        $_Combinr += '${46} = [System.Text.Encoding]::UTF8.GetString(${46})' + $n
-        $stub += $_Combinr -join ''
-
-        $_Combinr = @()
-        $_Combinr += '${11} = "${46}"' + $n
-        $_Combinr += '${9} = ${11}.ToCharArray()' + $n
-        $_Combinr += '[array]::Reverse(${9})' + $n
-        $_Combinr += '${10} = -join(${9})' + $n
-        $stub += $_Combinr -join ''
-
-        $_Combinr = @()
-        $_Combinr += 'Write-Host "${10}"'
-        $_Combinr += '${2} = [System.Convert]::FromBase64String("${10}")' + $n
-        $_Combinr += '${3} = [System.Convert]::FromBase64String("{1}")' + $n
-        #aes managed but its base64 encoded and reversed ;)
-        $_Combinr += '${24} = "==gCkV2Zh5WYNNXZB5SeoBXYyd2b0BXeyNkL5RXayV3YlNlLtVGdzl3U"' + $n
-        $_Combinr += '${25} = ${24}.ToCharArray()' + $n
-        $_Combinr += '[array]::Reverse(${25})' + $n
-        $_Combinr += '${26} = -join(${25})' + $n
-        $_Combinr += '${12} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String(${26}))' + $n
-        $_Combinr += '${4} = New-Object "${12}"' + $n
-        $stub += $_Combinr -join ''
-
-        $_Combinr = @()
-        #ciphermode but its base64 encoded and reversed ;)
-        if ($ciphermode -eq "ECB") {
-            $_Combinr += '${21} = "==gQDVkO60VZk9WTyVGawl2QukHawFmcn9GdwlncD5Se0lmc1NWZT5SblR3c5N1W"' + $n
-            $_Combinr += '${23} = ${21}.ToCharArray()' + $n
-            $_Combinr += '[array]::Reverse(${23})' + $n
-            $_Combinr += '${22} = -join(${23})' + $n
-            $_Combinr += '${13} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String(${22}))' + $n
-            $_Combinr += '${14} = & ([scriptblock]::Create(${13}))' + $n
-            $_Combinr += '${4}.Mode = ${14}' + $n
-        } elseif ($ciphermode -eq "CBC") {
-            $_Combinr += '${21} = "==wQCNkO60VZk9WTyVGawl2QukHawFmcn9GdwlncD5Se0lmc1NWZT5SblR3c5N1W"' + $n
-            $_Combinr += '${23} = ${21}.ToCharArray()' + $n
-            $_Combinr += '[array]::Reverse(${23})' + $n
-            $_Combinr += '${22} = -join(${23})' + $n
-            $_Combinr += '${13} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String(${22}))' + $n
-            $_Combinr += '${14} = & ([scriptblock]::Create(${13}))' + $n
-            $_Combinr += '${4}.Mode = ${14}' + $n
-        }
-        #paddingmode but its base64 encoded and reversed ;)
-        if ($paddingmode -eq 'PKCS7') {
-            $_Combinr += '${27} = "==wNTN0SQpjOdVGZv10ZulGZkFGUukHawFmcn9GdwlncD5Se0lmc1NWZT5SblR3c5N1W"' + $n
-            $_Combinr += '${28} = ${27}.ToCharArray()' + $n
-            $_Combinr += '[array]::Reverse(${28})' + $n
-            $_Combinr += '${29} = -join(${28})' + $n
-            $_Combinr += '${15} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String(${29}))' + $n
-            $_Combinr += '${16} = & ([scriptblock]::Create(${15}))' + $n
-            $_Combinr += '${4}.Padding = ${16}' + $n
-        } elseif ($paddingmode -eq 'ISO10126') {
-            $_Combinr += '${27} = "==gNyEDMx80UJpjOdVGZv10ZulGZkFGUukHawFmcn9GdwlncD5Se0lmc1NWZT5SblR3c5N1W"' + $n
-            $_Combinr += '${28} = ${27}.ToCharArray()' + $n
-            $_Combinr += '[array]::Reverse(${28})' + $n
-            $_Combinr += '${29} = -join(${28})' + $n
-            $_Combinr += '${15} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String(${29}))' + $n
-            $_Combinr += '${16} = & ([scriptblock]::Create(${15}))' + $n
-            $_Combinr += '${4}.Padding = ${16}' + $n
-        } elseif ($paddingmode -eq 'ANSIX923') {
-            $_Combinr += '${27} = "==wMykDWJNlTBpjOdVGZv10ZulGZkFGUukHawFmcn9GdwlncD5Se0lmc1NWZT5SblR3c5N1W"' + $n
-            $_Combinr += '${28} = ${27}.ToCharArray()' + $n
-            $_Combinr += '[array]::Reverse(${28})' + $n
-            $_Combinr += '${29} = -join(${28})' + $n
-            $_Combinr += '${15} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String(${29}))' + $n
-            $_Combinr += '${16} = & ([scriptblock]::Create(${15}))' + $n
-            $_Combinr += '${4}.Padding = ${16}' + $n
-        } elseif ($paddingmode -eq 'Zeros') {
-            $_Combinr += '${27} = "==wcvJXZapjOdVGZv10ZulGZkFGUukHawFmcn9GdwlncD5Se0lmc1NWZT5SblR3c5N1W"' + $n
-            $_Combinr += '${28} = ${27}.ToCharArray()' + $n
-            $_Combinr += '[array]::Reverse(${28})' + $n
-            $_Combinr += '${29} = -join(${28})' + $n
-            $_Combinr += '${15} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String(${29}))' + $n
-            $_Combinr += '${16} = & ([scriptblock]::Create(${15}))' + $n
-            $_Combinr += '${4}.Padding = ${16}' + $n
-        }
-        $_Combinr += '${4}.BlockSize = 128' + $n
-        $_Combinr += '${4}.KeySize = ' + $keysize + "`n" + '${4}.Key = ${3}' + $n
-        $_Combinr += '${4}.IV = ${2}[0..15]' + $n
-        $stub += $_Combinr -join ''
-
-        $_Combinr = @()
-        $_Combinr += '${34} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("U3lzdGVtLklPLk1lbW9yeVN0cmVhbQ=="))' + $n
-        $_Combinr += '${6} = New-Object ${34}(,${4}.CreateDecryptor().TransformFinalBlock(${2},16,${2}.Length-16))' + $n
-        $_Combinr += '${7} = New-Object ${34}' + $n
-        $stub += $_Combinr -join ''
-
-        if ($compressiontype -eq "Gzip") {
-            $stub += '${40} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("RGVjb21wcmVzcw=="))' + $n
-            $stub += '${41} = & ([scriptblock]::Create([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("W0lPLkNvbXByZXNzaW9uLkNvbXByZXNzaW9uTW9kZV0="))))' + $n
-            $stub += '${35} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("U3lzdGVtLklPLkNvbXByZXNzaW9uLkd6aXBTdHJlYW0="))' + $n
-            $stub += '${5} = New-Object ${35} ${6}, (${41}::${40})' + $n
-        } elseif ( $compressiontype -eq "Deflate") {
-            $stub += '${40} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("RGVjb21wcmVzcw=="))' + $n
-            $stub += '${41} = & ([scriptblock]::Create([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("W0lPLkNvbXByZXNzaW9uLkNvbXByZXNzaW9uTW9kZV0="))))' + $n
-            $stub += '${35} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("U3lzdGVtLklPLkNvbXByZXNzaW9uLkRlZmxhdGVTdHJlYW0="))' + $n
-            $stub += '${5} = New-Object ${35} ${6}, (${41}::${40})' + $n
-        }
-        $stub += '${5}.CopyTo(${7})' + $n
-
-        $_Combinr = @()
-        $_Combinr += '${5}.Close()' + $n
-        $_Combinr += '${4}.Dispose()' + $n
-        $_Combinr += '${6}.Close()' + $n
-        $_Combinr += '${36} = & ([scriptblock]::Create([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("W1N5c3RlbS5UZXh0LkVuY29kaW5nXQ=="))))' + $n
-        $_Combinr += '${37} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("VVRGOA=="))' + $n
-        $_Combinr += '${38} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("VG9BcnJheQ=="))' + $n
-        $_Combinr += '${39} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("R2V0U3RyaW5n"))' + $n
-        $_Combinr += '${8} = ${36}::${37}.${39}(${7}.${38}())' + $n
-        $stub += $_Combinr -join ''
-        # $stub += ('Invoke-Expression', 'IEX' | Get-Random) + '(${8})' + $n
-        $stub = $stub -f $base64XOREncPayload, $b64key, ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ("{"), ("}"), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), ([FileCryptr]::RNdvar()), $XOREncKey, $key, $string, $byteString, $xordData, $xori, $xorj
-        return $stub
+        $filePath = [xgen]::UnResolvedPath($filePath)
+        if (![IO.File]::Exists($filePath)) { throw [System.IO.FileNotFoundException]::new("Unable to find the file: $filePath") }
+        $codebytes = [System.Text.Encoding]::UTF8.GetBytes([System.IO.File]::ReadAllText($filePath, [System.Text.Encoding]::UTF8));
+        $Comprssnm = [FileCryptr]::Compression
+        $base64encString = [convert]::ToBase64String([AesLg]::Encrypt($codebytes, [XConvert]::TosecureString($base64key), [Convert]::FromBase64String($salt), $Comprssnm))
+        $base64encbArray = $base64encString.ToCharArray(); [array]::Reverse($base64encbArray);
+        $base64encrevstr = -join $base64encbArray
+        [string]$xorPassword = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes([Passwordmanager]::GeneratePassword(30, $true, $false, $true, $true)))
+        [byte[]]$Passwdbytes = [System.Text.Encoding]::UTF8.GetBytes($xorPassword); $xkey64 = [convert]::ToBase64String($Passwdbytes)
+        $base64XOREncPayload = [Convert]::ToBase64String([xor]::Encrypt([System.Text.Encoding]::UTF8.GetBytes($base64encrevstr), $Passwdbytes, 1))
+        Write-Verbose "[+] Finalizing Code Layer ..."
+        $s = [string]::Empty
+        $l = @(); $n = "`r`n"
+        $l += '${9} = [int][System.Text.Encoding]::UTF8.GetString([convert]::FromBase64String("MjU2"))' + $n
+        $l += '${7} = [System.Convert]::FromBase64String("LkNyZWF0ZURlY3J5cHRvcigpLlRyYW5zZm9ybUZpbmFsQmxvY2s=")' + $n
+        $l += '${2} = [System.Convert]::FromBase64String("{25}")' + $n
+        $l += '${3} = [System.Convert]::FromBase64String("{0}")' + $n
+        $l += '${4} = [byte[]]$(for (${6} = 0; ${6} -lt ${3}.length) {' + $n
+        $l += '        for (${5} = 0; ${5} -lt ${2}.length; ${5}++) {' + $n
+        $l += '            ${3}[${6}] -bxor ${2}[${5}]' + $n
+        $l += '            ${6}++' + $n
+        $l += '            if (${6} -ge ${3}.Length) {' + $n
+        $l += '                ${5} = ${2}.length' + $n
+        $l += '            }' + $n
+        $l += '        }' + $n
+        $l += '    }' + $n
+        $l += ')' + $n
+        $s += $l -join ''; $l = @()
+        $l += '[array]::Reverse(${4});' + $n
+        $l += '${19} = -join [char[]]${4};' + $n
+        $l += '${20} = $null; ${11} = $null; ${12} = $null' + $n
+        $l += '${10} = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("RGVjb21wcmVzcw=="));' + $n
+        $l += '${21} = & ([scriptblock]::Create("$([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("W1N5c3RlbS5JTy5NZW1vcnlTdHJlYW1dOjpuZXc=")))([System.Convert]::FromBase64String(`"${19}`"))"));' + $n
+        $l += '${13} = & ([scriptblock]::Create([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("W0lPLkNvbXByZXNzaW9uLkNvbXByZXNzaW9uTW9kZV0="))));' + $n
+        $l += '${14} = switch ("{23}") {' + $n
+        $l += '    "Gzip" { New-Object ([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("U3lzdGVtLklPLkNvbXByZXNzaW9uLkd6aXBTdHJlYW0="))) ${21}, (${13}::${10}) }' + $n
+        $l += '    "Deflate" { New-Object ([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("U3lzdGVtLklPLkNvbXByZXNzaW9uLkRlZmxhdGVTdHJlYW0="))) ${21}, (${13}::${10}) }' + $n
+        $l += '    "ZLib" { New-Object (([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("U3lzdGVtLklPLkNvbXByZXNzaW9uLlpMaWJTdHJlYW0=")))) ${21}, (${13}::${10}) }' + $n
+        $l += '    Default { throw ([System.Text.Encoding]::UTF8.GetString([convert]::FromBase64String("RmFpbGVkIHRvIERlQ29tcHJlc3MgQnl0ZXMuIENvdWxkIE5vdCByZXNvbHZlIENvbXByZXNzaW9uIQ=="))) }' + $n
+        $l += '}' + $n
+        $s += $l -join ''; $l = @()
+        $l += '${15} = & ([scriptblock]::Create([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("W1N5c3RlbS5JTy5NZW1vcnlTdHJlYW1dOjpOZXcoKQ=="))))' + $n
+        $l += '[void]${14}.CopyTo(${15}); ${14}.Close(); ${14}.Dispose(); ${21}.Close();' + $n
+        $l += '[byte[]]${12} = ${15}.ToArray(); ${15}.Close();' + $n
+        $l += 'Set-Variable -Name {20} -Scope Local -Visibility Private -Option Private -Value (& ([scriptblock]::Create([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("W1N5c3RlbS5TZWN1cml0eS5DcnlwdG9ncmFwaHkuQWVzQ3J5cHRvU2VydmljZVByb3ZpZGVyXTo6bmV3KCk=")))));' + $n
+        $l += '${18} = & ([scriptblock]::Create([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("W1N5c3RlbS5TZWN1cml0eS5DcnlwdG9ncmFwaHkuQ2lwaGVyTW9kZV06OkNCQw=="))))' + $n
+        $l += '${17} = & ([scriptblock]::Create([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("W1N5c3RlbS5TZWN1cml0eS5DcnlwdG9ncmFwaHkuUGFkZGluZ01vZGVdOjpQS0NTNw=="))))' + $n
+        $l += '${16} = & ([scriptblock]::Create([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("W1N5c3RlbS5TZWN1cml0eS5DcnlwdG9ncmFwaHkuSGFzaEFsZ29yaXRobU5hbWVdOjpTSEEx"))))' + $n
+        $l += '${8} = & ([scriptblock]::Create([System.Text.Encoding]::UTF8.GetString([convert]::FromBase64String("W1N5c3RlbS5TZWN1cml0eS5DcnlwdG9ncmFwaHkuUmZjMjg5OERlcml2ZUJ5dGVzXTo6bmV3")) + "(`"{1}`", [Convert]::FromBase64String(`"{24}`"), 10000, `"${16}`")"))' + $n
+        $l += '${20}.KeySize = ${9};' + $n
+        $l += '${20}.Padding = ${17}' + $n
+        $l += '${20}.Mode = ${18}' + $n
+        $l += '${20}.Key = ${8}.GetBytes(${9} / 8)' + $n
+        $l += '${20}.IV = ${12}[0..15];' + $n
+        $l += 'Set-Variable -Name {11} -Scope Local -Visibility Private -Option Private -Value $(${20}.CreateDecryptor().TransformFinalBlock(${12}, 16, ${12}.Length - 16))' + $n
+        $l += '${20}.Clear(); ${20}.Dispose();' + $n
+        $l += '${7} = [System.Text.Encoding]::UTF8.GetString(${11})' + $n
+        $s += $l -join ''
+        $s = $s.Replace("{0}", $base64XOREncPayload)
+        $s = $s.Replace("{1}", $base64key)
+        $s = $s.Replace("{25}", $xkey64)
+        $s = $s.Replace("{23}", $Comprssnm)
+        $s = $s.Replace("{24}", $salt)
+        2..21 | ForEach-Object { $s = $s.Replace("{$_}", [FileCryptr]::RNdvar()) }
+        return $s
     }
     static [string] Obfuscate([string]$filePath) {
+        return [FileCryptr]::Obfuscate($filePath, $filePath)
+    }
+    static [string] Obfuscate([string]$filePath, [string]$OutputFile) {
         [FileCryptr]::Init()
         if (![FileCryptr]::IsTextFile($filePath)) {
             throw new Exception("Error: Not a text file");
         }
-        [string]$fileContents = [IO.File]::ReadAllText($filePath);
-        return [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($fileContents));
+        $stub = [FileCryptr]::GetStub($filePath)
+        $OutputFile = [xgen]::UnResolvedPath($OutputFile)
+        return (Set-Content -Path $OutputFile -Value $stub -Encoding UTF8 -PassThru)
     }
-    static [string] Deobfuscate([string]$base64EncodedString) {
-        [byte[]]$bytes = [Convert]::FromBase64String($base64EncodedString);
-        return [System.Text.Encoding]::UTF8.GetString($bytes);
-    }
+    # static [string] Deobfuscate([string]$base64EncodedString) {
+    #     return 'idk!'
+    # }
     static [void] Download([string]$url, [string]$outFile ) {
         $name = Split-Path $url -Leaf; [console]::Write("Downloading $name to $Outfile ... ")
         if ([double][string]::Join('.', [System.Environment]::Version.Major, [System.Environment]::Version.Minor) -ge [double]'4.5') {
