@@ -3627,6 +3627,7 @@ Class FileCryptr {
         if (![IO.File]::Exists($filePath)) { throw [System.IO.FileNotFoundException]::new("Unable to find the file: $filePath") }
         $codebytes = [System.Text.Encoding]::UTF8.GetBytes([System.IO.File]::ReadAllText($filePath, [System.Text.Encoding]::UTF8));
         $Comprssnm = [FileCryptr]::Compression
+        Write-Verbose "[+] Encrypting ..."
         $base64encString = [convert]::ToBase64String([AesLg]::Encrypt($codebytes, [XConvert]::TosecureString($base64key), [Convert]::FromBase64String($salt), $Comprssnm))
         $base64encbArray = $base64encString.ToCharArray(); [array]::Reverse($base64encbArray);
         $base64encrevstr = -join $base64encbArray
